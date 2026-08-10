@@ -288,7 +288,8 @@
         <input type="text" id="apiKey" placeholder="wae_…" autocomplete="off" spellcheck="false" style="width:100%;height:52px;padding:0 12px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);color:var(--ink);font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:15px;">
       </div>
       <div>
-        <p style="margin: 0 0 8px; font-size: 13.5px; color: var(--dim);">If the browser can't reach the API, open the endpoint in a tab and paste the JSON here.</p>
+        <p style="margin: 0 0 8px; font-size: 13.5px; color: var(--dim);">If the browser can't reach the API, open the endpoint in a tab, copy everything, and paste it here.</p>
+        <button type="button" class="btn" id="openEndpoint" style="margin-bottom: 10px;">Open endpoint for this item</button>
         <textarea id="manual" placeholder='{"buyOrders":[...],"sellOrders":[...]}'></textarea>
         <button type="button" class="btn" id="useManual" style="margin-top: 10px;">Use pasted JSON</button>
       </div>
@@ -472,8 +473,62 @@
   /* ================= API =================
      Numbers are quoted before parsing so every digit the server sent survives. */
 
+  // Quote decimal numbers so their exact digits survive JSON.parse. A regex
+  // can't do this safely: timestamps like "2026-08-10T12:00:00.000Z" contain
+  // what looks like a number after a colon, so string boundaries are tracked.
   function quoteNumbers(text) {
-    return text.replace(/([:\[,]\s*)(-?\d+\.\d+(?:[eE][-+]?\d+)?)/g, '$1"$2"');
+    var out = '', i = 0, inStr = false, esc = false, prevSig = '';
+
+    while (i < text.length) {
+      var c = text.charAt(i);
+
+      if (inStr) {
+        out += c;
+        if (esc) { esc = false; }
+        else if (c === '\\') { esc = true; }
+        else if (c === '"') { inStr = false; }
+        i++;
+        continue;
+      }
+
+      if (c === '"') { inStr = true; out += c; prevSig = '"'; i++; continue; }
+
+      if (c === ' ' || c === '\n' || c === '\r' || c === '\t') { out += c; i++; continue; }
+
+      var startsNumber = (c === '-' || (c >= '0' && c <= '9'));
+      var afterValueSlot = (prevSig === ':' || prevSig === ',' || prevSig === '[');
+
+      if (startsNumber && afterValueSlot) {
+        var j = i;
+        if (text.charAt(j) === '-' || text.charAt(j) === '+') { j++; }
+        while (j < text.length && text.charAt(j) >= '0' && text.charAt(j) <= '9') { j++; }
+
+        var isDecimal = false;
+        if (text.charAt(j) === '.') {
+          isDecimal = true;
+          j++;
+          while (j < text.length && text.charAt(j) >= '0' && text.charAt(j) <= '9') { j++; }
+        }
+        if (text.charAt(j) === 'e' || text.charAt(j) === 'E') {
+          isDecimal = true;
+          j++;
+          if (text.charAt(j) === '+' || text.charAt(j) === '-') { j++; }
+          while (j < text.length && text.charAt(j) >= '0' && text.charAt(j) <= '9') { j++; }
+        }
+
+        var token = text.slice(i, j);
+        out += isDecimal ? ('"' + token + '"') : token;
+        prevSig = '0';
+        i = j;
+        continue;
+      }
+
+      out += c;
+      prevSig = c;
+      i++;
+    }
+
+    return out;
   }
 
   function unwrap(payload) {
@@ -820,6 +875,13 @@
   $('scanBtn').addEventListener('click', scan);
 
   ['extra', 'tax'].forEach(function (id) { $(id).addEventListener('input', render); });
+
+  $('openEndpoint').addEventListener('click', function () {
+    if (!state.item) { setStatus('Pick an item first.', 'err'); return; }
+    var url = DIRECT + '/tradingOrder.getTopOrders?input='
+      + encodeURIComponent(JSON.stringify({ itemCode: state.item }));
+    window.open(url, '_blank', 'noopener');
+  });
 
   $('useManual').addEventListener('click', function () {
     var text = $('manual').value.trim();
