@@ -268,6 +268,9 @@
     <div id="bookRows"></div>
   </div>
 
+  <button type="button" class="btn btn-wide" id="inspectBtn">Inspect top order — every field</button>
+  <pre id="inspect" style="display:none;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;margin:0 0 24px;font-family:'IBM Plex Mono',ui-monospace,monospace;font-size:12.5px;line-height:1.5;color:var(--ink);overflow-x:auto;white-space:pre-wrap;word-break:break-all;"></pre>
+
   <details>
     <summary>Settings and fallbacks</summary>
     <div class="adv">
@@ -299,7 +302,7 @@
   <footer>
     <p>Prices are read as text straight from the response and handled with exact integer arithmetic, so a price like 0.100000001 is never flattened by JavaScript's floating point. What you see is what the server sent.</p>
     <p>Beating works from the rival's own precision. Against 0.0001 with four extra places you get 0.00010001 — a step of 0.00000001 rather than the far more expensive jump to 0.00011.</p>
-    <p><a href="./">Listing price calculator &rarr;</a></p>
+    <p><a href="./">Listing price calculator &rarr;</a> &nbsp;·&nbsp; <span id="build">build 4</span></p>
   </footer>
 
 </div>
@@ -609,7 +612,7 @@
       if (raw === null) { return; }
       var d = dec(raw);
       if (!d) { return; }
-      rows.push({ raw: raw, d: d, trimmed: decTrim(d), qty: qtyOf(o) });
+      rows.push({ raw: raw, d: d, trimmed: decTrim(d), qty: qtyOf(o), src: o });
     });
     return rows;
   }
@@ -876,6 +879,28 @@
 
   ['extra', 'tax'].forEach(function (id) { $(id).addEventListener('input', render); });
 
+  $('inspectBtn').addEventListener('click', function () {
+    var box = $('inspect');
+    if (box.style.display === 'block') { box.style.display = 'none'; return; }
+
+    if (!state.orders) { setStatus('Load an order book first.', 'err'); return; }
+    var selling = state.side === 'sell';
+    var side = sortSide(selling ? state.orders.sell : state.orders.buy, selling);
+    if (!side.length) { setStatus('Nothing on this side of the book.', 'err'); return; }
+
+    var top = side[0];
+    var lines = [];
+    lines.push('// Every field on the top ' + (selling ? 'sell' : 'buy') + ' order.');
+    lines.push('// Values are exactly as the server sent them.');
+    lines.push('');
+    lines.push(JSON.stringify(top.src, null, 2));
+    lines.push('');
+    lines.push('// Price field used: ' + top.raw + '  (' + top.trimmed.s + ' decimal places)');
+
+    box.textContent = lines.join('\n');
+    box.style.display = 'block';
+  });
+
   $('openEndpoint').addEventListener('click', function () {
     if (!state.item) { setStatus('Pick an item first.', 'err'); return; }
     var url = DIRECT + '/tradingOrder.getTopOrders?input='
@@ -910,6 +935,8 @@
     var savedCat = localStorage.getItem('warera-category');
     if (savedCat === 'equip') { setCategory('equip'); }
   } catch (e) {}
+
+  console.log('WarEra order sniper — build 4 (field inspector)');
 
   loadItems();
 })();
