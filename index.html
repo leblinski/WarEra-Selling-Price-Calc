@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WarEra listing price calculator</title>
+<meta name="description" content="Work out the figure to type into the WarEra market so the final listed price, after tax is added on top, lands where you want it.">
+<meta name="theme-color" content="#0E1A20">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ground: #0E1A20;
+    --panel: #15252D;
+    --panel-2: #1C3039;
+    --line: #2A4553;
+    --ink: #EAF0F2;
+    --dim: #8FA8B3;
+    --brass: #C89B3C;
+    --brass-deep: #7A5E22;
+    --verdigris: #6BB8A8;
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    margin: 0;
+    padding: 28px 20px calc(48px + env(safe-area-inset-bottom));
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 520px; margin: 0 auto; }
+
+  .eyebrow {
+    font-family: "Saira Condensed", ui-sans-serif, system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--brass);
+    margin: 0 0 2px;
+  }
+
+  h1 {
+    font-family: "Saira Condensed", ui-sans-serif, system-ui, sans-serif;
+    font-weight: 700;
+    font-size: 34px;
+    line-height: 1.05;
+    letter-spacing: 0.01em;
+    margin: 0 0 8px;
+  }
+
+  .standfirst { color: var(--dim); font-size: 14.5px; margin: 0 0 26px; max-width: 42ch; }
+
+  .fields { display: grid; grid-template-columns: 1fr 108px; gap: 12px; margin-bottom: 22px; }
+
+  .field label {
+    display: block;
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 600;
+    font-size: 12.5px;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin-bottom: 7px;
+  }
+
+  input[type="number"] {
+    width: 100%;
+    height: 52px;
+    padding: 0 14px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    color: var(--ink);
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 21px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    -moz-appearance: textfield;
+  }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type="number"]:hover { border-color: #3A5A6B; }
+  input[type="number"]:focus { outline: none; border-color: var(--brass); box-shadow: 0 0 0 3px rgba(200,155,60,0.18); }
+
+  .docket {
+    position: relative;
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: var(--panel-2);
+    border: 1px solid var(--brass-deep);
+    border-radius: var(--radius);
+    padding: 18px 20px 20px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    overflow: hidden;
+    font: inherit;
+    color: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .docket::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 0; bottom: 0;
+    width: 5px;
+    background: repeating-linear-gradient(to bottom, var(--brass) 0 7px, transparent 7px 15px);
+  }
+  .docket:hover { border-color: var(--brass); }
+  .docket:focus-visible { outline: none; border-color: var(--brass); box-shadow: 0 0 0 3px rgba(200,155,60,0.22); }
+  .docket:active { transform: scale(0.995); }
+
+  .docket-label {
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 600;
+    font-size: 12.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--brass);
+    margin: 0 0 2px;
+  }
+
+  .docket-figure {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-weight: 600;
+    font-size: 52px;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    margin: 0;
+    -webkit-user-select: text;
+    user-select: text;
+    -webkit-touch-callout: default;
+  }
+
+  .docket-hint { font-size: 13px; color: var(--dim); margin: 4px 0 0; }
+
+  .stamp {
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%) rotate(-9deg) scale(0.9);
+    border: 2px solid var(--verdigris);
+    border-radius: 4px;
+    color: var(--verdigris);
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 700;
+    font-size: 17px;
+    letter-spacing: 0.2em;
+    padding: 4px 12px 3px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 140ms ease, transform 140ms ease;
+  }
+  .docket.is-copied .stamp { opacity: 1; transform: translateY(-50%) rotate(-9deg) scale(1); }
+  .docket.is-failed .stamp { opacity: 1; transform: translateY(-50%) rotate(-9deg) scale(1); border-color: var(--brass); color: var(--brass); font-size: 13px; letter-spacing: 0.08em; }
+
+  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 18px 0 26px; }
+  .stat { background: var(--panel); border-radius: var(--radius); padding: 12px 13px; }
+  .stat dt {
+    font-size: 11.5px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin: 0 0 3px;
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 600;
+  }
+  .stat dd {
+    margin: 0;
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-weight: 500;
+    font-size: 18px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .section-label {
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 600;
+    font-size: 12.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--dim);
+    margin: 0 0 10px;
+  }
+
+  .ticks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 28px; }
+
+  .tick {
+    background: transparent;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 11px 12px 12px;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+    color: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tick:hover { border-color: #3A5A6B; background: var(--panel); }
+  .tick:focus-visible { outline: none; border-color: var(--brass); box-shadow: 0 0 0 3px rgba(200,155,60,0.2); }
+  .tick[data-best="1"] { border-color: var(--brass-deep); background: var(--panel); }
+  .tick.is-copied { border-color: var(--verdigris); }
+
+  .tick-kind { font-size: 11.5px; color: var(--dim); margin: 0 0 4px; }
+  .tick-value {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-weight: 600;
+    font-size: 17px;
+    font-variant-numeric: tabular-nums;
+    margin: 0;
+  }
+  .tick-result { font-size: 11.5px; color: var(--dim); margin: 3px 0 0; font-variant-numeric: tabular-nums; }
+
+  .reverse { border-top: 1px solid var(--line); padding-top: 20px; }
+  .reverse-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .reverse-row input { width: 132px; height: 46px; font-size: 18px; }
+  .arrow { color: var(--brass); font-size: 18px; }
+  .reverse-out {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-weight: 600;
+    font-size: 22px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  footer { margin-top: 32px; border-top: 1px solid var(--line); padding-top: 18px; color: var(--dim); font-size: 13px; }
+  footer p { margin: 0 0 8px; }
+  footer code { font-family: "IBM Plex Mono", ui-monospace, monospace; color: var(--ink); font-size: 12.5px; }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+
+  @media (max-width: 430px) {
+    h1 { font-size: 29px; }
+    .docket-figure { font-size: 44px; }
+    .stats { grid-template-columns: 1fr; }
+    .stat { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+    .stat dt { margin: 0; }
+    .ticks { grid-template-columns: 1fr; }
+    .tick { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+    .tick-kind, .tick-result { margin: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+    .docket:active { transform: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="eyebrow">WarEra market</p>
+  <h1>Listing price calculator</h1>
+  <p class="standfirst">Tax is charged on top of the figure you type, so the price buyers see ends up higher. Enter the price you want them to see and this gives you the figure to enter.</p>
+
+  <div class="fields">
+    <div class="field">
+      <label for="target">Price buyers should see</label>
+      <input type="number" id="target" value="4.123" step="0.001" min="0" inputmode="decimal">
+    </div>
+    <div class="field">
+      <label for="tax">Tax %</label>
+      <input type="number" id="tax" value="1" step="0.1" min="0" inputmode="decimal">
+    </div>
+  </div>
+
+  <button type="button" class="docket" id="docket">
+    <p class="docket-label">Enter this figure</p>
+    <p class="docket-figure" id="figure">4.082</p>
+    <p class="docket-hint">Tap to copy</p>
+    <span class="stamp" id="stamp" aria-hidden="true">Copied</span>
+  </button>
+  <p class="sr-only" id="live" role="status" aria-live="polite"></p>
+
+  <dl class="stats">
+    <div class="stat"><dt>Buyers pay</dt><dd id="actual">4.1228</dd></div>
+    <div class="stat"><dt>Off target</dt><dd id="delta">−0.0002</dd></div>
+    <div class="stat"><dt>Tax</dt><dd id="taxamt">0.0408</dd></div>
+  </dl>
+
+  <p class="section-label">Nearby ticks</p>
+  <div class="ticks" id="ticks"></div>
+
+  <div class="reverse">
+    <p class="section-label">Reverse check</p>
+    <div class="reverse-row">
+      <label class="sr-only" for="rev">Figure entered in game</label>
+      <input type="number" id="rev" value="4.082" step="0.001" min="0" inputmode="decimal">
+      <span class="arrow" aria-hidden="true">&rarr;</span>
+      <span class="reverse-out" id="revout">4.1228</span>
+    </div>
+  </div>
+
+  <footer>
+    <p>Prices step in units of 0.001, so an exact match isn't always possible. The three ticks let you choose which side of your target to land on — one under is the one to take when you're undercutting a rival listing.</p>
+    <p>The maths: <code>figure = target &divide; 1.01</code>, rounded to three decimals. Dividing is not the same as taking 1% off — at 100 the two answers differ by a full cent.</p>
+    <p>Change the tax field if your country or item type is charged a different rate. It's remembered next time you open this page.</p>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var round3 = function (x) { return Math.round(x * 1000) / 1000; };
+  var stampTimer = null;
+
+  var last = { target: 4.123, tax: 1, rev: 4.082 };
+
+  function readNumber(id) {
+    var v = parseFloat($(id).value);
+    if (!isNaN(v) && v >= 0) { last[id] = v; }
+    return last[id];
+  }
+
+  function trim(x) {
+    return String(Math.round(x * 100000) / 100000);
+  }
+
+  // iOS Safari ignores textarea.select() unless a Range is used and the field
+  // is readonly. Font size must be >= 16px or iOS zooms the viewport.
+  function legacyCopy(text) {
+    var field = document.createElement('textarea');
+    field.value = text;
+    field.setAttribute('readonly', '');
+    field.contentEditable = 'true';
+    field.style.position = 'fixed';
+    field.style.top = '50%';
+    field.style.left = '0';
+    field.style.width = '1px';
+    field.style.height = '1px';
+    field.style.padding = '0';
+    field.style.border = 'none';
+    field.style.opacity = '0';
+    field.style.fontSize = '16px';
+    document.body.appendChild(field);
+
+    var ok = false;
+    try {
+      var range = document.createRange();
+      range.selectNodeContents(field);
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      field.setSelectionRange(0, 999999);
+      ok = document.execCommand('copy');
+      sel.removeAllRanges();
+    } catch (e) {
+      ok = false;
+    }
+
+    document.body.removeChild(field);
+    return ok;
+  }
+
+  // Last resort: highlight the number so iOS/Android offer their own Copy bubble.
+  function selectFigure() {
+    try {
+      var range = document.createRange();
+      range.selectNodeContents($('figure'));
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } catch (e) {}
+  }
+
+  function showStamp(ok, value) {
+    var docket = $('docket');
+    var stamp = $('stamp');
+    docket.classList.remove('is-copied', 'is-failed');
+    stamp.textContent = ok ? 'Copied' : 'Hold to copy';
+    docket.classList.add(ok ? 'is-copied' : 'is-failed');
+    $('live').textContent = ok ? ('Copied ' + value) : 'Copy blocked by the browser. Select the number and copy it manually.';
+    if (stampTimer) clearTimeout(stampTimer);
+    stampTimer = setTimeout(function () {
+      docket.classList.remove('is-copied', 'is-failed');
+    }, 1700);
+  }
+
+  function markTick(value) {
+    var all = $('ticks').querySelectorAll('.tick');
+    for (var i = 0; i < all.length; i++) {
+      all[i].classList.toggle('is-copied', all[i].getAttribute('data-v') === value);
+    }
+    setTimeout(function () {
+      for (var j = 0; j < all.length; j++) { all[j].classList.remove('is-copied'); }
+    }, 1700);
+  }
+
+  // Must run synchronously inside the tap. iOS drops clipboard permission the
+  // moment the call stack leaves the user gesture, so legacyCopy runs first
+  // and the async Clipboard API is only a top-up.
+  function copy(value) {
+    var ok = legacyCopy(value);
+
+    if (!ok && navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        navigator.clipboard.writeText(value).then(
+          function () { showStamp(true, value); markTick(value); },
+          function () { showStamp(false, value); selectFigure(); }
+        );
+        return;
+      } catch (e) {
+        ok = false;
+      }
+    }
+
+    if (ok && navigator.clipboard && navigator.clipboard.writeText) {
+      try { navigator.clipboard.writeText(value); } catch (e) {}
+    }
+
+    showStamp(ok, value);
+    if (ok) { markTick(value); } else { selectFigure(); }
+  }
+
+  // A tap that also dismisses the keyboard gets swallowed on iOS, so listen on
+  // touchend directly. The guard stops the synthesised click double-firing.
+  var lastTap = 0;
+  function tapCopy(value, event) {
+    if (Date.now() - lastTap < 500) { return; }
+    lastTap = Date.now();
+    if (event && event.cancelable) { event.preventDefault(); }
+    copy(value);
+  }
+
+  function signed(x, places) {
+    return (x >= 0 ? '+' : '\u2212') + Math.abs(x).toFixed(places);
+  }
+
+  function calc() {
+    var target = readNumber('target');
+    var taxPct = readNumber('tax');
+    var mult = 1 + taxPct / 100;
+    var raw = target / mult;
+
+    var nearest = round3(raw);
+    var under = Math.floor(raw * 1000) / 1000;
+    var over = Math.ceil(raw * 1000) / 1000;
+
+    $('figure').textContent = nearest.toFixed(3);
+    $('actual').textContent = (nearest * mult).toFixed(4);
+    $('delta').textContent = signed(nearest * mult - target, 4);
+    $('taxamt').textContent = (nearest * mult - nearest).toFixed(4);
+
+    var options = [
+      { kind: 'One under', value: under },
+      { kind: 'Closest', value: nearest },
+      { kind: 'One over', value: over }
+    ];
+
+    var seen = {};
+    var html = '';
+    options.forEach(function (opt) {
+      var key = opt.value.toFixed(3);
+      if (seen[key]) return;
+      seen[key] = true;
+      var result = opt.value * mult;
+      html += '<button type="button" class="tick" data-v="' + key + '" data-best="' + (key === nearest.toFixed(3) ? '1' : '0') + '" aria-label="Copy ' + key + '">'
+        + '<p class="tick-kind">' + opt.kind + '</p>'
+        + '<p class="tick-value">' + key + '</p>'
+        + '<p class="tick-result">sells at ' + result.toFixed(4) + ' (' + signed(result - target, 4) + ')</p>'
+        + '</button>';
+    });
+    $('ticks').innerHTML = html;
+
+    $('revout').textContent = (readNumber('rev') * mult).toFixed(4);
+
+    try { localStorage.setItem('warera-tax', String(taxPct)); } catch (e) {}
+  }
+
+  try {
+    var savedTax = localStorage.getItem('warera-tax');
+    if (savedTax !== null && savedTax !== '') { $('tax').value = savedTax; }
+  } catch (e) {}
+
+  ['target', 'tax', 'rev'].forEach(function (id) {
+    var el = $(id);
+    el.addEventListener('input', calc);
+    el.addEventListener('focus', function () {
+      var v = parseFloat(el.value);
+      if (!isNaN(v) && v >= 0) { last[id] = v; }
+      el.value = '';
+      el.select();
+    });
+    el.addEventListener('blur', function () {
+      if (el.value.trim() === '') { el.value = trim(last[id]); }
+    });
+  });
+
+  // A touchend after a scroll shouldn't count as a tap, so require the finger
+  // to have stayed roughly put.
+  var touchStart = null;
+
+  document.addEventListener('touchstart', function (e) {
+    var t = e.changedTouches && e.changedTouches[0];
+    touchStart = t ? { x: t.clientX, y: t.clientY } : null;
+  }, { passive: true });
+
+  function wasTap(e) {
+    if (!touchStart) { return false; }
+    var t = e.changedTouches && e.changedTouches[0];
+    if (!t) { return false; }
+    return Math.abs(t.clientX - touchStart.x) < 12 && Math.abs(t.clientY - touchStart.y) < 12;
+  }
+
+  $('docket').addEventListener('touchend', function (e) {
+    if (!wasTap(e)) { return; }
+    tapCopy($('figure').textContent, e);
+  }, { passive: false });
+  $('docket').addEventListener('click', function (e) {
+    tapCopy($('figure').textContent, e);
+  });
+
+  function tickFrom(e) {
+    var node = e.target;
+    while (node && node !== document.body) {
+      if (node.classList && node.classList.contains('tick')) { return node; }
+      node = node.parentNode;
+    }
+    return null;
+  }
+
+  $('ticks').addEventListener('touchend', function (e) {
+    if (!wasTap(e)) { return; }
+    var tick = tickFrom(e);
+    if (tick) { tapCopy(tick.getAttribute('data-v'), e); }
+  }, { passive: false });
+
+  $('ticks').addEventListener('click', function (e) {
+    var tick = tickFrom(e);
+    if (tick) { tapCopy(tick.getAttribute('data-v'), e); }
+  });
+
+  calc();
+})();
+</script>
+</body>
+</html>
