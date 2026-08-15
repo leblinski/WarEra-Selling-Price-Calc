@@ -333,7 +333,7 @@
     <div>
       <label class="label" for="price" id="priceLabel">Their price</label>
       <div class="inputwrap">
-        <input type="text" id="price" value="4.423" inputmode="decimal" autocomplete="off" spellcheck="false" enterkeyhint="done">
+        <input type="text" id="price" value="" placeholder="e.g. 45.831" inputmode="decimal" autocomplete="off" spellcheck="false" enterkeyhint="done">
         <span class="armtag" id="armtag">Ready</span>
       </div>
     </div>
@@ -344,9 +344,9 @@
   </div>
   <p class="hint" id="hint">Press <kbd>Enter</kbd> to copy the result.</p>
 
-  <button type="button" class="docket" id="docket">
+  <button type="button" class="docket" id="docket" disabled>
     <p class="docket-label" id="docketLabel">Type this to undercut them</p>
-    <p class="docket-figure" id="figure">4.3792</p>
+    <p class="docket-figure" id="figure">&mdash;</p>
     <p class="docket-hint">Tap to copy</p>
     <span class="stamp" id="stamp" aria-hidden="true">Copied</span>
   </button>
@@ -412,7 +412,7 @@
   </div>
 
   <footer>
-    <p><span>build 34</span></p>
+    <p><span>build 36</span></p>
   </footer>
 
 </div>
@@ -423,7 +423,7 @@
 
   var state = {
     figure: '',
-    lastPrice: '4.423',
+    lastPrice: '',
     stampTimer: null
   };
 
@@ -740,11 +740,12 @@
      Each entry keeps the figure that was produced at the time, along with the
      mode it came from, so tapping it gives back exactly what you copied. */
 
-  var HIST_KEY = 'warera-calc-history';
+  var HIST_KEY = 'warera-calc-history-v2';
   var HIST_MAX = 14;
   var hist = [];
 
   function histLoad() {
+    try { localStorage.removeItem('warera-calc-history'); } catch (e) {}
     try {
       var raw = JSON.parse(localStorage.getItem(HIST_KEY) || '[]');
       hist = Array.isArray(raw) ? raw.filter(function (h) { return h && h.inp && h.out; }) : [];
@@ -1169,6 +1170,7 @@
       var d = dec(clean);
       if (d && d.i > 0n) { state.lastPrice = clean; return d; }
     }
+    if (!state.lastPrice) { return null; }
     return dec(state.lastPrice);
   }
 
@@ -1176,7 +1178,15 @@
     var beating = $('beatMode').checked;
 
     var R = readPrice();
-    if (!R) { return; }
+    if (!R) {
+      $('figure').textContent = '\u2014';
+      state.figure = '';
+      $('docket').disabled = true;
+      $('warn').hidden = true;
+      $('docketLabel').textContent = beating ? 'Type this to undercut them' : 'Type this figure';
+      $('priceLabel').textContent = beating ? 'Their price' : 'Price you want shown';
+      return;
+    }
 
     var T = dec(String($('tax').value)) || { i: 0n, s: 0 };
     var den = 100n * (10n ** BigInt(T.s));
@@ -1214,6 +1224,7 @@
     }
 
     $('warn').hidden = true;
+    $('docket').disabled = false;
 
     var entryText = decStr(entry);
     state.figure = entryText;
@@ -1279,41 +1290,43 @@
     $('price').select();
   });
 
-  // Clear on focus so a new price can be typed straight over the old one.
+  // Selecting rather than clearing means typing or pasting still replaces the
+  // old value, but nothing is destroyed. Clearing was unsafe because restoring
+  // focus after a copy fires this same event, which wiped a value that had just
+  // been pasted.
   $('price').addEventListener('focus', function () {
-    var v = $('price').value.trim();
-    if (dec(v)) { state.lastPrice = v; }
-    $('price').value = '';
-  });
-  $('price').addEventListener('blur', function () {
-    if ($('price').value.trim() === '') { $('price').value = state.lastPrice; }
+    var el = $('price');
+    setTimeout(function () {
+      try { el.setSelectionRange(0, el.value.length); } catch (e) {}
+    }, 0);
   });
 
-  // Paste: take the number out of whatever was pasted, compute, and copy —
-  // all inside the paste event so the clipboard write keeps its permission.
+  // Always intercepts, regardless of the quick-input setting. A native paste
+  // inserts at the caret, which is how "50.955" became "550.955" when the field
+  // still held a digit. Replacing the whole value removes that possibility.
   $('price').addEventListener('paste', function (e) {
-    if (!$('quickInput').checked) { return; }
     var data = (e.clipboardData || window.clipboardData);
     if (!data) { return; }
-    var text = data.getData('text') || '';
-    var clean = extractNumber(text);
-    if (!clean) { return; }
+    var clean = extractNumber(data.getData('text') || '');
     e.preventDefault();
+    if (!clean) { return; }
+
     $('price').value = clean;
     state.lastPrice = clean;
     calc();
     copy(state.figure);
     histPush(state.lastPrice, state.figure);
-    $('price').select();
   });
 
-  // Alt+Tab back into the window and the box is already waiting.
+  // Alt+Tab back into the window and the box is already waiting, with whatever
+  // is in it selected so the next paste or keystroke replaces it.
   function armInput() {
     if (!$('quickInput').checked) { return; }
     setTimeout(function () {
       var el = $('price');
+      if (document.activeElement === el) { return; }
       el.focus();
-      el.select();
+      try { el.setSelectionRange(0, el.value.length); } catch (e) {}
     }, 40);
   }
   window.addEventListener('focus', armInput);
@@ -1426,7 +1439,7 @@
   syncToggleStyles();
   calc();
 
-  console.log('WarEra equipment sell price calculator — build 34');
+  console.log('WarEra equipment sell price calculator — build 36');
 })();
 </script>
 </body>
