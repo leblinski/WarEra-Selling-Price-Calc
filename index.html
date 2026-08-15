@@ -230,6 +230,18 @@
     border-color: var(--brass); color: var(--brass); font-size: 12px; letter-spacing: 0.06em;
   }
 
+  .market {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; height: 52px; margin: 14px 0 24px;
+    border: 1px solid var(--brass-deep); border-radius: var(--radius);
+    background: var(--panel); color: var(--brass); text-decoration: none;
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 700; font-size: 15px; letter-spacing: 0.09em; text-transform: uppercase;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .market:hover { border-color: var(--brass); background: var(--panel-2); }
+  .market:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--brass-rgb),0.22); }
+
   .warn { color: var(--rust); font-size: 13.5px; margin: 12px 0 0; }
   .warn[hidden] { display: none; }
 
@@ -323,6 +335,10 @@
 
   <p class="warn" id="warn" hidden></p>
 
+  <a class="market" href="https://app.warera.io/market/equipments" target="_blank" rel="noopener noreferrer">
+    Open the equipment marketplace <span aria-hidden="true">&nearr;</span>
+  </a>
+
   <div class="toggles">
     <label class="toggle on" id="beatWrap">
       <input type="checkbox" id="beatMode" checked>
@@ -372,7 +388,7 @@
   </div>
 
   <footer>
-    <p><span>build 25</span></p>
+    <p><span>build 26</span></p>
   </footer>
 
 </div>
@@ -1236,7 +1252,7 @@
   syncToggleStyles();
   calc();
 
-  console.log('WarEra equipment sell price calculator — build 25');
+  console.log('WarEra equipment sell price calculator — build 26');
 })();
 </script>
 </body>
