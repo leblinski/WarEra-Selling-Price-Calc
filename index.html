@@ -56,13 +56,15 @@
 
   input[type="text"], input[type="number"] {
     width: 100%; height: 58px; padding: 0 14px;
-    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    background: var(--panel); border: 1px solid rgba(var(--brass-rgb), 0.38);
+    border-radius: var(--radius);
     color: var(--ink); font-family: "IBM Plex Mono", ui-monospace, monospace;
     font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums;
     -moz-appearance: textfield; appearance: none;
   }
   input[type="number"]::-webkit-outer-spin-button,
   input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  input:hover { border-color: rgba(var(--brass-rgb), 0.62); }
   input:focus { outline: none; border-color: var(--brass); box-shadow: 0 0 0 3px rgba(var(--brass-rgb),0.18); }
   input.armed { border-color: var(--verdigris); }
 
@@ -91,7 +93,7 @@
   .hist-list { display: grid; gap: 6px; }
   .hist-item {
     position: relative; width: 100%; text-align: left; font: inherit; color: inherit;
-    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    background: var(--panel); border: 1px solid rgba(var(--brass-rgb), 0.26); border-radius: 8px;
     padding: 9px 11px; cursor: pointer; -webkit-tap-highlight-color: transparent;
   }
   .hist-item:hover { border-color: var(--brass-deep); }
@@ -251,7 +253,7 @@
   }
   .soundpick-btns { display: flex; gap: 6px; flex-wrap: wrap; }
   .soundbtn {
-    border: 1px solid var(--line); border-radius: 999px; background: transparent;
+    border: 1px solid rgba(var(--brass-rgb), 0.30); border-radius: 999px; background: transparent;
     color: var(--dim); cursor: pointer; padding: 5px 13px;
     font-family: "Saira Condensed", ui-sans-serif, sans-serif;
     font-weight: 600; font-size: 12.5px; letter-spacing: 0.08em; text-transform: uppercase;
@@ -267,7 +269,7 @@
   .toggles { display: grid; gap: 10px; margin-bottom: 22px; }
   .toggle {
     display: flex; align-items: flex-start; gap: 11px;
-    border: 1px solid var(--line); border-radius: var(--radius);
+    border: 1px solid rgba(var(--brass-rgb), 0.22); border-radius: var(--radius);
     padding: 12px 14px; cursor: pointer; -webkit-tap-highlight-color: transparent;
   }
   .toggle:hover { border-color: #3A5A6B; }
@@ -279,7 +281,7 @@
   }
   .toggle-text span { font-size: 13px; color: var(--dim); }
   .toggle-text .credit { display: block; margin-top: 4px; font-style: italic; font-size: 12px; color: var(--brass); opacity: 0.85; }
-  .toggle.on { border-color: var(--brass-deep); background: rgba(28,48,57,0.5); }
+  .toggle.on { border-color: var(--brass-deep); background: rgba(var(--brass-rgb), 0.07); }
   .toggle.on .toggle-text strong { color: var(--brass); }
 
 
@@ -372,7 +374,7 @@
       <input type="checkbox" id="quickInput" checked>
       <span class="toggle-text">
         <strong>Alt+Tab Quick Input</strong>
-        <span>Switching back to this window puts the cursor in the box, so you can paste straight away. Pasting works out the price and copies it in one go.</span>
+        <span>Switching back to this window puts the cursor in the box with the old price selected, so you can paste or type straight over it.</span>
       </span>
     </label>
 
@@ -380,7 +382,7 @@
       <input type="checkbox" id="autoCopy" checked>
       <span class="toggle-text">
         <strong>Auto clipboard result</strong>
-        <span>Copies the figure as you type, so there's nothing to press. Each keystroke updates the clipboard, so the last thing you type is what's on it.</span>
+        <span>Pasting a price copies the result straight away, since a pasted price arrives complete. Typing never copies on its own — press Enter when you're done.</span>
       </span>
     </label>
 
@@ -412,7 +414,7 @@
   </div>
 
   <footer>
-    <p><span>build 37</span></p>
+    <p><span>build 43</span></p>
   </footer>
 
 </div>
@@ -420,6 +422,10 @@
 <script>
 (function () {
   var $ = function (id) { return document.getElementById(id); };
+
+  // True only while a copy is putting focus back where it found it, so the
+  // field's focus handler can tell a restore from the user arriving.
+  var restoringFocus = false;
 
   var state = {
     figure: '',
@@ -511,9 +517,14 @@
 
     if (active && active.focus && active !== document.body) {
       try {
+        // Marked so the field's focus handler knows this is a restore after a
+        // copy, not the user arriving. Without it, every keystroke would
+        // re-select the field and the next character would overwrite.
+        restoringFocus = true;
         active.focus();
         if (selStart !== null) { active.setSelectionRange(selStart, selEnd); }
       } catch (e) {}
+      restoringFocus = false;
     }
     return ok;
   }
@@ -650,38 +661,6 @@
     } catch (e) {}
   }
 
-  // The clipboard write happens on every keystroke, because that's the only
-  // moment the browser will allow it — a debounced write would have lost the
-  // user gesture. Only the confirmation waits for typing to stop, so you get
-  // one tick and one history entry rather than one per character.
-  var autoTimer = null;
-
-  function autoCopy() {
-    if (!$('autoCopy').checked || !state.figure) { return; }
-    var value = state.figure;
-    var ok = true;
-
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      try {
-        navigator.clipboard.writeText(value)['catch'](function () { legacyCopy(value); });
-      } catch (e) { ok = legacyCopy(value); }
-    } else {
-      ok = legacyCopy(value);
-    }
-
-    if (autoTimer) { clearTimeout(autoTimer); }
-    autoTimer = setTimeout(function () {
-      if (!state.figure) { return; }
-      showStamp(ok, state.figure);
-      histPush(state.lastPrice, state.figure);
-    }, 450);
-  }
-
-  function recalc() {
-    calc();
-    autoCopy();
-  }
-
   function showStamp(ok, value) {
     var d = $('docket');
     d.classList.remove('is-copied', 'is-failed');
@@ -740,20 +719,31 @@
      Each entry keeps the figure that was produced at the time, along with the
      mode it came from, so tapping it gives back exactly what you copied. */
 
+  // Session storage, not local: the list survives reloads and Alt+Tabbing but
+  // is gone once the browser closes, so nobody returns to yesterday's prices.
   var HIST_KEY = 'warera-calc-history-v2';
   var HIST_MAX = 14;
   var hist = [];
 
+  function histStore() {
+    try { return window.sessionStorage; } catch (e) { return null; }
+  }
+
   function histLoad() {
     try { localStorage.removeItem('warera-calc-history'); } catch (e) {}
+    try { localStorage.removeItem('warera-calc-history-v2'); } catch (e) {}
     try {
-      var raw = JSON.parse(localStorage.getItem(HIST_KEY) || '[]');
+      var s = histStore();
+      var raw = s ? JSON.parse(s.getItem(HIST_KEY) || '[]') : [];
       hist = Array.isArray(raw) ? raw.filter(function (h) { return h && h.inp && h.out; }) : [];
     } catch (e) { hist = []; }
   }
 
   function histSave() {
-    try { localStorage.setItem(HIST_KEY, JSON.stringify(hist.slice(0, HIST_MAX))); } catch (e) {}
+    try {
+      var s = histStore();
+      if (s) { s.setItem(HIST_KEY, JSON.stringify(hist.slice(0, HIST_MAX))); }
+    } catch (e) {}
   }
 
   function histPush(inp, out) {
@@ -1061,29 +1051,29 @@
       'brass-rgb':'200,155,60', verdigris:'#6BB8A8', rust:'#C2703F' } },
 
     { id: 'obsidian', name: 'Obsidian', vars: {
-      ground:'#0B0D10', panel:'#14171C', 'panel-2':'#1B2027', line:'#2A313A',
-      ink:'#E6EAF0', dim:'#9AA4B2', brass:'#7EA6F0', 'brass-deep':'#3A5686',
-      'brass-rgb':'126,166,240', verdigris:'#6BB8A8', rust:'#D9636B' } },
+      ground:'#111215', panel:'#1D1F23', 'panel-2':'#282A2F', line:'#484B51',
+      ink:'#EEEFF2', dim:'#9AA2B7', brass:'#E87217', 'brass-deep':'#6A3A16',
+      'brass-rgb':'232,114,23', verdigris:'#65C3A0', rust:'#D4725E' } },
 
     { id: 'moss', name: 'Moss', vars: {
-      ground:'#101A14', panel:'#17251D', 'panel-2':'#1E3026', line:'#2C4535',
-      ink:'#E8F0EA', dim:'#93AC9C', brass:'#B5CF5E', 'brass-deep':'#61762C',
-      'brass-rgb':'181,207,94', verdigris:'#6BB8A8', rust:'#D9736B' } },
+      ground:'#0F1813', panel:'#192620', 'panel-2':'#23342C', line:'#41584D',
+      ink:'#EEF2F0', dim:'#9AB7A9', brass:'#E47285', 'brass-deep':'#842736',
+      'brass-rgb':'228,114,133', verdigris:'#65C3A0', rust:'#D4725E' } },
 
     { id: 'wine', name: 'Wine', vars: {
-      ground:'#161014', panel:'#21181F', 'panel-2':'#2C2029', line:'#402F3C',
-      ink:'#F0EAEE', dim:'#B09AA8', brass:'#E0899B', 'brass-deep':'#8A4457',
-      'brass-rgb':'224,137,155', verdigris:'#6BB8A8', rust:'#D9636B' } },
+      ground:'#180E13', panel:'#271920', 'panel-2':'#34222B', line:'#59404D',
+      ink:'#F2EEF0', dim:'#B79AA8', brass:'#27A586', 'brass-deep':'#1A4C40',
+      'brass-rgb':'39,165,134', verdigris:'#65C3A0', rust:'#D4725E' } },
 
     { id: 'parchment', name: 'Parchment', vars: {
-      ground:'#F4EFE4', panel:'#EAE3D4', 'panel-2':'#E1D8C6', line:'#C3B69C',
-      ink:'#2A2419', dim:'#6A6050', brass:'#7D5F17', 'brass-deep':'#A98A3F',
-      'brass-rgb':'125,95,23', verdigris:'#2F7263', rust:'#A8471F' } },
+      ground:'#F8F3EC', panel:'#EEE4D5', 'panel-2':'#E6D7C2', line:'#C8AF88',
+      ink:'#2B2317', dim:'#6E5F49', brass:'#10628E', 'brass-deep':'#4C98C0',
+      'brass-rgb':'16,98,142', verdigris:'#186D53', rust:'#A13221' } },
 
     { id: 'daylight', name: 'Daylight', vars: {
-      ground:'#F2F5F7', panel:'#E7ECF0', 'panel-2':'#DCE3E9', line:'#BCC9D4',
-      ink:'#16202A', dim:'#5A6873', brass:'#1F6FB2', 'brass-deep':'#6E9BC4',
-      'brass-rgb':'31,111,178', verdigris:'#1F7A66', rust:'#B4472A' } }
+      ground:'#EEF2F7', panel:'#D8E2EB', 'panel-2':'#C6D4E1', line:'#91A8C0',
+      ink:'#17212B', dim:'#506377', brass:'#7A30CF', 'brass-deep':'#B196CF',
+      'brass-rgb':'122,48,207', verdigris:'#186D53', rust:'#A13221' } }
   ];
 
   function applyTheme(id) {
@@ -1279,15 +1269,15 @@
     $('soundPick').hidden = !$('sound').checked;
     $('armtag').classList.toggle('show', $('quickInput').checked);
     $('price').classList.toggle('armed', $('quickInput').checked);
-    $('hint').innerHTML = $('quickInput').checked
-      ? 'Alt+Tab back here and paste — the result is copied for you. <kbd>Enter</kbd> also copies.'
+    $('hint').innerHTML = $('autoCopy').checked
+      ? 'Paste a price and the result is copied for you. Typing? Press <kbd>Enter</kbd> when done.'
       : 'Press <kbd>Enter</kbd> to copy the result.';
   }
 
   /* ============ wiring ============ */
 
-  $('price').addEventListener('input', recalc);
-  $('tax').addEventListener('input', recalc);
+  $('price').addEventListener('input', calc);
+  $('tax').addEventListener('input', calc);
 
   // Enter copies the result. A keypress carries user activation, so the
   // clipboard write is allowed.
@@ -1305,15 +1295,18 @@
   // focus after a copy fires this same event, which wiped a value that had just
   // been pasted.
   $('price').addEventListener('focus', function () {
+    if (restoringFocus) { return; }
     var el = $('price');
     setTimeout(function () {
+      if (restoringFocus) { return; }
       try { el.setSelectionRange(0, el.value.length); } catch (e) {}
     }, 0);
   });
 
-  // Always intercepts, regardless of the quick-input setting. A native paste
-  // inserts at the caret, which is how "50.955" became "550.955" when the field
-  // still held a digit. Replacing the whole value removes that possibility.
+  // Always intercepts, regardless of settings. A native paste inserts at the
+  // caret, which is how "50.955" became "550.955" when the field still held a
+  // digit. Replacing the whole value removes that possibility. Whether it then
+  // copies is up to the auto-clipboard toggle.
   $('price').addEventListener('paste', function (e) {
     var data = (e.clipboardData || window.clipboardData);
     if (!data) { return; }
@@ -1324,8 +1317,11 @@
     $('price').value = clean;
     state.lastPrice = clean;
     calc();
-    copy(state.figure);
-    histPush(state.lastPrice, state.figure);
+
+    if ($('autoCopy').checked) {
+      copy(state.figure);
+      histPush(state.lastPrice, state.figure);
+    }
   });
 
   // Alt+Tab back into the window and the box is already waiting, with whatever
@@ -1347,7 +1343,7 @@
   $('beatMode').addEventListener('change', function () {
     syncToggleStyles();
     try { localStorage.setItem('warera-calc-beat', $('beatMode').checked ? '1' : '0'); } catch (e) {}
-    recalc();
+    calc();
   });
 
   $('quickInput').addEventListener('change', function () {
@@ -1359,7 +1355,6 @@
   $('autoCopy').addEventListener('change', function () {
     syncToggleStyles();
     try { localStorage.setItem('warera-calc-auto', $('autoCopy').checked ? '1' : '0'); } catch (e) {}
-    if ($('autoCopy').checked) { autoCopy(); }
   });
 
   $('sound').addEventListener('change', function () {
@@ -1449,7 +1444,7 @@
   syncToggleStyles();
   calc();
 
-  console.log('WarEra equipment sell price calculator — build 37');
+  console.log('WarEra equipment sell price calculator — build 43');
 })();
 </script>
 </body>
