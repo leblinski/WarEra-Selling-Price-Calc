@@ -29,6 +29,7 @@
   html { -webkit-text-size-adjust: 100%; }
 
   body {
+    transition: background-color 160ms ease, color 160ms ease;
     margin: 0;
     padding: 28px 20px calc(48px + env(safe-area-inset-bottom));
     background: var(--ground);
@@ -119,13 +120,14 @@
   .colours-toggle::after { content: " +"; }
   .colours-toggle[aria-expanded="true"]::after { content: " \2212"; }
 
-  .swatches { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; max-width: 200px; }
+  .swatches { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
   .swatches[hidden] { display: none; }
   .swatch {
     width: 22px; height: 22px; border-radius: 50%; cursor: pointer; padding: 0;
     border: 2px solid transparent; background-clip: padding-box;
     -webkit-tap-highlight-color: transparent;
   }
+  .swatch { border: 2px solid var(--line); }
   .swatch:hover { transform: scale(1.12); }
   .swatch[aria-pressed="true"] { border-color: var(--ink); }
   .swatch:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--brass-rgb),0.35); }
@@ -228,16 +230,8 @@
     border-color: var(--brass); color: var(--brass); font-size: 12px; letter-spacing: 0.06em;
   }
 
-  .stats { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin: 16px 0 22px; }
-  .stat { background: var(--panel); border-radius: var(--radius); padding: 12px 13px; }
-  .stat dt {
-    font-family: "Saira Condensed", ui-sans-serif, sans-serif; font-weight: 600;
-    font-size: 11.5px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dim); margin: 0 0 3px;
-  }
-  .stat dd {
-    margin: 0; font-family: "IBM Plex Mono", ui-monospace, monospace;
-    font-weight: 500; font-size: 16px; font-variant-numeric: tabular-nums; word-break: break-all;
-  }
+  .warn { color: var(--rust); font-size: 13.5px; margin: 12px 0 0; }
+  .warn[hidden] { display: none; }
 
   .toggles { display: grid; gap: 10px; margin-bottom: 22px; }
   .toggle {
@@ -274,10 +268,7 @@
   @media (max-width: 430px) {
     h1 { font-size: 29px; }
     .docket-figure { font-size: 36px; }
-    .stats { grid-template-columns: 1fr; }
-    .stat { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-    .stat dt { margin: 0; }
-    }
+        }
 
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
@@ -330,11 +321,7 @@
   </button>
   <p class="sr-only" id="live" role="status" aria-live="polite"></p>
 
-  <dl class="stats">
-    <div class="stat"><dt id="resultLabel">Buyers will see</dt><dd id="result">4.422992</dd></div>
-    <div class="stat"><dt>Beats them by</dt><dd id="margin">0.000008</dd></div>
-    <div class="stat"><dt>Tax you pay</dt><dd id="taxamt">0.0438</dd></div>
-  </dl>
+  <p class="warn" id="warn" hidden></p>
 
   <div class="toggles">
     <label class="toggle on" id="beatWrap">
@@ -347,15 +334,23 @@
     </label>
 
     <label class="toggle" id="quickWrap">
-      <input type="checkbox" id="quickInput">
+      <input type="checkbox" id="quickInput" checked>
       <span class="toggle-text">
         <strong>Alt+Tab Quick Input</strong>
         <span>Switching back to this window puts the cursor in the box, so you can paste straight away. Pasting works out the price and copies it in one go.</span>
       </span>
     </label>
 
+    <label class="toggle" id="autoWrap">
+      <input type="checkbox" id="autoCopy" checked>
+      <span class="toggle-text">
+        <strong>Auto clipboard result</strong>
+        <span>Copies the figure as you type, so there's nothing to press. Each keystroke updates the clipboard, so the last thing you type is what's on it.</span>
+      </span>
+    </label>
+
     <label class="toggle" id="soundWrap">
-      <input type="checkbox" id="sound">
+      <input type="checkbox" id="sound" checked>
       <span class="toggle-text">
         <strong>Copy sound</strong>
         <span>A short tick when the figure reaches the clipboard, a lower tone if the browser blocked it — so you know it landed without looking.</span>
@@ -377,9 +372,7 @@
   </div>
 
   <footer>
-    <p>Every figure is worked out with exact integer arithmetic, so nothing is lost to floating point and the result never drifts onto the wrong side of the price you're beating.</p>
-    <p>Ties go to whoever got there first, so matching a price puts you behind it. Every figure is one full step below theirs, on the 0.001 grid.</p>
-    <p><span>build 21</span></p>
+    <p><span>build 25</span></p>
   </footer>
 
 </div>
@@ -416,23 +409,22 @@
     return (neg ? '-' : '') + a.slice(0, a.length - d.s) + '.' + a.slice(a.length - d.s);
   }
 
-  function decScale(d, ns) { return ns <= d.s ? d : { i: d.i * (10n ** BigInt(ns - d.s)), s: ns }; }
-  function decCmp(a, b) {
-    var s = Math.max(a.s, b.s);
-    var A = decScale(a, s).i, B = decScale(b, s).i;
-    return A < B ? -1 : (A > B ? 1 : 0);
-  }
-  function decSub(a, b) { var s = Math.max(a.s, b.s); return { i: decScale(a, s).i - decScale(b, s).i, s: s }; }
-  function decAbs(d) { return { i: d.i < 0n ? -d.i : d.i, s: d.s }; }
-  function decTrim(d) {
-    var i = d.i, s = d.s;
-    while (s > 0 && i % 10n === 0n) { i = i / 10n; s = s - 1; }
-    return { i: i, s: s };
-  }
 
   /* ============ clipboard ============ */
 
+  // Uses a throwaway textarea, which takes focus — so the caret is put back
+  // afterwards. Without that, copying while typing would eject you from the
+  // field on the first keystroke.
   function legacyCopy(text) {
+    var active = document.activeElement;
+    var selStart = null, selEnd = null;
+    try {
+      if (active && active.tagName === 'INPUT') {
+        selStart = active.selectionStart;
+        selEnd = active.selectionEnd;
+      }
+    } catch (e) {}
+
     var f = document.createElement('textarea');
     f.value = text;
     f.setAttribute('readonly', '');
@@ -451,6 +443,13 @@
       sel.removeAllRanges();
     } catch (e) { ok = false; }
     document.body.removeChild(f);
+
+    if (active && active.focus && active !== document.body) {
+      try {
+        active.focus();
+        if (selStart !== null) { active.setSelectionRange(selStart, selEnd); }
+      } catch (e) {}
+    }
     return ok;
   }
 
@@ -495,6 +494,38 @@
       osc.start(now);
       osc.stop(now + dur + 0.02);
     } catch (e) {}
+  }
+
+  // The clipboard write happens on every keystroke, because that's the only
+  // moment the browser will allow it — a debounced write would have lost the
+  // user gesture. Only the confirmation waits for typing to stop, so you get
+  // one tick and one history entry rather than one per character.
+  var autoTimer = null;
+
+  function autoCopy() {
+    if (!$('autoCopy').checked || !state.figure) { return; }
+    var value = state.figure;
+    var ok = true;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        navigator.clipboard.writeText(value)['catch'](function () { legacyCopy(value); });
+      } catch (e) { ok = legacyCopy(value); }
+    } else {
+      ok = legacyCopy(value);
+    }
+
+    if (autoTimer) { clearTimeout(autoTimer); }
+    autoTimer = setTimeout(function () {
+      if (!state.figure) { return; }
+      showStamp(ok, state.figure);
+      histPush(state.lastPrice, state.figure);
+    }, 450);
+  }
+
+  function recalc() {
+    calc();
+    autoCopy();
   }
 
   function showStamp(ok, value) {
@@ -865,19 +896,39 @@
   }
 
   /* ============ colour settings ============
-     Only the accent moves — the dark ground stays, since the whole layout is
-     built on it. Each theme carries an RGB triple so the translucent focus
-     rings and dashed underlines follow along. */
+     Full palettes rather than accents — ground, panels, rules and text all
+     move together, so light schemes work as well as dark ones. */
 
   var THEMES = [
-    { id: 'brass',     name: 'Brass',     accent: '#C89B3C', deep: '#7A5E22', rgb: '200,155,60' },
-    { id: 'ember',     name: 'Ember',     accent: '#D9722F', deep: '#8A431A', rgb: '217,114,47' },
-    { id: 'verdigris', name: 'Verdigris', accent: '#6BB8A8', deep: '#33705F', rgb: '107,184,168' },
-    { id: 'crimson',   name: 'Crimson',   accent: '#D9636B', deep: '#8A3339', rgb: '217,99,107' },
-    { id: 'violet',    name: 'Violet',    accent: '#9B7FD4', deep: '#5B4785', rgb: '155,127,212' },
-    { id: 'steel',     name: 'Steel',     accent: '#5B9BD5', deep: '#2F5F87', rgb: '91,155,213' },
-    { id: 'lime',      name: 'Lime',      accent: '#A8C24A', deep: '#5F7028', rgb: '168,194,74' },
-    { id: 'bone',      name: 'Bone',      accent: '#D6D0C4', deep: '#6E695E', rgb: '214,208,196' }
+    { id: 'gunmetal', name: 'Gunmetal', vars: {
+      ground:'#0E1A20', panel:'#15252D', 'panel-2':'#1C3039', line:'#2A4553',
+      ink:'#EAF0F2', dim:'#8FA8B3', brass:'#C89B3C', 'brass-deep':'#7A5E22',
+      'brass-rgb':'200,155,60', verdigris:'#6BB8A8', rust:'#C2703F' } },
+
+    { id: 'obsidian', name: 'Obsidian', vars: {
+      ground:'#0B0D10', panel:'#14171C', 'panel-2':'#1B2027', line:'#2A313A',
+      ink:'#E6EAF0', dim:'#9AA4B2', brass:'#7EA6F0', 'brass-deep':'#3A5686',
+      'brass-rgb':'126,166,240', verdigris:'#6BB8A8', rust:'#D9636B' } },
+
+    { id: 'moss', name: 'Moss', vars: {
+      ground:'#101A14', panel:'#17251D', 'panel-2':'#1E3026', line:'#2C4535',
+      ink:'#E8F0EA', dim:'#93AC9C', brass:'#B5CF5E', 'brass-deep':'#61762C',
+      'brass-rgb':'181,207,94', verdigris:'#6BB8A8', rust:'#D9736B' } },
+
+    { id: 'wine', name: 'Wine', vars: {
+      ground:'#161014', panel:'#21181F', 'panel-2':'#2C2029', line:'#402F3C',
+      ink:'#F0EAEE', dim:'#B09AA8', brass:'#E0899B', 'brass-deep':'#8A4457',
+      'brass-rgb':'224,137,155', verdigris:'#6BB8A8', rust:'#D9636B' } },
+
+    { id: 'parchment', name: 'Parchment', vars: {
+      ground:'#F4EFE4', panel:'#EAE3D4', 'panel-2':'#E1D8C6', line:'#C3B69C',
+      ink:'#2A2419', dim:'#6A6050', brass:'#7D5F17', 'brass-deep':'#A98A3F',
+      'brass-rgb':'125,95,23', verdigris:'#2F7263', rust:'#A8471F' } },
+
+    { id: 'daylight', name: 'Daylight', vars: {
+      ground:'#F2F5F7', panel:'#E7ECF0', 'panel-2':'#DCE3E9', line:'#BCC9D4',
+      ink:'#16202A', dim:'#5A6873', brass:'#1F6FB2', 'brass-deep':'#6E9BC4',
+      'brass-rgb':'31,111,178', verdigris:'#1F7A66', rust:'#B4472A' } }
   ];
 
   function applyTheme(id) {
@@ -886,12 +937,14 @@
     if (!t) { t = THEMES[0]; }
 
     var root = document.documentElement;
-    root.style.setProperty('--brass', t.accent);
-    root.style.setProperty('--brass-deep', t.deep);
-    root.style.setProperty('--brass-rgb', t.rgb);
+    for (var key in t.vars) {
+      if (Object.prototype.hasOwnProperty.call(t.vars, key)) {
+        root.style.setProperty('--' + key, t.vars[key]);
+      }
+    }
 
     var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) { meta.setAttribute('content', '#0E1A20'); }
+    if (meta) { meta.setAttribute('content', t.vars.ground); }
 
     var buttons = $('swatches').querySelectorAll('.swatch');
     for (var j = 0; j < buttons.length; j++) {
@@ -904,8 +957,10 @@
   function buildSwatches() {
     var html = '';
     THEMES.forEach(function (t) {
+      // Split disc: background on one side, accent on the other.
       html += '<button type="button" class="swatch" data-id="' + t.id + '"'
-        + ' style="background:' + t.accent + '" aria-pressed="false"'
+        + ' style="background:linear-gradient(135deg,' + t.vars.ground + ' 0 50%,'
+        + t.vars.brass + ' 50% 100%)" aria-pressed="false"'
         + ' title="' + t.name + '" aria-label="' + t.name + '"></button>';
     });
     $('swatches').innerHTML = html;
@@ -922,8 +977,8 @@
       $('swatches').hidden = open;
     });
 
-    var saved = 'brass';
-    try { saved = localStorage.getItem('warera-calc-theme') || 'brass'; } catch (e) {}
+    var saved = 'gunmetal';
+    try { saved = localStorage.getItem('warera-calc-theme') || 'gunmetal'; } catch (e) {}
     applyTheme(saved);
   }
 
@@ -986,9 +1041,8 @@
       if (e <= 0n) {
         $('figure').textContent = '\u2014';
         state.figure = '';
-        $('result').textContent = '\u2014';
-        $('margin').textContent = 'price too low to undercut';
-        $('taxamt').textContent = '\u2014';
+        $('warn').textContent = 'That price is too low to undercut at three decimals.';
+        $('warn').hidden = false;
         return;
       }
       entry = { i: e, s: PLACES };
@@ -996,20 +1050,14 @@
       entry = { i: q <= 0n ? 1n : q, s: PLACES };
     }
 
-    var result = { i: entry.i * num, s: PLACES + 2 + T.s };
+    $('warn').hidden = true;
 
     var entryText = decStr(entry);
     state.figure = entryText;
     $('figure').textContent = entryText;
 
-    $('result').textContent = decStr(decTrim(result));
-    $('margin').textContent = decStr(decTrim(decAbs(decSub(R, result))));
-    $('taxamt').textContent = decStr(decTrim(decSub(result, decScale(entry, result.s))));
-
     $('docketLabel').textContent = beating ? 'Type this to undercut them' : 'Type this figure';
     $('priceLabel').textContent = beating ? 'Their price' : 'Price you want shown';
-    $('resultLabel').textContent = beating ? 'You will show' : 'Buyers will see';
-    $('margin').parentNode.querySelector('dt').textContent = beating ? 'Beats them by' : 'Off target by';
   }
 
   /* ============ modes ============ */
@@ -1017,6 +1065,7 @@
   function syncToggleStyles() {
     $('beatWrap').classList.toggle('on', $('beatMode').checked);
     $('quickWrap').classList.toggle('on', $('quickInput').checked);
+    $('autoWrap').classList.toggle('on', $('autoCopy').checked);
     $('soundWrap').classList.toggle('on', $('sound').checked);
     $('armtag').classList.toggle('show', $('quickInput').checked);
     $('price').classList.toggle('armed', $('quickInput').checked);
@@ -1027,8 +1076,8 @@
 
   /* ============ wiring ============ */
 
-  $('price').addEventListener('input', calc);
-  $('tax').addEventListener('input', calc);
+  $('price').addEventListener('input', recalc);
+  $('tax').addEventListener('input', recalc);
 
   // Enter copies the result. A keypress carries user activation, so the
   // clipboard write is allowed.
@@ -1086,13 +1135,19 @@
   $('beatMode').addEventListener('change', function () {
     syncToggleStyles();
     try { localStorage.setItem('warera-calc-beat', $('beatMode').checked ? '1' : '0'); } catch (e) {}
-    calc();
+    recalc();
   });
 
   $('quickInput').addEventListener('change', function () {
     syncToggleStyles();
     try { localStorage.setItem('warera-calc-quick', $('quickInput').checked ? '1' : '0'); } catch (e) {}
     if ($('quickInput').checked) { $('price').focus(); }
+  });
+
+  $('autoCopy').addEventListener('change', function () {
+    syncToggleStyles();
+    try { localStorage.setItem('warera-calc-auto', $('autoCopy').checked ? '1' : '0'); } catch (e) {}
+    if ($('autoCopy').checked) { autoCopy(); }
   });
 
   $('sound').addEventListener('change', function () {
@@ -1145,11 +1200,14 @@
     var b = localStorage.getItem('warera-calc-beat');
     var q = localStorage.getItem('warera-calc-quick');
     var snd = localStorage.getItem('warera-calc-sound');
+    var au = localStorage.getItem('warera-calc-auto');
     var t = localStorage.getItem('warera-calc-tax');
     if (t) { $('tax').value = t; }
+    // Unset means default, which is on — only an explicit '0' turns one off.
     if (b === '0') { $('beatMode').checked = false; }
-    if (q === '1') { $('quickInput').checked = true; }
-    if (snd === '1') { $('sound').checked = true; }
+    if (q === '0') { $('quickInput').checked = false; }
+    if (snd === '0') { $('sound').checked = false; }
+    if (au === '0') { $('autoCopy').checked = false; }
     // Left over from when this handled items and buy orders too.
     localStorage.removeItem('warera-calc-side');
     localStorage.removeItem('warera-calc-category');
@@ -1178,7 +1236,7 @@
   syncToggleStyles();
   calc();
 
-  console.log('WarEra equipment sell price calculator — build 21');
+  console.log('WarEra equipment sell price calculator — build 25');
 })();
 </script>
 </body>
