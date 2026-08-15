@@ -412,7 +412,7 @@
   </div>
 
   <footer>
-    <p><span>build 36</span></p>
+    <p><span>build 37</span></p>
   </footer>
 
 </div>
@@ -1192,13 +1192,23 @@
     var den = 100n * (10n ** BigInt(T.s));
     var num = den + T.i;
 
-    // The market rounds displayed prices to three decimals, so a listing shown
-    // as 45.831 is really anywhere in 45.8305 to 45.8315. Beating the number on
-    // screen can therefore tie with them, and ties lose to whoever listed first.
-    // So the target is half a display step below what they show.
+    // The market shows three decimals but trims trailing zeros, so a listing
+    // displayed as 50.5 is really 50.500. Normalise to thousandths first,
+    // otherwise the half-step is sized from however many digits were typed and
+    // "50.5" gets undercut by 0.05 instead of 0.0005.
     var PLACES = 3;
-    var target = beating ? { i: R.i * 10n - 5n, s: R.s + 1 } : R;
-    if (target.i <= 0n) { target = R; }
+    var i3;
+    if (R.s <= 3) {
+      i3 = R.i * (10n ** BigInt(3 - R.s));
+    } else {
+      var div = 10n ** BigInt(R.s - 3);
+      i3 = (R.i + div / 2n) / div;
+    }
+
+    // Their true price sits anywhere within half a thousandth of what's shown,
+    // so the target is the bottom of that range.
+    var target = beating ? { i: i3 * 10n - 5n, s: 4 } : { i: i3, s: 3 };
+    if (target.i <= 0n) { target = { i: i3, s: 3 }; }
 
     var D = num * (10n ** BigInt(target.s));
     var N = target.i * (10n ** BigInt(PLACES)) * den;
@@ -1439,7 +1449,7 @@
   syncToggleStyles();
   calc();
 
-  console.log('WarEra equipment sell price calculator — build 36');
+  console.log('WarEra equipment sell price calculator — build 37');
 })();
 </script>
 </body>
