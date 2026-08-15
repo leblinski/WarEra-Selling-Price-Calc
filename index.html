@@ -388,7 +388,7 @@
   </div>
 
   <footer>
-    <p><span>build 26</span></p>
+    <p><span>build 28</span></p>
   </footer>
 
 </div>
@@ -428,9 +428,11 @@
 
   /* ============ clipboard ============ */
 
-  // Uses a throwaway textarea, which takes focus — so the caret is put back
-  // afterwards. Without that, copying while typing would eject you from the
-  // field on the first keystroke.
+  // Copies via a throwaway textarea. Three details matter and all three were
+  // wrong before: the element needs a real text node for a DOM Range to find,
+  // it must be focused or its internal selection isn't the one copied, and any
+  // existing page selection has to be cleared first — otherwise execCommand
+  // copies whatever was highlighted elsewhere, such as the price field.
   function legacyCopy(text) {
     var active = document.activeElement;
     var selStart = null, selEnd = null;
@@ -441,23 +443,46 @@
       }
     } catch (e) {}
 
+    var sel = window.getSelection();
+    try { sel.removeAllRanges(); } catch (e) {}
+
     var f = document.createElement('textarea');
     f.value = text;
+    f.textContent = text;
     f.setAttribute('readonly', '');
     f.contentEditable = 'true';
     f.style.cssText = 'position:fixed;top:50%;left:0;width:1px;height:1px;padding:0;border:none;opacity:0;font-size:16px;';
     document.body.appendChild(f);
+
     var ok = false;
+    var forced = false;
+
+    // Belt and braces: the copy event carries the payload explicitly, so even
+    // if some other selection ends up being the active one, the data written
+    // is still the figure we asked for.
+    var handler = function (e) {
+      try {
+        (e.clipboardData || window.clipboardData).setData('text/plain', text);
+        e.preventDefault();
+        forced = true;
+      } catch (err) {}
+    };
+    document.addEventListener('copy', handler, true);
+
     try {
+      f.focus();
       var range = document.createRange();
       range.selectNodeContents(f);
-      var sel = window.getSelection();
       sel.removeAllRanges();
       sel.addRange(range);
-      f.setSelectionRange(0, 999999);
+      f.setSelectionRange(0, text.length);
       ok = document.execCommand('copy');
-      sel.removeAllRanges();
     } catch (e) { ok = false; }
+
+    document.removeEventListener('copy', handler, true);
+    ok = ok || forced;
+
+    try { sel.removeAllRanges(); } catch (e) {}
     document.body.removeChild(f);
 
     if (active && active.focus && active !== document.body) {
@@ -1044,11 +1069,16 @@
     var den = 100n * (10n ** BigInt(T.s));
     var num = den + T.i;
 
-    // Equipment prices live on a 0.001 grid, so the figure you type is always
-    // three decimals. Nothing finer is useful and nothing finer is offered.
+    // The market rounds displayed prices to three decimals, so a listing shown
+    // as 45.831 is really anywhere in 45.8305 to 45.8315. Beating the number on
+    // screen can therefore tie with them, and ties lose to whoever listed first.
+    // So the target is half a display step below what they show.
     var PLACES = 3;
-    var D = num * (10n ** BigInt(R.s));
-    var N = R.i * (10n ** BigInt(PLACES)) * den;
+    var target = beating ? { i: R.i * 10n - 5n, s: R.s + 1 } : R;
+    if (target.i <= 0n) { target = R; }
+
+    var D = num * (10n ** BigInt(target.s));
+    var N = target.i * (10n ** BigInt(PLACES)) * den;
     var q = N / D;
     var entry;
 
@@ -1252,7 +1282,7 @@
   syncToggleStyles();
   calc();
 
-  console.log('WarEra equipment sell price calculator — build 26');
+  console.log('WarEra equipment sell price calculator — build 28');
 })();
 </script>
 </body>
