@@ -242,6 +242,25 @@
   .market:hover { border-color: var(--brass); background: var(--panel-2); }
   .market:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--brass-rgb),0.22); }
 
+  .soundpick { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: -8px 0 22px 4px; }
+  .soundpick[hidden] { display: none; }
+  .soundpick-label {
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 600; font-size: 11.5px; letter-spacing: 0.13em;
+    text-transform: uppercase; color: var(--dim);
+  }
+  .soundpick-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+  .soundbtn {
+    border: 1px solid var(--line); border-radius: 999px; background: transparent;
+    color: var(--dim); cursor: pointer; padding: 5px 13px;
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 600; font-size: 12.5px; letter-spacing: 0.08em; text-transform: uppercase;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .soundbtn:hover { border-color: var(--brass-deep); color: var(--ink); }
+  .soundbtn[aria-pressed="true"] { border-color: var(--brass); color: var(--brass); background: var(--panel); }
+  .soundbtn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--brass-rgb),0.22); }
+
   .warn { color: var(--rust); font-size: 13.5px; margin: 12px 0 0; }
   .warn[hidden] { display: none; }
 
@@ -374,6 +393,11 @@
     </label>
   </div>
 
+  <div class="soundpick" id="soundPick">
+    <span class="soundpick-label">Sound</span>
+    <div class="soundpick-btns" id="soundBtns"></div>
+  </div>
+
   </main>
 
   <aside class="history">
@@ -388,7 +412,7 @@
   </div>
 
   <footer>
-    <p><span>build 28</span></p>
+    <p><span>build 34</span></p>
   </footer>
 
 </div>
@@ -504,36 +528,125 @@
     } catch (e) {}
   }
 
-  // Tones are synthesised rather than loaded, so there's no audio file to host
-  // and no delay on the first play. The context is created lazily because
-  // browsers won't start one outside a user gesture.
+  /* ============ copy sounds ============
+     Synthesised rather than loaded, so there's no file to host. The original
+     was a triangle wave at 1180Hz with a very fast attack, which reads as a
+     crack; these use sine waves, lower pitches and softer attacks. */
+
   var audioCtx = null;
+
+  function tone(o) {
+    var now = audioCtx.currentTime + (o.delay || 0);
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+
+    osc.type = o.type || 'sine';
+    osc.frequency.setValueAtTime(o.from, now);
+    if (o.to && o.to !== o.from) {
+      osc.frequency.exponentialRampToValueAtTime(o.to, now + o.dur);
+    }
+
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(o.gain, now + (o.attack || 0.010));
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + o.dur);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(now);
+    osc.stop(now + o.dur + 0.03);
+  }
+
+  var SOUNDS = [
+    // Three notes of a major triad, played fast enough to read as one gesture.
+    { id: 'harp', name: 'Harp', play: function () {
+        tone({ from: 523, dur: 0.20, gain: 0.070, attack: 0.006 });
+        tone({ from: 659, dur: 0.20, gain: 0.064, attack: 0.006, delay: 0.055 });
+        tone({ from: 784, dur: 0.28, gain: 0.058, attack: 0.006, delay: 0.110 }); } },
+
+    // Two notes a fifth apart.
+    { id: 'chime', name: 'Chime', play: function () {
+        tone({ from: 880,  dur: 0.32, gain: 0.090, attack: 0.012 });
+        tone({ from: 1320, dur: 0.26, gain: 0.050, attack: 0.012, delay: 0.045 }); } },
+
+    // Real bells have inharmonic partials, roughly 2x, 2.76x and 5.4x the
+    // fundamental, each decaying faster than the last. That's what makes a
+    // bell sound struck rather than beeped.
+    { id: 'bell', name: 'Bell', play: function () {
+        tone({ from: 587,  dur: 0.55, gain: 0.070, attack: 0.004 });
+        tone({ from: 1174, dur: 0.34, gain: 0.032, attack: 0.004 });
+        tone({ from: 1620, dur: 0.20, gain: 0.018, attack: 0.004 });
+        tone({ from: 3170, dur: 0.09, gain: 0.007, attack: 0.003 }); } },
+
+    // Struck wood: a strong fundamental with a brief fourth harmonic on top.
+    { id: 'marimba', name: 'Marimba', play: function () {
+        tone({ from: 523,  dur: 0.26, gain: 0.110, attack: 0.006 });
+        tone({ from: 2092, dur: 0.07, gain: 0.022, attack: 0.004 }); } },
+
+    // Two ascending notes, which reads as "finished" rather than "attention".
+    { id: 'rise', name: 'Rise', play: function () {
+        tone({ from: 659, dur: 0.11, gain: 0.095, attack: 0.010 });
+        tone({ from: 988, dur: 0.22, gain: 0.085, attack: 0.010, delay: 0.075 }); } },
+
+    // A quick upward sweep, the way a water drop resonates as it closes.
+    { id: 'drop', name: 'Drop', play: function () {
+        tone({ from: 420, to: 1500, dur: 0.075, gain: 0.100, attack: 0.005 });
+        tone({ from: 1500, dur: 0.13, gain: 0.030, attack: 0.008, delay: 0.070 }); } },
+
+    // Metal on metal: bright inharmonic partials over a short body.
+    { id: 'coin', name: 'Coin', play: function () {
+        tone({ from: 1050, dur: 0.11, gain: 0.045, attack: 0.002 });
+        tone({ from: 2100, dur: 0.18, gain: 0.042, attack: 0.002 });
+        tone({ from: 3150, dur: 0.12, gain: 0.026, attack: 0.002 });
+        tone({ from: 4700, dur: 0.07, gain: 0.012, attack: 0.002 }); } },
+
+    // Two partials four hertz apart, which beat against each other and shimmer.
+    { id: 'glass', name: 'Glass', play: function () {
+        tone({ from: 1568, dur: 0.42, gain: 0.050, attack: 0.008 });
+        tone({ from: 1572, dur: 0.42, gain: 0.042, attack: 0.008 });
+        tone({ from: 3136, dur: 0.14, gain: 0.011, attack: 0.005 }); } },
+
+    // Dry and percussive: body plus two fast harmonics, gone in 55ms.
+    { id: 'wood', name: 'Wood', play: function () {
+        tone({ from: 780, dur: 0.055, gain: 0.100, attack: 0.003 });
+        tone({ from: 1560, dur: 0.030, gain: 0.028, attack: 0.002 });
+        tone({ from: 2600, dur: 0.020, gain: 0.011, attack: 0.002 }); } },
+
+    // One clean note with a long smooth tail, sonar-like.
+    { id: 'ping', name: 'Ping', play: function () {
+        tone({ from: 1046, dur: 0.60, gain: 0.068, attack: 0.006 });
+        tone({ from: 2093, dur: 0.20, gain: 0.010, attack: 0.005 }); } }
+  ];
+
+  function currentSound() {
+    var id = 'harp';
+    try { id = localStorage.getItem('warera-calc-soundid') || 'harp'; } catch (e) {}
+    for (var i = 0; i < SOUNDS.length; i++) { if (SOUNDS[i].id === id) { return SOUNDS[i]; } }
+    return SOUNDS[0];
+  }
+
+  function ensureAudio() {
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) { return false; }
+      if (!audioCtx) { audioCtx = new Ctx(); }
+      if (audioCtx.state === 'suspended') { audioCtx.resume(); }
+      return true;
+    } catch (e) { return false; }
+  }
+
+  function playSound(id) {
+    if (!ensureAudio()) { return; }
+    for (var i = 0; i < SOUNDS.length; i++) {
+      if (SOUNDS[i].id === id) { try { SOUNDS[i].play(); } catch (e) {} return; }
+    }
+  }
 
   function beep(ok) {
     if (!$('sound').checked) { return; }
+    if (!ensureAudio()) { return; }
     try {
-      var Ctx = window.AudioContext || window.webkitAudioContext;
-      if (!Ctx) { return; }
-      if (!audioCtx) { audioCtx = new Ctx(); }
-      if (audioCtx.state === 'suspended') { audioCtx.resume(); }
-
-      var now = audioCtx.currentTime;
-      var osc = audioCtx.createOscillator();
-      var gain = audioCtx.createGain();
-      var dur = ok ? 0.09 : 0.28;
-
-      osc.type = ok ? 'triangle' : 'sine';
-      osc.frequency.setValueAtTime(ok ? 1180 : 260, now);
-      if (!ok) { osc.frequency.exponentialRampToValueAtTime(170, now + dur); }
-
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(ok ? 0.16 : 0.22, now + 0.008);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
-
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.start(now);
-      osc.stop(now + dur + 0.02);
+      if (ok) { currentSound().play(); }
+      else { tone({ from: 300, to: 170, dur: 0.30, gain: 0.13, attack: 0.020 }); }
     } catch (e) {}
   }
 
@@ -1093,7 +1206,11 @@
       }
       entry = { i: e, s: PLACES };
     } else {
-      entry = { i: q <= 0n ? 1n : q, s: PLACES };
+      // Plain conversion wants the figure whose displayed price is closest to
+      // what you asked for, so this rounds to nearest. Flooring, as the beating
+      // branch does, would land a step low roughly half the time.
+      var rounded = (2n * N + D) / (2n * D);
+      entry = { i: rounded <= 0n ? 1n : rounded, s: PLACES };
     }
 
     $('warn').hidden = true;
@@ -1108,11 +1225,37 @@
 
   /* ============ modes ============ */
 
+  function buildSounds() {
+    var chosen = currentSound().id;
+    var html = '';
+    SOUNDS.forEach(function (s) {
+      html += '<button type="button" class="soundbtn" data-id="' + s.id + '"'
+        + ' aria-pressed="' + (s.id === chosen ? 'true' : 'false') + '">' + s.name + '</button>';
+    });
+    $('soundBtns').innerHTML = html;
+
+    // Clicking is a gesture, so the tone plays as an audition and also unlocks
+    // audio for later automatic copies.
+    $('soundBtns').addEventListener('click', function (e) {
+      var n = e.target;
+      while (n && n !== document.body && !(n.classList && n.classList.contains('soundbtn'))) { n = n.parentNode; }
+      if (!n || !n.classList || !n.classList.contains('soundbtn')) { return; }
+      var id = n.getAttribute('data-id');
+      try { localStorage.setItem('warera-calc-soundid', id); } catch (e2) {}
+      var all = $('soundBtns').querySelectorAll('.soundbtn');
+      for (var i = 0; i < all.length; i++) {
+        all[i].setAttribute('aria-pressed', all[i].getAttribute('data-id') === id ? 'true' : 'false');
+      }
+      playSound(id);
+    });
+  }
+
   function syncToggleStyles() {
     $('beatWrap').classList.toggle('on', $('beatMode').checked);
     $('quickWrap').classList.toggle('on', $('quickInput').checked);
     $('autoWrap').classList.toggle('on', $('autoCopy').checked);
     $('soundWrap').classList.toggle('on', $('sound').checked);
+    $('soundPick').hidden = !$('sound').checked;
     $('armtag').classList.toggle('show', $('quickInput').checked);
     $('price').classList.toggle('armed', $('quickInput').checked);
     $('hint').innerHTML = $('quickInput').checked
@@ -1200,7 +1343,7 @@
     syncToggleStyles();
     try { localStorage.setItem('warera-calc-sound', $('sound').checked ? '1' : '0'); } catch (e) {}
     // The click is a user gesture, so this doubles as a preview and unlocks audio.
-    if ($('sound').checked) { beep(true); }
+    if ($('sound').checked) { playSound(currentSound().id); }
   });
 
   // The link opens in a new tab, so this page stays put and the change is seen.
@@ -1276,13 +1419,14 @@
     loadLatestArticle();
   });
   buildSwatches();
+  buildSounds();
   histLoad();
   histRender();
 
   syncToggleStyles();
   calc();
 
-  console.log('WarEra equipment sell price calculator — build 28');
+  console.log('WarEra equipment sell price calculator — build 34');
 })();
 </script>
 </body>
