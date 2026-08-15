@@ -1,0 +1,11 @@
+{
+  "_comment": "Paste the full address of your latest article into article.url. Leave it as \"\" to hide the tip link. Name and avatar are refreshed from the game automatically — the values here are only a fallback.",
+
+  "article": {
+    "url": "",
+    "title": ""
+  },
+
+  "name": "Lebly",
+  "avatar": "https://media.warera.io/avatars/6a3c07b69ad47ac4cf746b61-1786663240690-6l9nnf6u.jpg"
+}
