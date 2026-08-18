@@ -1,0 +1,15 @@
+name: Fetch item art
+on: [workflow_dispatch]
+permissions: {contents: write}
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash fetch-items.sh
+      - run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add items
+          git commit -m "Add item art" || echo "nothing new"
+          git push
