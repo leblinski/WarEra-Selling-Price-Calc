@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ETC test13 — WarEra Selling Price</title>
+<meta name="description" content="WarEra equipment recent-sale analyser with one live-market question.">
+<meta name="theme-color" content="#0E1A20">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ground:#0E1A20;--panel:#15252D;--panel2:#1C3039;--line:#2A4553;
+  --ink:#EAF0F2;--dim:#8FA8B3;--brass:#C89B3C;--brassdeep:#7A5E22;
+  --brassrgb:200,155,60;--green:#6BB8A8;--rust:#C2703F;--radius:10px
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;padding:24px 18px calc(48px + env(safe-area-inset-bottom));
+  background:var(--ground);color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:16px;line-height:1.5;
+  -webkit-font-smoothing:antialiased
+}
+button,input{font:inherit}
+button{-webkit-tap-highlight-color:transparent}
+.wrap{max-width:760px;margin:0 auto}
+.topbar{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:4px}
+.eyebrow,.section-label,.input-label{
+  font-family:"Saira Condensed",sans-serif;font-weight:600;text-transform:uppercase;
+  letter-spacing:.14em;color:var(--dim)
+}
+.eyebrow{font-size:13px;color:var(--brass);margin:0 0 2px}
+h1{font-family:"Saira Condensed",sans-serif;font-size:34px;line-height:1.05;margin:0}
+.standfirst{color:var(--dim);font-size:14px;margin:8px 0 18px;max-width:650px}
+.settings-btn{
+  border:1px solid var(--brassdeep);border-radius:999px;background:var(--panel);color:var(--brass);
+  padding:7px 14px;cursor:pointer;font-family:"Saira Condensed",sans-serif;font-weight:700;
+  font-size:12px;letter-spacing:.12em;text-transform:uppercase;white-space:nowrap
+}
+.card{
+  border:1px solid rgba(var(--brassrgb),.28);background:var(--panel);
+  border-radius:var(--radius);padding:15px;margin-bottom:12px
+}
+.card.accent{border-color:var(--brassdeep);background:var(--panel2)}
+.section-label{font-size:11.5px;margin:0 0 8px}
+.muted{color:var(--dim)}
+.small{font-size:12.5px}
+.grid6{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}
+.rarity-btn,.slotbtn,.rollbtn,.hourbtn,.posbtn,.action{
+  border:1px solid rgba(var(--brassrgb),.28);background:var(--panel);color:var(--ink);
+  border-radius:8px;cursor:pointer
+}
+.rarity-btn{padding:4px;opacity:.55;min-width:0}
+.rarity-btn[aria-pressed="true"]{opacity:1;border-color:var(--tier);background:var(--panel2)}
+.badge{
+  display:block;width:100%;aspect-ratio:1/1;background-image:url('badges.png');
+  background-size:600% 100%;background-repeat:no-repeat
+}
+.slotgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.slotbtn{
+  height:70px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  color:var(--dim)
+}
+.slotbtn[aria-pressed="true"]{border-color:var(--tier,var(--brass));background:var(--panel2);color:var(--ink)}
+.slotart{
+  width:48px;height:48px;border-radius:6px;background-image:url('items.png');
+  background-size:600% 600%;background-repeat:no-repeat
+}
+.slotname{font-family:"Saira Condensed",sans-serif;font-size:10px;text-transform:uppercase;letter-spacing:.08em}
+.rollset{margin-top:10px}
+.rolllabel,.input-label{
+  display:block;font-size:10.5px;letter-spacing:.12em;margin-bottom:4px
+}
+.rollbtns{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
+.rollbtn{height:34px;font-family:"IBM Plex Mono",monospace;font-size:12px}
+.rollbtn[aria-pressed="true"]{border-color:var(--brass);color:var(--brass);background:var(--panel2)}
+.stepper{display:grid;grid-template-columns:42px 1fr 42px;gap:6px}
+.stepper button{height:40px}
+.rollnum,.api,.price-input{
+  width:100%;height:44px;background:var(--ground);color:var(--ink);
+  border:1px solid rgba(var(--brassrgb),.38);border-radius:8px;padding:0 10px;
+  font-family:"IBM Plex Mono",monospace;font-size:15px
+}
+.price-input{
+  height:58px;font-size:26px;font-weight:600;color:var(--brass);
+  text-align:center;font-variant-numeric:tabular-nums
+}
+.price-input::placeholder{font-size:18px;color:#5F7782}
+.price-input:focus,.api:focus,.rollnum:focus{
+  outline:none;border-color:var(--brass);box-shadow:0 0 0 3px rgba(var(--brassrgb),.15)
+}
+.price-hint{font-size:12.5px;color:var(--dim);margin:7px 0 0;text-align:center}
+.hours{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.hourbtn{
+  height:38px;font-family:"Saira Condensed",sans-serif;font-weight:700;
+  text-transform:uppercase;letter-spacing:.09em;color:var(--dim)
+}
+.hourbtn[aria-pressed="true"]{border-color:var(--brass);background:var(--panel2);color:var(--brass)}
+.action{
+  width:100%;height:48px;margin-top:12px;border-color:var(--brassdeep);
+  background:var(--panel2);color:var(--brass);font-family:"Saira Condensed",sans-serif;
+  font-weight:700;text-transform:uppercase;letter-spacing:.12em
+}
+.action:disabled{opacity:.42;cursor:default}
+.action:not(:disabled):active,.posbtn:active{transform:scale(.98)}
+.status{min-height:20px;margin-top:8px;font-size:12.5px;color:var(--dim)}
+.status.error{color:var(--rust)}
+.status.ok{color:var(--green)}
+.result-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px}
+.big{
+  font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:38px;line-height:1.05;
+  color:var(--ink);font-variant-numeric:tabular-nums
+}
+.confidence{
+  font-family:"Saira Condensed",sans-serif;font-size:11px;font-weight:700;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--green);border:1px solid var(--green);border-radius:999px;padding:4px 9px
+}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:12px}
+.metric{padding:9px;border:1px solid rgba(var(--brassrgb),.2);border-radius:8px;background:rgba(0,0,0,.08)}
+.metric b{display:block;font-family:"IBM Plex Mono",monospace;font-size:17px;color:var(--ink)}
+.metric span{
+  font-family:"Saira Condensed",sans-serif;font-size:10px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--dim)
+}
+.anchorline{
+  display:flex;justify-content:space-between;gap:12px;margin-top:10px;padding:8px 10px;
+  border:1px solid rgba(var(--brassrgb),.18);border-radius:8px;font-size:12px;color:var(--dim)
+}
+.anchorline strong{font-family:"IBM Plex Mono",monospace;color:var(--brass)}
+.question{margin-top:14px;padding-top:13px;border-top:1px solid rgba(var(--brassrgb),.22)}
+.question h2{font-family:"Saira Condensed",sans-serif;font-size:18px;line-height:1.2;margin:0 0 4px}
+.question-x{font-family:"IBM Plex Mono",monospace;color:var(--brass)}
+.position-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:10px}
+.posbtn{height:48px;font-family:"IBM Plex Mono",monospace;font-size:17px}
+.posbtn.past{
+  grid-column:1/-1;font-family:"Saira Condensed",sans-serif;font-weight:700;
+  text-transform:uppercase;letter-spacing:.1em
+}
+.posbtn[aria-pressed="true"]{border-color:var(--green);background:var(--panel2);color:var(--green)}
+.final{
+  margin-top:12px;padding:13px;border:1px solid var(--green);border-radius:var(--radius);
+  background:rgba(107,184,168,.07)
+}
+.final-label{
+  font-family:"Saira Condensed",sans-serif;font-size:11px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.14em;color:var(--green)
+}
+.final-price{
+  font-family:"IBM Plex Mono",monospace;font-size:42px;line-height:1.05;
+  font-weight:600;margin:3px 0
+}
+.explain{font-size:13px;color:var(--dim);margin:6px 0 0}
+.ladder{margin-top:12px}
+.ladder-row{
+  display:grid;grid-template-columns:82px 1fr 1fr;gap:8px;padding:5px 6px;
+  border-radius:5px;font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--dim)
+}
+.ladder-row:nth-child(odd){background:rgba(var(--brassrgb),.05)}
+.ladder-row.hit{outline:1px solid var(--green);color:var(--ink)}
+.sales-list{margin-top:12px;max-height:260px;overflow:auto}
+.sale-row{
+  display:grid;grid-template-columns:82px 1fr 72px;gap:8px;padding:5px 6px;
+  border-radius:5px;font-family:"IBM Plex Mono",monospace;font-size:12px
+}
+.sale-row:nth-child(odd){background:rgba(var(--brassrgb),.05)}
+.sale-row .p{color:var(--ink);font-weight:600}
+.sale-row .age{color:var(--dim);text-align:right}
+.sale-row .fresh{color:var(--green)}
+.details summary{
+  cursor:pointer;color:var(--brass);font-family:"Saira Condensed",sans-serif;
+  font-weight:600;text-transform:uppercase;letter-spacing:.08em;font-size:11px
+}
+.settings{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.58);padding:16px;overflow:auto}
+.settings[hidden]{display:none}
+.sheet{
+  max-width:540px;margin:0 auto;background:var(--ground);
+  border:1px solid rgba(var(--brassrgb),.35);border-radius:14px;padding:16px
+}
+.sheet-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.close{
+  width:38px;height:38px;border-radius:50%;border:1px solid var(--line);
+  background:var(--panel);color:var(--ink);cursor:pointer;font-size:20px
+}
+.note{font-size:12.5px;color:var(--dim);margin:8px 0}
+.debug{
+  white-space:pre-wrap;font-family:"IBM Plex Mono",monospace;
+  font-size:10.5px;color:var(--dim);margin-top:8px
+}
+footer{
+  margin-top:18px;padding-top:12px;border-top:1px solid var(--line);
+  display:flex;justify-content:space-between;gap:8px;font-size:11px;color:var(--dim)
+}
+footer a{color:var(--brass);text-decoration:none}
+[hidden]{display:none!important}
+@media(max-width:560px){
+  body{padding:18px 12px calc(38px + env(safe-area-inset-bottom))}
+  h1{font-size:28px}.topbar{gap:10px}.standfirst{font-size:13px}
+  .card{padding:12px}.slotbtn{height:64px}.slotart{width:44px;height:44px}
+  .rollbtns{grid-template-columns:repeat(5,1fr)}
+  .big{font-size:33px}.final-price{font-size:38px}
+  .metrics{grid-template-columns:repeat(3,1fr)}
+  .metric{padding:7px 5px}.metric b{font-size:15px}.metric span{font-size:9px}
+  .position-grid{gap:5px}.posbtn{height:46px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div>
+      <p class="eyebrow">ETC · WarEra · test13</p>
+      <h1>Selling Price Check</h1>
+    </div>
+    <button class="settings-btn" id="settingsBtn" type="button">Settings</button>
+  </div>
+  <p class="standfirst">Give test13 the current cheapest exact-roll offer. It prioritises true itemMarket sales, automatically falls back if the Gateway's filtered query is slow, then finds supported level X and asks one live-market depth question.</p>
+
+  <section class="card">
+    <p class="section-label">1 · Rarity</p>
+    <div class="grid6" id="rarities"></div>
+  </section>
+
+  <section class="card">
+    <p class="section-label">2 · Piece</p>
+    <div class="slotgrid" id="slots"></div>
+  </section>
+
+  <section class="card" id="rollCard" hidden>
+    <p class="section-label">3 · Exact roll</p>
+    <div id="rolls"></div>
+  </section>
+
+  <section class="card" id="lowestCard" hidden>
+    <p class="section-label">4 · Current lowest offer</p>
+    <label class="input-label" for="lowestOffer">Price of the #1 listing for this exact roll</label>
+    <input
+      class="price-input"
+      id="lowestOffer"
+      type="number"
+      min="0.001"
+      step="0.001"
+      inputmode="decimal"
+      placeholder="e.g. 4.200"
+      autocomplete="off"
+    >
+    <p class="price-hint">Enter only the cheapest price currently visible in WarEra.</p>
+  </section>
+
+  <section class="card" id="windowCard" hidden>
+    <p class="section-label">5 · Decision window</p>
+    <div class="hours">
+      <button type="button" class="hourbtn" data-hours="12" aria-pressed="true">12 hours</button>
+      <button type="button" class="hourbtn" data-hours="24">24 hours</button>
+    </div>
+    <button type="button" class="action" id="analyseBtn" disabled>Analyse recent sales</button>
+    <div class="status" id="status"></div>
+  </section>
+
+  <section class="card accent" id="resultCard" hidden>
+    <div class="result-head">
+      <div>
+        <p class="section-label" style="margin-bottom:4px">Supported level X</p>
+        <div class="big" id="historicalX">—</div>
+      </div>
+      <span class="confidence" id="confidence">—</span>
+    </div>
+
+    <div class="anchorline">
+      <span>Current lowest offer</span>
+      <strong id="floorEcho">—</strong>
+    </div>
+
+    <div class="metrics">
+      <div class="metric"><b id="salesWindow">0</b><span>exact sales · window</span></div>
+      <div class="metric"><b id="salesAtFloor">0</b><span>sales ≥ current floor</span></div>
+      <div class="metric"><b id="supportCount">0</b><span>sales ≥ X</span></div>
+    </div>
+
+    <p class="explain" id="historicalExplain"></p>
+
+    <div class="question" id="question" hidden>
+      <h2>At what position does the price first go above <span class="question-x" id="questionX">—</span>?</h2>
+      <p class="small muted" style="margin:4px 0 0">Look at this exact item + roll in WarEra. Tap the first position whose price is higher than X. If none of the first 12 is higher, tap <strong>Past 12</strong>.</p>
+      <div class="position-grid" id="positionGrid"></div>
+    </div>
+
+    <div class="final" id="finalBox" hidden>
+      <div class="final-label">Recommended selling price</div>
+      <div class="final-price" id="finalPrice">—</div>
+      <p class="explain" id="finalExplain"></p>
+    </div>
+
+    <details class="details" style="margin-top:13px">
+      <summary>Why X? · support ladder</summary>
+      <div class="ladder" id="ladder"></div>
+    </details>
+
+    <details class="details" style="margin-top:10px">
+      <summary>Exact-roll sales used</summary>
+      <div class="sales-list" id="salesList"></div>
+    </details>
+  </section>
+
+  <footer>
+    <span>test13 · itemMarket-first hybrid retrieval</span>
+    <span>Supported by <a href="https://warerastats.io/" target="_blank" rel="noopener noreferrer">warerastats.io</a></span>
+  </footer>
+</div>
+
+<div class="settings" id="settings" hidden>
+  <div class="sheet">
+    <div class="sheet-head">
+      <span class="section-label" style="margin:0;color:var(--brass)">Settings</span>
+      <button type="button" class="close" id="closeSettings" aria-label="Close">×</button>
+    </div>
+    <label class="section-label" for="apiKey">WarEra API key</label>
+    <input class="api" type="password" id="apiKey" placeholder="wra_…" autocomplete="off" spellcheck="false">
+    <p class="note">Stored only in this browser. test13 sends it as <code>X-API-Key</code> directly to <strong>gateway.warerastats.io</strong>. It is never printed in diagnostics.</p>
+    <button type="button" class="action" id="saveKey" style="margin-top:4px">Save & close</button>
+    <details class="details" style="margin-top:14px">
+      <summary>Developer diagnostics</summary>
+      <div class="debug" id="debug">No lookup yet.</div>
+    </details>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+var API='https://gateway.warerastats.io/trpc';
+var CACHE_MS=60000;
+var MAX_PAGES=30;
+var PAGE_SIZE=100;
+var FETCH_TIMEOUT=7000;
+
+var RARITIES=[
+  {id:'basic',name:'Basic',colour:'#9AA0A6'},
+  {id:'reinforced',name:'Reinforced',colour:'#5BB85B'},
+  {id:'advanced',name:'Advanced',colour:'#4A90D9'},
+  {id:'elite',name:'Elite',colour:'#9B6FC6'},
+  {id:'legendary',name:'Legendary',colour:'#D4B106'},
+  {id:'mythic',name:'Mythic',colour:'#C0503B'}
+];
+
+var SLOTS=[
+  {code:'helmet',name:'Helmet'},
+  {code:'chest',name:'Chest'},
+  {code:'boots',name:'Boots'},
+  {code:'gloves',name:'Gloves'},
+  {code:'pants',name:'Pants'},
+  {code:'weapon',name:'Weapon'}
+];
+
+var SHEET_COLS=['weapon','boots','helmet','gloves','chest','pants'];
+var WEAPON_CODES=['knife','gun','rifle','sniper','tank','jet'];
+var WEAPON_NAMES=['Knife','Gun','Rifle','Sniper','Tank','Jet'];
+
+var WEAPON_STATS=[
+  {attack:[21,40],criticalChance:[1,5]},
+  {attack:[51,60],criticalChance:[6,10]},
+  {attack:[71,90],criticalChance:[11,15]},
+  {attack:[101,130],criticalChance:[16,20]},
+  {attack:[141,170],criticalChance:[26,35]},
+  {attack:[221,300],criticalChance:[41,50]}
+];
+
+var STAT_RANGES={
+  helmet:{key:'criticalDamages',label:'crit damage %',tiers:[[1,15],[16,30],[31,50],[71,90],[91,110],[121,150]]},
+  boots:{key:'dodge',label:'dodge',tiers:[[1,5],[6,10],[11,15],[21,25],[31,40],[51,60]]},
+  chest:{key:'armor',label:'armor',tiers:[[1,5],[6,10],[11,15],[21,30],[36,50],[56,70]]},
+  pants:{key:'armor',label:'armor',tiers:[[1,5],[6,10],[11,15],[21,30],[36,50],[56,70]]},
+  gloves:{key:'precision',label:'precision %',tiers:[[1,5],[6,10],[11,15],[21,25],[31,40],[51,60]]}
+};
+
+var state={
+  tier:2,
+  slot:null,
+  rolls:{},
+  hours:12,
+  lowestOffer:null,
+  rawRecent:[],
+  exactRecent:[],
+  x:null,
+  ladder:[],
+  selectedPosition:null,
+  itemCode:null,
+  requestMeta:null,
+  saleCandidates:0,
+  transactionTypes:[]
+};
+
+var cache=Object.create(null);
+
+function $(id){return document.getElementById(id)}
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function tier(){return RARITIES[state.tier-1]}
+function sheetColumn(code){var i=SHEET_COLS.indexOf(code);return i<0?0:i}
+function itemCode(){
+  if(!state.slot)return null;
+  return state.slot==='weapon'?WEAPON_CODES[state.tier-1]:state.slot+state.tier
+}
+function itemName(){
+  if(!state.slot)return '';
+  var s=SLOTS.filter(function(x){return x.code===state.slot})[0];
+  return state.slot==='weapon'?tier().name+' '+WEAPON_NAMES[state.tier-1]:tier().name+' '+(s?s.name:state.slot)
+}
+function rollSpecs(){
+  if(!state.slot)return [];
+  if(state.slot==='weapon'){
+    var w=WEAPON_STATS[state.tier-1];
+    return [
+      {key:'attack',label:'attack',band:w.attack},
+      {key:'criticalChance',label:'crit %',band:w.criticalChance}
+    ]
+  }
+  var s=STAT_RANGES[state.slot];
+  if(!s)return [];
+  return [{key:s.key,label:s.label,band:s.tiers[state.tier-1]}]
+}
+function hasAllRolls(){
+  var specs=rollSpecs();
+  if(!specs.length)return false;
+  for(var i=0;i<specs.length;i++){
+    if(!Number.isFinite(Number(state.rolls[specs[i].key])))return false
+  }
+  return true
+}
+function validLowest(){
+  return Number.isFinite(Number(state.lowestOffer))&&Number(state.lowestOffer)>0
+}
+function canAnalyse(){return !!state.slot&&hasAllRolls()&&validLowest()}
+function resetAnalysis(){
+  state.rawRecent=[];state.exactRecent=[];state.x=null;state.ladder=[];
+  state.selectedPosition=null;state.requestMeta=null;
+  state.saleCandidates=0;state.transactionTypes=[];
+  $('resultCard').hidden=true;$('finalBox').hidden=true;
+  setStatus('')
+}
+function refreshFlow(){
+  $('lowestCard').hidden=!hasAllRolls();
+  $('windowCard').hidden=!(hasAllRolls()&&validLowest());
+  $('analyseBtn').disabled=!canAnalyse()
+}
+function buildRarities(){
+  var out='';
+  RARITIES.forEach(function(r,i){
+    out+='<button type="button" class="rarity-btn" data-tier="'+(i+1)+'" aria-pressed="'+((i+1)===state.tier?'true':'false')+'" style="--tier:'+r.colour+'" title="'+r.name+'">'
+      +'<span class="badge" style="background-position-x:'+(i*20)+'%"></span></button>'
+  });
+  $('rarities').innerHTML=out
+}
+function buildSlots(){
+  var y=((state.tier-1)/5)*100,out='';
+  SLOTS.forEach(function(s){
+    out+='<button type="button" class="slotbtn" data-slot="'+s.code+'" aria-pressed="'+(state.slot===s.code?'true':'false')+'" style="--tier:'+tier().colour+'">'
+      +'<span class="slotart" style="background-position:'+(sheetColumn(s.code)*20)+'% '+y+'%"></span>'
+      +'<span class="slotname">'+esc(s.name)+'</span></button>'
+  });
+  $('slots').innerHTML=out
+}
+function buildRolls(){
+  var specs=rollSpecs(),out='';
+  if(!specs.length){
+    $('rollCard').hidden=true;$('lowestCard').hidden=true;$('windowCard').hidden=true;return
+  }
+  specs.forEach(function(s){
+    var span=s.band[1]-s.band[0]+1,val=state.rolls[s.key];
+    out+='<div class="rollset"><span class="rolllabel">'+esc(s.label)+'</span>';
+    if(span<=30){
+      out+='<div class="rollbtns">';
+      for(var v=s.band[0];v<=s.band[1];v++){
+        out+='<button type="button" class="rollbtn" data-rollkey="'+s.key+'" data-roll="'+v+'" aria-pressed="'+(Number(val)===v?'true':'false')+'">'+v+'</button>'
+      }
+      out+='</div>'
+    }else{
+      var use=Number.isFinite(Number(val))?Number(val):s.band[0];
+      if(!Number.isFinite(Number(val)))state.rolls[s.key]=use;
+      out+='<div class="stepper">'
+        +'<button type="button" class="rollbtn" data-stepkey="'+s.key+'" data-step="-1">−</button>'
+        +'<input class="rollnum" data-rollinput="'+s.key+'" type="number" min="'+s.band[0]+'" max="'+s.band[1]+'" value="'+use+'" inputmode="numeric">'
+        +'<button type="button" class="rollbtn" data-stepkey="'+s.key+'" data-step="1">+</button></div>'
+    }
+    out+='</div>'
+  });
+  $('rolls').innerHTML=out;
+  $('rollCard').hidden=false;
+  refreshFlow()
+}
+function paintHours(){
+  var bs=document.querySelectorAll('[data-hours]');
+  for(var i=0;i<bs.length;i++){
+    bs[i].setAttribute('aria-pressed',Number(bs[i].getAttribute('data-hours'))===state.hours?'true':'false')
+  }
+}
+function setStatus(text,type){
+  $('status').textContent=text||'';
+  $('status').className='status'+(type?' '+type:'')
+}
+function apiKey(){
+  try{return (localStorage.getItem('warera-api-key')||'').trim()}catch(e){return ''}
+}
+function fetchJSON(url,opts,ms){
+  if(!window.AbortController)return fetch(url,opts).then(checkResponse);
+  var ac=new AbortController(),timer=setTimeout(function(){ac.abort()},ms||FETCH_TIMEOUT);
+  opts=opts||{};opts.signal=ac.signal;
+  return fetch(url,opts).then(
+    function(r){clearTimeout(timer);return checkResponse(r)},
+    function(e){clearTimeout(timer);throw e}
+  )
+}
+function checkResponse(r){
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  return r.json()
+}
+function unwrapPage(json){
+  var d=json;
+  if(d&&d.result)d=(d.result.data!==undefined)?d.result.data:d.result;
+  if(d&&d.data&&d.items===undefined)d=d.data;
+  return {
+    items:(d&&Array.isArray(d.items))?d.items:[],
+    nextCursor:(d&&d.nextCursor)?d.nextCursor:null
+  }
+}
+function oldestTime(items){
+  var oldest=Infinity;
+  items.forEach(function(it){
+    var t=it&&it.createdAt?new Date(it.createdAt).getTime():NaN;
+    if(Number.isFinite(t)&&t<oldest)oldest=t
+  });
+  return oldest===Infinity?null:oldest
+}
+function cacheKey(code,hours){return code+'|'+hours}
+function isAbortError(e){
+  return !!(e&&(/abort/i.test(e.name||'')||/abort|timeout/i.test(e.message||'')))
+}
+function getRecentTransactions(code,hours){
+  var key=apiKey();
+  if(!key)return Promise.reject(new Error('APIKEY'));
+
+  var cache24=cache[cacheKey(code,24)];
+  var use24=hours===12&&cache24&&Date.now()-cache24.at<CACHE_MS;
+  var direct=cache[cacheKey(code,hours)];
+
+  if(use24){
+    var c12=Date.now()-12*3600000;
+    return Promise.resolve({
+      items:cache24.items.filter(function(it){return new Date(it.createdAt).getTime()>=c12}),
+      meta:Object.assign({},cache24.meta,{cached:true,reusedFrom24:true,requestedHours:12})
+    })
+  }
+  if(direct&&Date.now()-direct.at<CACHE_MS){
+    return Promise.resolve({
+      items:direct.items,
+      meta:Object.assign({},direct.meta,{cached:true,requestedHours:hours})
+    })
+  }
+
+  var cutoff=Date.now()-hours*3600000;
+  var start=performance.now();
+
+  function fetchMode(mode){
+    var all=[],cursor=null,pages=0,stoppedAtCutoff=false,partial=false,rawDownloaded=0;
+
+    function page(){
+      pages++;
+      setStatus(mode==='filtered'
+        ? 'Gateway · market sales · page '+pages+'…'
+        : 'Gateway · fallback scan · page '+pages+'…');
+
+      var input={limit:PAGE_SIZE,itemCode:code};
+      if(mode==='filtered')input.transactionType='itemMarket';
+      if(cursor)input.cursor=cursor;
+
+      var url=API+'/transaction.getPaginatedTransactions?input='+encodeURIComponent(JSON.stringify(input));
+
+      return fetchJSON(
+        url,
+        {headers:{'Accept':'application/json','X-API-Key':key}},
+        FETCH_TIMEOUT
+      ).then(function(json){
+        var p=unwrapPage(json);
+        rawDownloaded+=p.items.length;
+
+        if(!p.items.length){
+          if(mode==='filtered'&&pages===1)throw new Error('FILTER_EMPTY');
+          return done()
+        }
+
+        var useful=mode==='filtered'
+          ? p.items
+          : p.items.filter(function(it){return transactionTypeOf(it)==='itemMarket'});
+
+        all=all.concat(useful);
+
+        var oldest=oldestTime(p.items);
+        cursor=p.nextCursor;
+
+        if(oldest!==null&&oldest<=cutoff){
+          stoppedAtCutoff=true;
+          return done()
+        }
+        if(!cursor)return done();
+        if(pages>=MAX_PAGES){
+          partial=true;
+          return done()
+        }
+        return page()
+      })
+    }
+
+    function done(){
+      var within=all.filter(function(it){
+        var t=it&&it.createdAt?new Date(it.createdAt).getTime():0;
+        return t>=cutoff
+      });
+      return {
+        items:within,
+        meta:{
+          pages:pages,
+          downloaded:rawDownloaded,
+          marketRows:within.length,
+          withinWindow:within.length,
+          oldest:oldestTime(within),
+          durationMs:Math.round(performance.now()-start),
+          cached:false,
+          reusedFrom24:false,
+          requestedHours:hours,
+          stoppedAtCutoff:stoppedAtCutoff,
+          safetyStop:pages>=MAX_PAGES&&!stoppedAtCutoff,
+          partial:partial,
+          queryMode:mode,
+          fallbackUsed:mode==='fallback'
+        }
+      }
+    }
+    return page()
+  }
+
+  return fetchMode('filtered').catch(function(e){
+    if(e&&e.message&&/^HTTP (401|403)$/.test(e.message))throw e;
+    setStatus('Filtered market query was slow · switching to fallback scan…');
+    return fetchMode('fallback')
+  }).then(function(result){
+    cache[cacheKey(code,hours)]={at:Date.now(),items:result.items,meta:result.meta};
+    return result
+  })
+}
+
+function transactionTypeOf(it){
+  if(!it||typeof it!=='object')return '';
+  return String(
+    it.transactionType!==undefined ? it.transactionType :
+    (it.type!==undefined ? it.type : '')
+  )
+}
+function isCompletedEquipmentSale(it){
+  if(!it||typeof it!=='object')return false;
+  if(transactionTypeOf(it)!=='itemMarket')return false;
+  if(!it.item||!it.item.skills||typeof it.item.skills!=='object')return false;
+  var p=Number(it.money);
+  return Number.isFinite(p)&&p>0
+}
+function exactMatch(it){
+  var skills=(it&&it.item&&it.item.skills)||{},specs=rollSpecs();
+  if(!specs.length)return false;
+  for(var i=0;i<specs.length;i++){
+    var key=specs[i].key;
+    if(skills[key]===undefined||Number(skills[key])!==Number(state.rolls[key]))return false
+  }
+  return true
+}
+function salePrice(it){
+  var p=Number(it&&it.money);
+  return Number.isFinite(p)?p:null
+}
+function saleAgeHours(it){
+  var t=it&&it.createdAt?new Date(it.createdAt).getTime():NaN;
+  return Number.isFinite(t)?(Date.now()-t)/3600000:null
+}
+function recencyWeight(age){
+  if(age===null)return 0;
+  if(age<=3)return 1.15;
+  if(age<=6)return 1;
+  if(age<=12)return .82;
+  if(age<=24)return .55;
+  return 0
+}
+function round3(n){return Math.round((n+Number.EPSILON)*1000)/1000}
+function fmt(n){return Number(n).toFixed(3)}
+function uniquePrices(sales){
+  var seen=Object.create(null),out=[];
+  sales.forEach(function(it){
+    var p=salePrice(it);
+    if(p===null)return;
+    var k=fmt(p);
+    if(!seen[k]){seen[k]=true;out.push(Number(k))}
+  });
+  return out.sort(function(a,b){return a-b})
+}
+
+/*
+  X = highest price at/above today's visible floor with repeat recent support.
+  A single freak top sale is intentionally insufficient when sample size allows.
+  If history has no sufficiently-supported level at/above the live floor,
+  X falls back to the current lowest offer rather than inventing a lower target.
+*/
+function chooseHistoricalX(sales,hours,lowest){
+  if(!sales.length){
+    return {
+      x:lowest,ladder:[],window:[],chosen:{price:lowest,count:0,weight:0,supported:false},
+      anchorOnly:true,weightedTotal:0
+    }
+  }
+
+  var weightedTotal=0;
+  sales.forEach(function(it){weightedTotal+=recencyWeight(saleAgeHours(it))});
+
+  var prices=uniquePrices(sales).filter(function(p){return p>=lowest});
+  var minCount=sales.length<4?1:Math.min(5,Math.max(2,Math.ceil(sales.length*.20)));
+  var minWeight=sales.length<4?.45:Math.max(1.3,weightedTotal*.17);
+  var ladder=[];
+
+  prices.forEach(function(p){
+    var count=0,weight=0,fresh6=0;
+    sales.forEach(function(it){
+      var pr=salePrice(it),age=saleAgeHours(it);
+      if(pr!==null&&pr>=p){
+        count++;weight+=recencyWeight(age);
+        if(age!==null&&age<=6)fresh6++
+      }
+    });
+    ladder.push({
+      price:p,count:count,weight:weight,fresh6:fresh6,
+      supported:count>=minCount&&weight>=minWeight
+    })
+  });
+
+  var supported=ladder.filter(function(x){return x.supported});
+  if(!supported.length){
+    var atFloor=0,atFloorWeight=0;
+    sales.forEach(function(it){
+      var p=salePrice(it);
+      if(p!==null&&p>=lowest){atFloor++;atFloorWeight+=recencyWeight(saleAgeHours(it))}
+    });
+    return {
+      x:lowest,ladder:ladder,window:sales,
+      chosen:{price:lowest,count:atFloor,weight:atFloorWeight,supported:false},
+      anchorOnly:true,weightedTotal:weightedTotal,
+      thresholdCount:minCount,thresholdWeight:minWeight
+    }
+  }
+
+  var chosen=supported[supported.length-1];
+  return {
+    x:chosen.price,ladder:ladder,window:sales,chosen:chosen,
+    anchorOnly:false,weightedTotal:weightedTotal,
+    thresholdCount:minCount,thresholdWeight:minWeight
+  }
+}
+function confidenceFor(n,h,meta){
+  if(meta&&(meta.safetyStop||meta.partial))return 'Incomplete data';
+  if(!h||!n)return 'Low confidence';
+  if(!h.anchorOnly&&n>=8&&h.chosen.count>=3)return 'High confidence';
+  if(n>=4&&h.chosen.count>=2)return 'Medium confidence';
+  return 'Low confidence'
+}
+function describeRoll(){
+  return rollSpecs().map(function(s){return s.label+' '+state.rolls[s.key]}).join(' · ')
+}
+function countAtOrAbove(sales,p){
+  return sales.reduce(function(n,it){
+    var x=salePrice(it);return n+(x!==null&&x>=p?1:0)
+  },0)
+}
+function renderAnalysis(){
+  var h=chooseHistoricalX(state.exactRecent,state.hours,state.lowestOffer);
+  state.x=h.x;state.ladder=h.ladder;
+
+  $('resultCard').hidden=false;
+  $('finalBox').hidden=true;
+  state.selectedPosition=null;
+  paintPositionButtons();
+
+  var floorCount=countAtOrAbove(state.exactRecent,state.lowestOffer);
+  $('historicalX').textContent=fmt(h.x);
+  $('questionX').textContent=fmt(h.x);
+  $('floorEcho').textContent=fmt(state.lowestOffer);
+  $('salesWindow').textContent=state.exactRecent.length;
+  $('salesAtFloor').textContent=floorCount;
+  $('supportCount').textContent=h.chosen.count;
+  $('confidence').textContent=confidenceFor(state.exactRecent.length,h,state.requestMeta);
+
+  if(!state.exactRecent.length){
+    var extra=state.saleCandidates
+      ?' '+state.saleCandidates+' equipment-sale shaped transaction'+(state.saleCandidates===1?' was':'s were')+' returned for this item, but none matched the exact roll.'
+      :' No equipment-sale shaped transactions were returned for this item.';
+    $('historicalExplain').textContent=
+      'No exact '+describeRoll()+' sales were found in the last '+state.hours+'h.'+extra+' X therefore stays at the current lowest offer. The live-depth answer will be useful context, but the final recommendation is low-confidence.';
+  }else if(h.anchorOnly){
+    $('historicalExplain').innerHTML=
+      '<strong>'+esc(itemName())+'</strong> · '+esc(describeRoll())+'. '
+      +'Recent history does not give repeated support above the current floor of '+fmt(state.lowestOffer)+'. '
+      +'So test13 uses the live floor itself as X rather than extrapolating upward from one-off sales.';
+  }else{
+    $('historicalExplain').innerHTML=
+      '<strong>'+esc(itemName())+'</strong> · '+esc(describeRoll())+'. '
+      +floorCount+' exact-roll sale'+(floorCount===1?'':'s')+' reached the current floor ('+fmt(state.lowestOffer)+') or higher. '
+      +'The highest price with repeated, recency-weighted support is '+fmt(h.x)+', with '+h.chosen.count+' sale'+(h.chosen.count===1?'':'s')+' at or above it.';
+  }
+
+  $('question').hidden=false;
+  $('ladder').innerHTML=renderLadder(h);
+  $('salesList').innerHTML=renderSalesList(state.exactRecent)
+}
+function renderLadder(h){
+  var rows='<div class="ladder-row"><span>PRICE</span><span>≥ PRICE</span><span>WEIGHT</span></div>';
+  if(!h.ladder.length){
+    return rows+'<div class="ladder-row hit"><span>'+fmt(state.lowestOffer)+'</span><span>0 sales</span><span>live floor</span></div>'
+  }
+  var relevant=h.ladder.slice(-12).reverse();
+  relevant.forEach(function(r){
+    rows+='<div class="ladder-row '+(Math.abs(r.price-h.x)<0.0005?'hit':'')+'"><span>'+fmt(r.price)+'</span><span>'+r.count+' sales</span><span>'+r.weight.toFixed(2)+'</span></div>'
+  });
+  if(!h.ladder.some(function(r){return Math.abs(r.price-state.lowestOffer)<0.0005})){
+    rows+='<div class="ladder-row '+(h.anchorOnly?'hit':'')+'"><span>'+fmt(state.lowestOffer)+'</span><span>'+countAtOrAbove(state.exactRecent,state.lowestOffer)+' sales</span><span>live floor</span></div>'
+  }
+  return rows
+}
+function ageText(hours){
+  if(hours===null)return '—';
+  if(hours<1)return Math.max(1,Math.round(hours*60))+'m';
+  if(hours<24)return hours.toFixed(1)+'h';
+  return (hours/24).toFixed(1)+'d'
+}
+function renderSalesList(sales){
+  if(!sales.length)return '<p class="small muted">No exact-roll sales in this window.</p>';
+  var arr=sales.slice().sort(function(a,b){return new Date(b.createdAt)-new Date(a.createdAt)});
+  return arr.map(function(it){
+    var p=salePrice(it),age=saleAgeHours(it),sell=null;
+    if(it.offerCreatedAt&&it.createdAt){
+      sell=(new Date(it.createdAt)-new Date(it.offerCreatedAt))/3600000;
+      if(!Number.isFinite(sell)||sell<0)sell=null
+    }
+    return '<div class="sale-row"><span class="p">'+(p===null?'—':fmt(p))+'</span>'
+      +'<span>'+(sell===null?'sell time —':('sold in '+ageText(sell)))+'</span>'
+      +'<span class="age '+(age!==null&&age<=6?'fresh':'')+'">'+ageText(age)+' ago</span></div>'
+  }).join('')
+}
+function buildPositionButtons(){
+  var out='';
+  for(var i=1;i<=12;i++)out+='<button type="button" class="posbtn" data-pos="'+i+'">'+i+'</button>';
+  out+='<button type="button" class="posbtn past" data-pos="13">Past 12</button>';
+  $('positionGrid').innerHTML=out
+}
+function paintPositionButtons(){
+  var bs=$('positionGrid').querySelectorAll('[data-pos]');
+  for(var i=0;i<bs.length;i++){
+    bs[i].setAttribute('aria-pressed',Number(bs[i].getAttribute('data-pos'))===state.selectedPosition?'true':'false')
+  }
+}
+
+/*
+  Final decision deliberately uses only information we truly have:
+  - current live floor supplied by user
+  - exact-roll completed-sale velocity
+  - historical support at/above X
+  - number of visible listings at/below X inferred from the one position answer
+
+  If visible blockers are no greater than the number of exact-roll sales that
+  cleared in the chosen window AND X has recent sale support, retain X.
+  Otherwise retreat to the current live floor instead of inventing a midpoint
+  whose queue depth is unknown.
+*/
+function finalRecommendation(position){
+  if(state.x===null)return;
+  state.selectedPosition=position;
+  paintPositionButtons();
+
+  var blockers=position===13?12:Math.max(0,position-1);
+  var demand=state.exactRecent.length;
+  var xSupport=countAtOrAbove(state.exactRecent,state.x);
+  var final=state.x;
+  var reason='',headline='';
+
+  var xHasEvidence=xSupport>0;
+  var queueLooksClearable=blockers<=demand;
+
+  if(blockers===0&&xHasEvidence){
+    headline='Strong live setup.';
+    reason='The first visible listing is already above X, while recent exact-roll sales have reached X. There is no visible item at or below X ahead of this price level.'
+  }else if(queueLooksClearable&&xHasEvidence){
+    headline='Recent demand can plausibly clear the visible queue.';
+    reason=(position===13?'At least 12':String(blockers))+' listing'+(blockers===1?'':'s')+' sit at or below X, versus '+demand+' exact-roll sale'+(demand===1?'':'s')+' in the last '+state.hours+'h. '+xSupport+' recent sale'+(xSupport===1?'':'s')+' also reached X or higher.'
+  }else{
+    final=state.lowestOffer;
+    headline='Stay at the current floor.';
+    if(!xHasEvidence){
+      reason='There are no exact-roll sales at X or higher in the selected window, so test13 will not recommend an unsupported premium.'
+    }else{
+      reason=(position===13?'At least 12':String(blockers))+' listing'+(blockers===1?'':'s')+' sit at or below X, versus only '+demand+' exact-roll sale'+(demand===1?'':'s')+' in the last '+state.hours+'h. That visible queue is too heavy to justify the higher supported level.'
+    }
+  }
+
+  if(state.requestMeta&&(state.requestMeta.safetyStop||state.requestMeta.partial)){
+    final=state.lowestOffer;
+    headline='Incomplete history — conservative result.';
+    reason='The pagination safety limit was reached before the selected time boundary. Because the history may be incomplete, test13 falls back to the current lowest offer.'
+  }
+
+  $('finalPrice').textContent=fmt(final);
+  $('finalExplain').innerHTML='<strong>'+esc(headline)+'</strong> '+esc(reason)
+    +' <span class="muted">“Past 12” is treated internally as position 13, meaning at least 12 listings are at or below X.</span>';
+  $('finalBox').hidden=false
+}
+function debug(meta){
+  var oldest=meta&&meta.oldest?new Date(meta.oldest).toISOString():'—';
+  $('debug').textContent=
+    'itemCode: '+(state.itemCode||'—')+'\n'
+    +'roll: '+(describeRoll()||'—')+'\n'
+    +'current floor: '+(validLowest()?fmt(state.lowestOffer):'—')+'\n'
+    +'requested window: '+state.hours+'h\n'
+    +'query mode: '+(meta?meta.queryMode:'—')+'\n'
+    +'fallback used: '+(meta&&meta.fallbackUsed?'YES':'no')+'\n'
+    +'pages fetched: '+(meta?meta.pages:'—')+'\n'
+    +'raw rows downloaded: '+(meta?meta.downloaded:'—')+'\n'
+    +'itemMarket rows in window: '+(meta?meta.marketRows:'—')+'\n'
+    +'oldest market row: '+oldest+'\n'
+    +'duration: '+(meta?(meta.durationMs+' ms'):'—')+'\n'
+    +'memory cache: '+(meta&&meta.cached?'yes':'no')+'\n'
+    +'reused 24h cache: '+(meta&&meta.reusedFrom24?'yes':'no')+'\n'
+    +'stopped at time boundary: '+(meta&&meta.stoppedAtCutoff?'yes':'no')+'\n'
+    +'partial history: '+(meta&&meta.partial?'YES':'no')+'\n'
+    +'safety-page stop: '+(meta&&meta.safetyStop?'YES':'no')+'\n'
+    +'equipment-sale shaped rows: '+state.saleCandidates+'\n'
+    +'transaction types: '+(state.transactionTypes.length?state.transactionTypes.join(', '):'—')+'\n'
+    +'exact-roll matches: '+state.exactRecent.length
+}
+function analyse(){
+  if(!canAnalyse())return;
+  var key=apiKey();
+  if(!key){
+    setStatus('Add your WarEra API key in Settings first.','error');
+    $('settings').hidden=false;$('apiKey').focus();return
+  }
+
+  resetAnalysis();
+  state.itemCode=itemCode();
+  $('analyseBtn').disabled=true;
+  setStatus('Starting Gateway lookup…');
+
+  getRecentTransactions(state.itemCode,state.hours).then(function(res){
+    state.rawRecent=res.items;
+
+    var saleRows=res.items.filter(isCompletedEquipmentSale);
+    state.saleCandidates=saleRows.length;
+
+    var typeMap=Object.create(null);
+    res.items.forEach(function(it){
+      var t=transactionTypeOf(it)||'(missing)';
+      typeMap[t]=(typeMap[t]||0)+1
+    });
+    state.transactionTypes=Object.keys(typeMap).map(function(k){
+      return k+': '+typeMap[k]
+    });
+
+    state.exactRecent=saleRows.filter(exactMatch);
+    state.requestMeta=res.meta;
+    debug(res.meta);
+    renderAnalysis();
+
+    var suffix=res.meta.cached?' · memory cache':'';
+    var mode=res.meta.fallbackUsed?' · fallback scan':' · filtered market query';
+    if(res.meta.safetyStop||res.meta.partial){
+      setStatus('Partial history · '+res.meta.pages+' page'+(res.meta.pages===1?'':'s')+mode+'. Recommendation kept conservative.','error')
+    }else{
+      setStatus('Done · '+res.meta.pages+' page'+(res.meta.pages===1?'':'s')+' · '+res.meta.durationMs+' ms'+mode+suffix+'.','ok')
+    }
+  }).catch(function(e){
+    if(e&&e.message==='APIKEY'){
+      setStatus('Add your WarEra API key in Settings first.','error')
+    }else if(e&&/abort/i.test(e.message||'')){
+      setStatus('Gateway lookup timed out in both filtered and fallback modes. Tap Analyse to retry.','error')
+    }else{
+      setStatus('Lookup failed: '+(e&&e.message?e.message:'unknown error'),'error')
+    }
+    $('debug').textContent='Lookup error: '+(e&&e.message?e.message:'unknown')
+  }).finally(function(){
+    $('analyseBtn').disabled=!canAnalyse()
+  })
+}
+
+/* Events */
+$('rarities').addEventListener('click',function(e){
+  var b=e.target.closest('[data-tier]');if(!b)return;
+  state.tier=Number(b.getAttribute('data-tier'));
+  state.rolls={};state.lowestOffer=null;$('lowestOffer').value='';
+  resetAnalysis();buildRarities();buildSlots();
+  if(state.slot)buildRolls();refreshFlow()
+});
+$('slots').addEventListener('click',function(e){
+  var b=e.target.closest('[data-slot]');if(!b)return;
+  state.slot=b.getAttribute('data-slot');
+  state.rolls={};state.lowestOffer=null;$('lowestOffer').value='';
+  resetAnalysis();buildSlots();buildRolls();refreshFlow()
+});
+$('rolls').addEventListener('click',function(e){
+  var b=e.target.closest('[data-roll],[data-stepkey]');if(!b)return;
+  if(b.hasAttribute('data-roll')){
+    state.rolls[b.getAttribute('data-rollkey')]=Number(b.getAttribute('data-roll'))
+  }else{
+    var key=b.getAttribute('data-stepkey'),step=Number(b.getAttribute('data-step'));
+    var spec=rollSpecs().filter(function(s){return s.key===key})[0];
+    var current=Number(state.rolls[key]);
+    if(!Number.isFinite(current))current=spec.band[0];
+    current=Math.max(spec.band[0],Math.min(spec.band[1],current+step));
+    state.rolls[key]=current
+  }
+  resetAnalysis();buildRolls();refreshFlow()
+});
+$('rolls').addEventListener('input',function(e){
+  var el=e.target.closest('[data-rollinput]');if(!el)return;
+  var key=el.getAttribute('data-rollinput'),spec=rollSpecs().filter(function(s){return s.key===key})[0],v=Number(el.value);
+  if(Number.isFinite(v))state.rolls[key]=Math.max(spec.band[0],Math.min(spec.band[1],v));
+  resetAnalysis();refreshFlow()
+});
+$('lowestOffer').addEventListener('input',function(){
+  var v=Number(this.value);
+  state.lowestOffer=Number.isFinite(v)&&v>0?round3(v):null;
+  resetAnalysis();refreshFlow()
+});
+document.querySelector('.hours').addEventListener('click',function(e){
+  var b=e.target.closest('[data-hours]');if(!b)return;
+  var next=Number(b.getAttribute('data-hours'));
+  if(next===state.hours)return;
+  state.hours=next;paintHours();resetAnalysis();refreshFlow()
+});
+$('analyseBtn').addEventListener('click',analyse);
+$('positionGrid').addEventListener('click',function(e){
+  var b=e.target.closest('[data-pos]');if(!b)return;
+  finalRecommendation(Number(b.getAttribute('data-pos')))
+});
+$('settingsBtn').addEventListener('click',function(){
+  $('settings').hidden=false;$('apiKey').value=apiKey();
+  setTimeout(function(){$('apiKey').focus()},20)
+});
+$('closeSettings').addEventListener('click',function(){$('settings').hidden=true});
+$('settings').addEventListener('click',function(e){if(e.target===$('settings'))$('settings').hidden=true});
+$('saveKey').addEventListener('click',function(){
+  try{localStorage.setItem('warera-api-key',$('apiKey').value.trim())}catch(e){}
+  $('settings').hidden=true;
+  setStatus(apiKey()?'API key saved on this device.':'API key removed.',apiKey()?'ok':'')
+});
+$('apiKey').addEventListener('keydown',function(e){if(e.key==='Enter')$('saveKey').click()});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')$('settings').hidden=true});
+
+buildRarities();
+buildSlots();
+buildPositionButtons();
+paintHours();
+refreshFlow();
+try{var k=localStorage.getItem('warera-api-key');if(k)$('apiKey').value=k}catch(e){}
+console.log('ETC test13 — live floor + recent history + one depth question');
+})();
+</script>
+</body>
+</html>
