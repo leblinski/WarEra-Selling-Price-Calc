@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ETC test22 — WarEra Selling Price</title>
+<meta name="description" content="Compact sidebar prototype for WarEra equipment selling-price recommendations.">
+<meta name="theme-color" content="#0E1A20">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ground:#0E1A20;--panel:#15252D;--panel2:#1C3039;--line:#2A4553;
+  --ink:#EAF0F2;--dim:#8FA8B3;--brass:#C89B3C;--brassdeep:#7A5E22;
+  --brassrgb:200,155,60;--green:#6BB8A8;--rust:#C2703F;--radius:9px;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;background:#091116}
+body{
+  margin:0;background:
+    radial-gradient(circle at 18% 20%,rgba(42,69,83,.16),transparent 28%),
+    #091116;color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,sans-serif;-webkit-font-smoothing:antialiased;
+}
+button,input,select{font:inherit}
+button{-webkit-tap-highlight-color:transparent}
+[hidden]{display:none!important}
+
+.shell{min-height:100vh;display:flex;justify-content:flex-end}
+.sidebar{
+  width:390px;max-width:100%;min-height:100vh;background:var(--ground);
+  border-left:1px solid rgba(var(--brassrgb),.24);
+  box-shadow:-18px 0 60px rgba(0,0,0,.28);
+  padding:13px 12px calc(28px + env(safe-area-inset-bottom));
+}
+.header{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:8px}
+.eyebrow,.section-label,.micro{
+  font-family:"Saira Condensed",sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.12em
+}
+.eyebrow{font-size:10px;color:var(--brass);margin:0}
+h1{font-family:"Saira Condensed",sans-serif;font-size:25px;line-height:1;margin:1px 0 0}
+.iconbtn,.tinybtn{
+  border:1px solid rgba(var(--brassrgb),.28);background:var(--panel);color:var(--dim);
+  border-radius:8px;cursor:pointer
+}
+.iconbtn{width:36px;height:36px;font-size:17px}
+.tinybtn{height:31px;padding:0 10px;font-family:"Saira Condensed",sans-serif;font-size:11px;
+  font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.tinybtn:hover,.iconbtn:hover{border-color:var(--brass);color:var(--brass)}
+
+.card{
+  border:1px solid rgba(var(--brassrgb),.22);background:var(--panel);
+  border-radius:var(--radius);padding:10px;margin-bottom:8px
+}
+.card.accent{background:var(--panel2);border-color:var(--brassdeep)}
+.section-label{font-size:10px;color:var(--dim);margin:0 0 6px}
+.small{font-size:11.5px;color:var(--dim);line-height:1.38}
+.summarybar{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  border:1px solid rgba(var(--brassrgb),.24);border-radius:8px;background:var(--panel);
+  padding:8px 9px;margin-bottom:8px
+}
+.summarytext{min-width:0}
+.summarytext b{display:block;font-family:"Saira Condensed",sans-serif;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.summarytext span{display:block;color:var(--dim);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.grid6{display:grid;grid-template-columns:repeat(6,1fr);gap:4px}
+.rarity-btn,.slotbtn,.rollbtn,.agebtn,.modebtn,.posbtn,.action,.deepbtn{
+  border:1px solid rgba(var(--brassrgb),.24);background:var(--panel);color:var(--ink);
+  border-radius:7px;cursor:pointer
+}
+.rarity-btn{padding:3px;opacity:.5;min-width:0}
+.rarity-btn[aria-pressed="true"]{opacity:1;border-color:var(--tier);background:var(--panel2)}
+.badge{display:block;width:100%;aspect-ratio:1;background-image:url('badges.png');background-size:600% 100%;background-repeat:no-repeat}
+
+.slotgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.slotbtn{height:54px;display:flex;align-items:center;justify-content:center;gap:5px;color:var(--dim)}
+.slotbtn[aria-pressed="true"]{border-color:var(--tier,var(--brass));background:var(--panel2);color:var(--ink)}
+.slotart{width:36px;height:36px;background-image:url('items.png');background-size:600% 600%;background-repeat:no-repeat;flex:none}
+.slotname{font-family:"Saira Condensed",sans-serif;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+
+.rollset{margin-top:7px}
+.rolllabel,.input-label{
+  display:block;font-family:"Saira Condensed",sans-serif;font-size:9.5px;font-weight:700;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin:0 0 4px
+}
+.rollbtns{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.rollbtn{height:31px;font-family:"IBM Plex Mono",monospace;font-size:11px}
+.rollbtn[aria-pressed="true"]{border-color:var(--brass);color:var(--brass);background:var(--panel2)}
+.stepper{display:grid;grid-template-columns:36px 1fr 36px;gap:5px}
+.rollnum,.price-input,.age-input,.age-unit{
+  width:100%;height:38px;border:1px solid rgba(var(--brassrgb),.34);border-radius:7px;
+  background:var(--ground);color:var(--ink);padding:0 9px;font-family:"IBM Plex Mono",monospace
+}
+.rollnum:focus,.price-input:focus,.age-input:focus,.age-unit:focus{outline:none;border-color:var(--brass)}
+.stepper button{height:38px}
+
+.market-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.age-quick{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-top:7px}
+.agebtn{height:31px;color:var(--dim);font-family:"IBM Plex Mono",monospace;font-size:10px}
+.agebtn[aria-pressed="true"]{border-color:var(--brass);color:var(--brass);background:var(--panel2)}
+.age-custom{display:grid;grid-template-columns:1fr 86px;gap:5px;margin-top:5px}
+.mode-row{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:8px}
+.modebtn{height:36px;color:var(--dim);font-family:"Saira Condensed",sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:11px}
+.modebtn[aria-pressed="true"]{border-color:var(--green);background:rgba(107,184,168,.08);color:var(--green)}
+.checkrow{
+  display:flex;gap:8px;align-items:flex-start;margin-top:8px;padding:8px;border:1px solid rgba(var(--brassrgb),.18);
+  border-radius:7px;background:rgba(var(--brassrgb),.04);font-size:11.5px;color:var(--dim);line-height:1.35
+}
+.checkrow input{margin-top:2px;accent-color:var(--brass)}
+.action{
+  width:100%;height:42px;margin-top:8px;border-color:var(--brassdeep);background:var(--panel2);
+  color:var(--brass);font-family:"Saira Condensed",sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.1em
+}
+.action:disabled{opacity:.42;cursor:default}
+.status{min-height:17px;margin-top:5px;color:var(--dim);font-size:10.5px}
+.status.ok{color:var(--green)}.status.error{color:var(--rust)}
+
+.result-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.big{font-family:"IBM Plex Mono",monospace;font-size:33px;font-weight:600;line-height:1.05}
+.pills{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.pill{
+  border:1px solid var(--line);border-radius:999px;padding:3px 7px;
+  font-family:"Saira Condensed",sans-serif;font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--dim)
+}
+.pill.high{border-color:var(--green);color:var(--green)}
+.pill.medium{border-color:var(--brass);color:var(--brass)}
+.pill.low{border-color:var(--rust);color:var(--rust)}
+.pill.fresh{border-color:var(--green);color:var(--green)}
+.pill.stale{border-color:var(--rust);color:var(--rust)}
+.pill.watch{border-color:var(--brass);color:var(--brass)}
+
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:8px}
+.metric{padding:7px 5px;border:1px solid rgba(var(--brassrgb),.16);border-radius:7px;background:rgba(0,0,0,.07)}
+.metric b{display:block;font-family:"IBM Plex Mono",monospace;font-size:14px}
+.metric span{display:block;font-family:"Saira Condensed",sans-serif;font-size:8.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim)}
+.explain{font-size:11.5px;color:var(--dim);line-height:1.42;margin:8px 0 0}
+.explain strong{color:var(--ink)}
+
+.deepbtn{
+  width:100%;height:37px;margin-top:8px;color:var(--brass);
+  font-family:"Saira Condensed",sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em
+}
+.deepbtn small{font-family:"IBM Plex Sans",sans-serif;text-transform:none;letter-spacing:0;color:var(--dim);font-weight:400}
+
+.question{margin-top:10px;padding-top:9px;border-top:1px solid rgba(var(--brassrgb),.2)}
+.question h2{font-family:"Saira Condensed",sans-serif;font-size:16px;line-height:1.18;margin:0}
+.question-x{font-family:"IBM Plex Mono",monospace;color:var(--brass)}
+.position-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-top:8px}
+.posbtn{height:41px;font-family:"IBM Plex Mono",monospace;font-size:15px}
+.posbtn.past{grid-column:1/-1;height:38px;font-family:"Saira Condensed",sans-serif;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.1em}
+.posbtn[aria-pressed="true"]{border-color:var(--green);background:rgba(107,184,168,.08);color:var(--green)}
+
+.final{
+  margin-top:9px;padding:10px;border:1px solid var(--green);border-radius:8px;background:rgba(107,184,168,.06)
+}
+.final-label{font-family:"Saira Condensed",sans-serif;font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--green)}
+.final-price{font-family:"IBM Plex Mono",monospace;font-size:34px;font-weight:600;line-height:1.05;margin:2px 0}
+.details{margin-top:8px}
+.details summary{
+  cursor:pointer;font-family:"Saira Condensed",sans-serif;font-size:10px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.08em;color:var(--brass)
+}
+.sales-list,.ladder{margin-top:6px;max-height:210px;overflow:auto}
+.sale-row{
+  display:grid;grid-template-columns:66px 1fr 58px;gap:5px;padding:4px 5px;border-radius:5px;
+  font-family:"IBM Plex Mono",monospace;font-size:9.5px
+}
+.sale-row:nth-child(odd),.ladder-row:nth-child(odd){background:rgba(var(--brassrgb),.04)}
+.sale-row .p{font-weight:600}.sale-row .age{text-align:right;color:var(--dim)}
+.ladder-row{
+  display:grid;grid-template-columns:76px 70px 1fr;gap:5px;padding:4px 5px;border-radius:5px;
+  font-family:"IBM Plex Mono",monospace;font-size:9.5px;color:var(--dim)
+}
+
+footer{margin-top:9px;padding-top:8px;border-top:1px solid var(--line);font-size:9.5px;color:var(--dim);display:flex;justify-content:space-between;gap:8px}
+footer a{color:var(--brass);text-decoration:none}
+
+.settings{
+  position:fixed;z-index:30;top:0;right:0;bottom:0;width:390px;max-width:100%;
+  background:rgba(9,17,22,.98);padding:14px 12px;overflow:auto;border-left:1px solid rgba(var(--brassrgb),.3)
+}
+.sheet-head{display:flex;align-items:center;justify-content:space-between}
+.api{width:100%;height:40px;background:var(--panel);border:1px solid rgba(var(--brassrgb),.35);border-radius:7px;color:var(--ink);padding:0 9px;font-family:"IBM Plex Mono",monospace}
+.debug{white-space:pre-wrap;font-family:"IBM Plex Mono",monospace;font-size:9.5px;color:var(--dim);margin-top:7px}
+
+.has-result #setupArea{display:none}
+.has-result #selectionSummary{display:flex}
+#selectionSummary{display:none}
+
+@media(max-width:600px){
+  .sidebar{width:100%;border-left:0;box-shadow:none}
+  .settings{width:100%}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+<aside class="sidebar">
+  <header class="header">
+    <div>
+      <p class="eyebrow">ETC · WarEra · test22</p>
+      <h1>Price Check</h1>
+    </div>
+    <button type="button" class="iconbtn" id="settingsBtn" aria-label="Settings">⚙</button>
+  </header>
+
+  <div class="summarybar" id="selectionSummary">
+    <div class="summarytext">
+      <b id="summaryItem">—</b>
+      <span id="summaryMeta">—</span>
+    </div>
+    <button type="button" class="tinybtn" id="editBtn">Edit</button>
+  </div>
+
+  <div id="setupArea">
+    <section class="card">
+      <p class="section-label">1 · Rarity</p>
+      <div class="grid6" id="rarities"></div>
+    </section>
+
+    <section class="card">
+      <p class="section-label">2 · Piece</p>
+      <div class="slotgrid" id="slots"></div>
+    </section>
+
+    <section class="card" id="rollCard" hidden>
+      <p class="section-label">3 · Roll</p>
+      <div id="rolls"></div>
+    </section>
+
+    <section class="card" id="marketCard" hidden>
+      <p class="section-label">4 · Market</p>
+      <div class="market-grid">
+        <div>
+          <label class="input-label" for="lowestOffer">Current lowest</label>
+          <input class="price-input" id="lowestOffer" type="number" min="0.001" step="0.001" inputmode="decimal" placeholder="e.g. 323.000">
+        </div>
+        <div>
+          <label class="input-label">Selling style</label>
+          <div class="mode-row" style="margin-top:0">
+            <button type="button" class="modebtn" data-mode="quick" aria-pressed="true">Quick</button>
+            <button type="button" class="modebtn" data-mode="patient">Patient</button>
+          </div>
+        </div>
+      </div>
+
+      <label class="input-label" style="margin-top:8px">How old is that listing?</label>
+      <div class="age-quick" id="ageQuick">
+        <button type="button" class="agebtn" data-age-hours="0.083333">5m</button>
+        <button type="button" class="agebtn" data-age-hours="0.5">30m</button>
+        <button type="button" class="agebtn" data-age-hours="1">1h</button>
+        <button type="button" class="agebtn" data-age-hours="2">2h</button>
+        <button type="button" class="agebtn" data-age-hours="6">6h</button>
+        <button type="button" class="agebtn" data-age-hours="24">1d</button>
+      </div>
+      <div class="age-custom">
+        <input class="age-input" id="lowestAge" type="number" min="0" step="0.1" inputmode="decimal" placeholder="Custom">
+        <select class="age-unit" id="lowestAgeUnit">
+          <option value="minutes">min</option>
+          <option value="hours" selected>hours</option>
+          <option value="days">days</option>
+        </select>
+      </div>
+
+      <label class="checkrow" id="higherCheaperWrap" hidden>
+        <input type="checkbox" id="higherCheaper">
+        <span>A <strong>higher-stat</strong> item is currently cheaper than my roll.</span>
+      </label>
+
+      <button type="button" class="action" id="analyseBtn" disabled>Analyse market</button>
+      <div class="status" id="status"></div>
+    </section>
+  </div>
+
+  <section class="card accent" id="resultCard" hidden>
+    <div class="result-top">
+      <div>
+        <p class="section-label" id="xLabel">Historical target</p>
+        <div class="big" id="historicalX">—</div>
+      </div>
+      <div class="pills">
+        <span class="pill" id="confidence">—</span>
+        <span class="pill" id="floorSignal">—</span>
+      </div>
+    </div>
+
+    <div class="metrics">
+      <div class="metric"><b id="salesWindow">0</b><span>pricing sales</span></div>
+      <div class="metric"><b id="velocity">0</b><span>sales / hour</span></div>
+      <div class="metric"><b id="coverage">0h</b><span>history</span></div>
+    </div>
+
+    <p class="explain" id="historicalExplain"></p>
+
+    <button type="button" class="deepbtn" id="deepBtn" hidden>
+      Check deeper <small id="deepHint"></small>
+    </button>
+
+    <div class="question" id="question" hidden>
+      <h2>Where does price first go above <span class="question-x" id="questionX">—</span>?</h2>
+      <p class="small" style="margin:4px 0 0">Tap the first position above X. If X is beyond all 12 visible listings, tap <strong>Past 12</strong>.</p>
+      <div class="position-grid" id="positionGrid"></div>
+    </div>
+
+    <div class="final" id="finalBox" hidden>
+      <div class="final-label">Recommended listing price</div>
+      <div class="final-price" id="finalPrice">—</div>
+      <p class="explain" id="finalExplain"></p>
+    </div>
+
+    <details class="details">
+      <summary>Sales used</summary>
+      <div class="sales-list" id="salesList"></div>
+    </details>
+    <details class="details">
+      <summary>Model details</summary>
+      <div class="ladder" id="ladder"></div>
+    </details>
+  </section>
+
+  <footer>
+    <span>test22 · compact adaptive model</span>
+    <span><a href="https://warerastats.io/" target="_blank" rel="noopener">warerastats.io</a></span>
+  </footer>
+</aside>
+</div>
+
+<div class="settings" id="settings" hidden>
+  <div class="sheet-head">
+    <span class="section-label" style="margin:0;color:var(--brass)">Settings</span>
+    <button type="button" class="iconbtn" id="closeSettings">×</button>
+  </div>
+  <label class="input-label" for="apiKey" style="margin-top:12px">WarEra API key</label>
+  <input class="api" id="apiKey" type="password" placeholder="wra_…" autocomplete="off" spellcheck="false">
+  <p class="small">Stored only in this browser and sent as <code>X-API-Key</code> to <strong>gateway.warerastats.io</strong>.</p>
+  <button type="button" class="action" id="saveKey">Save & close</button>
+  <details class="details" style="margin-top:12px">
+    <summary>Developer diagnostics</summary>
+    <div class="debug" id="debug">No lookup yet.</div>
+  </details>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+var API='https://gateway.warerastats.io/trpc';
+var PAGE_SIZE=100;
+var FETCH_TIMEOUT=12000;
+var CACHE_TTL=60*60*1000;
+var CACHE_PREFIX='etc-market-cache-v22-';
+var WEAPON_CRIT_WEIGHT=4.15;
+var MAX_HISTORY_HOURS=72;
+
+var RARITIES=[
+  {id:'basic',name:'Basic',colour:'#9AA0A6'},
+  {id:'reinforced',name:'Reinforced',colour:'#5BB85B'},
+  {id:'advanced',name:'Advanced',colour:'#4A90D9'},
+  {id:'elite',name:'Elite',colour:'#9B6FC6'},
+  {id:'legendary',name:'Legendary',colour:'#D4B106'},
+  {id:'mythic',name:'Mythic',colour:'#C0503B'}
+];
+var SLOTS=[
+  {code:'helmet',name:'Helmet'},{code:'chest',name:'Chest'},
+  {code:'boots',name:'Boots'},{code:'gloves',name:'Gloves'},
+  {code:'pants',name:'Pants'},{code:'weapon',name:'Weapon'}
+];
+var SHEET_COLS=['weapon','boots','helmet','gloves','chest','pants'];
+var WEAPON_CODES=['knife','gun','rifle','sniper','tank','jet'];
+var WEAPON_NAMES=['Knife','Gun','Rifle','Sniper','Tank','Jet'];
+var WEAPON_STATS=[
+  {attack:[21,40],criticalChance:[1,5]},
+  {attack:[51,60],criticalChance:[6,10]},
+  {attack:[71,90],criticalChance:[11,15]},
+  {attack:[101,130],criticalChance:[16,20]},
+  {attack:[141,170],criticalChance:[26,35]},
+  {attack:[221,300],criticalChance:[41,50]}
+];
+var STAT_RANGES={
+  helmet:{key:'criticalDamages',label:'crit damage %',tiers:[[1,15],[16,30],[31,50],[71,90],[91,110],[121,150]]},
+  boots:{key:'dodge',label:'dodge',tiers:[[1,5],[6,10],[11,15],[21,25],[31,40],[51,60]]},
+  chest:{key:'armor',label:'armor',tiers:[[1,5],[6,10],[11,15],[21,30],[36,50],[56,70]]},
+  pants:{key:'armor',label:'armor',tiers:[[1,5],[6,10],[11,15],[21,30],[36,50],[56,70]]},
+  gloves:{key:'precision',label:'precision %',tiers:[[1,5],[6,10],[11,15],[21,25],[31,40],[51,60]]}
+};
+
+var state={
+  tier:2,slot:null,rolls:{},lowestOffer:null,lowestAgeHours:null,
+  mode:'quick',higherCheaper:false,deep:false,itemCode:null,
+  requestMeta:null,model:null,selectedPosition:null
+};
+
+function $(id){return document.getElementById(id)}
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function tier(){return RARITIES[state.tier-1]}
+function itemCode(){return state.slot==='weapon'?WEAPON_CODES[state.tier-1]:state.slot+state.tier}
+function itemName(){
+  if(!state.slot)return '';
+  var s=SLOTS.filter(function(x){return x.code===state.slot})[0];
+  return state.slot==='weapon'?tier().name+' '+WEAPON_NAMES[state.tier-1]:tier().name+' '+(s?s.name:state.slot)
+}
+function sheetColumn(code){var i=SHEET_COLS.indexOf(code);return i<0?0:i}
+function rollSpecs(){
+  if(!state.slot)return [];
+  if(state.slot==='weapon'){
+    var w=WEAPON_STATS[state.tier-1];
+    return [{key:'attack',label:'attack',band:w.attack},{key:'criticalChance',label:'crit %',band:w.criticalChance}]
+  }
+  var s=STAT_RANGES[state.slot];
+  return s?[{key:s.key,label:s.label,band:s.tiers[state.tier-1]}]:[]
+}
+function describeRoll(){return rollSpecs().map(function(s){return s.label+' '+state.rolls[s.key]}).join(' · ')}
+function hasAllRolls(){
+  var s=rollSpecs();
+  return s.length&&s.every(function(x){return Number.isFinite(Number(state.rolls[x.key]))})
+}
+function validLowest(){return Number.isFinite(Number(state.lowestOffer))&&Number(state.lowestOffer)>0}
+function validAge(){return Number.isFinite(Number(state.lowestAgeHours))&&Number(state.lowestAgeHours)>=0}
+function canAnalyse(){return !!state.slot&&hasAllRolls()&&validLowest()&&validAge()}
+function singleStatTarget(){
+  if(state.slot==='weapon')return null;
+  var s=rollSpecs()[0];return s?Number(state.rolls[s.key]):null
+}
+function maxSingleStat(){
+  if(state.slot==='weapon')return null;
+  var s=rollSpecs()[0];return s?s.band[1]:null
+}
+function hasPossibleBetterRoll(){
+  var t=singleStatTarget(),m=maxSingleStat();
+  return t!==null&&m!==null&&t<m
+}
+function round3(n){return Math.round((Number(n)+Number.EPSILON)*1000)/1000}
+function fmt(n){return Number(n).toFixed(3)}
+function ageText(h){
+  h=Number(h);
+  if(!Number.isFinite(h))return '—';
+  if(h<1)return Math.max(1,Math.round(h*60))+'m';
+  if(h<24)return h.toFixed(h<10?1:0)+'h';
+  return (h/24).toFixed(1)+'d'
+}
+function setStatus(t,c){$('status').textContent=t||'';$('status').className='status'+(c?' '+c:'')}
+function apiKey(){try{return (localStorage.getItem('warera-api-key')||'').trim()}catch(e){return ''}}
+
+function buildRarities(){
+  $('rarities').innerHTML=RARITIES.map(function(r,i){
+    return '<button type="button" class="rarity-btn" data-tier="'+(i+1)+'" aria-pressed="'+(state.tier===i+1?'true':'false')+'" style="--tier:'+r.colour+'" title="'+r.name+'">'
+      +'<span class="badge" style="background-position-x:'+(i*20)+'%"></span></button>'
+  }).join('')
+}
+function buildSlots(){
+  var y=((state.tier-1)/5)*100;
+  $('slots').innerHTML=SLOTS.map(function(s){
+    return '<button type="button" class="slotbtn" data-slot="'+s.code+'" aria-pressed="'+(state.slot===s.code?'true':'false')+'" style="--tier:'+tier().colour+'">'
+      +'<span class="slotart" style="background-position:'+(sheetColumn(s.code)*20)+'% '+y+'%"></span>'
+      +'<span class="slotname">'+s.name+'</span></button>'
+  }).join('')
+}
+function buildRolls(){
+  if(!state.slot){$('rollCard').hidden=true;refreshFlow();return}
+  var out='';
+  rollSpecs().forEach(function(s){
+    var span=s.band[1]-s.band[0]+1,val=state.rolls[s.key];
+    out+='<div class="rollset"><span class="rolllabel">'+esc(s.label)+'</span>';
+    if(span<=30){
+      out+='<div class="rollbtns">';
+      for(var v=s.band[0];v<=s.band[1];v++){
+        out+='<button type="button" class="rollbtn" data-rollkey="'+s.key+'" data-roll="'+v+'" aria-pressed="'+(Number(val)===v?'true':'false')+'">'+v+'</button>'
+      }
+      out+='</div>'
+    }else{
+      var use=Number.isFinite(Number(val))?Number(val):s.band[0];
+      if(!Number.isFinite(Number(val)))state.rolls[s.key]=use;
+      out+='<div class="stepper"><button type="button" class="rollbtn" data-stepkey="'+s.key+'" data-step="-1">−</button>'
+        +'<input class="rollnum" data-rollinput="'+s.key+'" type="number" min="'+s.band[0]+'" max="'+s.band[1]+'" value="'+use+'" inputmode="numeric">'
+        +'<button type="button" class="rollbtn" data-stepkey="'+s.key+'" data-step="1">+</button></div>'
+    }
+    out+='</div>'
+  });
+  $('rolls').innerHTML=out;$('rollCard').hidden=false;refreshFlow()
+}
+function paintAgeButtons(){
+  document.querySelectorAll('[data-age-hours]').forEach(function(b){
+    var v=Number(b.getAttribute('data-age-hours'));
+    b.setAttribute('aria-pressed',Math.abs(v-Number(state.lowestAgeHours))<.0005?'true':'false')
+  })
+}
+function paintMode(){
+  document.querySelectorAll('[data-mode]').forEach(function(b){
+    b.setAttribute('aria-pressed',b.getAttribute('data-mode')===state.mode?'true':'false')
+  })
+}
+function refreshFlow(){
+  $('marketCard').hidden=!hasAllRolls();
+  $('higherCheaperWrap').hidden=!(state.slot!=='weapon'&&hasAllRolls()&&hasPossibleBetterRoll());
+  if($('higherCheaperWrap').hidden){state.higherCheaper=false;$('higherCheaper').checked=false}
+  $('analyseBtn').disabled=!canAnalyse()
+}
+function resetResult(){
+  state.model=null;state.requestMeta=null;state.selectedPosition=null;state.deep=false;
+  $('resultCard').hidden=true;$('question').hidden=true;$('finalBox').hidden=true;$('deepBtn').hidden=true;
+  document.body.classList.remove('has-result');setStatus('')
+}
+function showSummary(){
+  $('summaryItem').textContent=itemName()+' · '+describeRoll();
+  $('summaryMeta').textContent='floor '+fmt(state.lowestOffer)+' · '+ageText(state.lowestAgeHours)+' · '+(state.mode==='quick'?'Quick':'Patient');
+  document.body.classList.add('has-result')
+}
+
+function checkResponse(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}
+function fetchJSON(url,opts,ms){
+  if(!window.AbortController)return fetch(url,opts).then(checkResponse);
+  var ac=new AbortController(),timer=setTimeout(function(){ac.abort()},ms||FETCH_TIMEOUT);
+  opts=opts||{};opts.signal=ac.signal;
+  return fetch(url,opts).then(function(r){clearTimeout(timer);return checkResponse(r)},function(e){clearTimeout(timer);throw e})
+}
+function unwrapPage(json){
+  var d=json;
+  if(d&&d.result)d=(d.result.data!==undefined)?d.result.data:d.result;
+  if(d&&d.data&&d.items===undefined)d=d.data;
+  return {items:(d&&Array.isArray(d.items))?d.items:[],nextCursor:d&&d.nextCursor?d.nextCursor:null}
+}
+function oldestTime(items){
+  var oldest=Infinity;
+  items.forEach(function(it){
+    var t=it&&it.createdAt?new Date(it.createdAt).getTime():NaN;
+    if(Number.isFinite(t)&&t<oldest)oldest=t
+  });
+  return oldest===Infinity?null:oldest
+}
+function compactTx(it){
+  return {
+    transactionType:it&&it.transactionType,money:Number(it&&it.money),createdAt:it&&it.createdAt,
+    item:{skills:(it&&it.item&&it.item.skills)||{}}
+  }
+}
+function readCache(code){
+  try{
+    var raw=localStorage.getItem(CACHE_PREFIX+code);if(!raw)return null;
+    var c=JSON.parse(raw);
+    if(!c||!Array.isArray(c.items)||!c.fetchedAt||Date.now()-c.fetchedAt>CACHE_TTL)return null;
+    return c
+  }catch(e){return null}
+}
+function writeCache(code,c){
+  try{localStorage.setItem(CACHE_PREFIX+code,JSON.stringify(c))}catch(e){}
+}
+function txType(it){return String(it&&it.transactionType||'')}
+function isSale(it){
+  return !!(it&&txType(it)==='itemMarket'&&it.item&&it.item.skills&&Number(it.money)>0&&it.createdAt)
+}
+function salePrice(it){var p=Number(it&&it.money);return Number.isFinite(p)?p:null}
+function saleAge(it){
+  var t=it&&it.createdAt?new Date(it.createdAt).getTime():NaN;
+  return Number.isFinite(t)?Math.max(0,(Date.now()-t)/3600000):null
+}
+function recencyWeight(age){
+  if(age===null)return .4;
+  if(age<=3)return 1.12;if(age<=6)return 1;if(age<=12)return .88;
+  if(age<=24)return .72;if(age<=48)return .52;if(age<=72)return .38;return .2
+}
+function initialTargetHours(){
+  if(state.slot==='weapon')return state.tier>=5?8:4;
+  return [4,4,6,8,12,24][state.tier-1]
+}
+function deepTargetHours(){
+  if(state.slot==='weapon')return [12,12,18,24,36,48][state.tier-1];
+  return [24,24,24,36,48,72][state.tier-1]
+}
+function maxPages(deep){return deep?16:8}
+
+function getMarketTransactions(code,deep){
+  var key=apiKey();if(!key)return Promise.reject(new Error('APIKEY'));
+  var target=deep?deepTargetHours():initialTargetHours();
+  var cached=readCache(code);
+
+  if(cached&&Number(cached.coverageHours||0)>=target){
+    return Promise.resolve({
+      items:cached.items,
+      meta:{
+        pages:0,downloaded:0,marketRows:cached.items.length,coverageHours:Number(cached.coverageHours||0),
+        durationMs:0,persistentCache:true,partial:false,nextCursor:cached.nextCursor||null,
+        targetHours:target,deep:deep
+      }
+    })
+  }
+
+  var all=cached&&Array.isArray(cached.items)?cached.items.slice():[];
+  var cursor=cached?cached.nextCursor:null;
+  var oldestRaw=cached&&cached.oldestRaw?Number(cached.oldestRaw):null;
+  var pages=0,downloaded=0,start=performance.now(),limit=maxPages(deep);
+
+  // If cache has no continuation cursor and is not enough, start again.
+  if(cached&&!cursor&&Number(cached.coverageHours||0)<target){
+    all=[];oldestRaw=null
+  }
+
+  function coverage(){
+    return oldestRaw===null?0:Math.min(MAX_HISTORY_HOURS,Math.max(0,(Date.now()-oldestRaw)/3600000))
+  }
+  function done(partial){
+    var c={
+      fetchedAt:Date.now(),items:all.map(compactTx),coverageHours:coverage(),
+      nextCursor:cursor||null,oldestRaw:oldestRaw
+    };
+    writeCache(code,c);
+    return {
+      items:c.items,
+      meta:{
+        pages:pages,downloaded:downloaded,marketRows:c.items.length,coverageHours:c.coverageHours,
+        durationMs:Math.round(performance.now()-start),persistentCache:false,
+        partial:!!partial,nextCursor:c.nextCursor,targetHours:target,deep:deep
+      }
+    }
+  }
+  function page(){
+    if(coverage()>=target||!cursor&&pages>0||pages>=limit)return done(coverage()<target);
+    pages++;
+    setStatus((deep?'Deep':'Fast')+' scan · page '+pages+' · '+coverage().toFixed(1)+'h covered…');
+    var input={limit:PAGE_SIZE,itemCode:code};
+    if(cursor)input.cursor=cursor;
+    var url=API+'/transaction.getPaginatedTransactions?input='+encodeURIComponent(JSON.stringify(input));
+    return fetchJSON(url,{headers:{'Accept':'application/json','X-API-Key':key}},FETCH_TIMEOUT).then(function(json){
+      var p=unwrapPage(json);
+      downloaded+=p.items.length;
+      if(!p.items.length){cursor=null;return done(true)}
+      var rawOld=oldestTime(p.items);
+      if(rawOld!==null&&(oldestRaw===null||rawOld<oldestRaw))oldestRaw=rawOld;
+      p.items.filter(isSale).forEach(function(it){
+        if(saleAge(it)<=MAX_HISTORY_HOURS+.05)all.push(compactTx(it))
+      });
+      cursor=p.nextCursor;
+      if(coverage()>=target||!cursor||pages>=limit)return done(coverage()<target);
+      return page()
+    })
+  }
+  return page()
+}
+
+function median(nums){
+  if(!nums.length)return null;
+  var a=nums.slice().sort(function(x,y){return x-y}),m=Math.floor(a.length/2);
+  return a.length%2?a[m]:(a[m-1]+a[m])/2
+}
+function robustFilter(items){
+  if(items.length<5)return items.slice();
+  var prices=items.map(salePrice).filter(function(p){return p&&p>0});
+  var med=median(prices);if(!med)return items.slice();
+  var dev=prices.map(function(p){return Math.abs(Math.log(p/med))});
+  var mad=median(dev)||0;
+  var threshold=Math.max(.12,mad*3.5);
+  return items.filter(function(it){
+    var p=salePrice(it);return p&&Math.abs(Math.log(p/med))<=threshold
+  })
+}
+function weightedQuantileBy(items,q,weightFn){
+  var rows=[];
+  items.forEach(function(it){
+    var p=salePrice(it),w=Number(weightFn(it));
+    if(p!==null&&w>0&&Number.isFinite(w))rows.push({p:p,w:w})
+  });
+  if(!rows.length)return null;
+  rows.sort(function(a,b){return a.p-b.p});
+  var total=rows.reduce(function(s,r){return s+r.w},0),target=total*Math.max(0,Math.min(1,q)),acc=0;
+  for(var i=0;i<rows.length;i++){acc+=rows[i].w;if(acc>=target)return rows[i].p}
+  return rows[rows.length-1].p
+}
+function weightedQuantile(items,q){return weightedQuantileBy(items,q,function(it){return recencyWeight(saleAge(it))})}
+function dispersion(items){
+  if(items.length<3)return null;
+  var p=items.map(salePrice).sort(function(a,b){return a-b}),med=median(p);
+  var q1=p[Math.floor((p.length-1)*.25)],q3=p[Math.floor((p.length-1)*.75)];
+  return med?Math.max(0,(q3-q1)/med):null
+}
+function exactMatch(it){
+  var skills=it&&it.item&&it.item.skills||{};
+  return rollSpecs().every(function(s){return Number(skills[s.key])===Number(state.rolls[s.key])})
+}
+function statValue(it){
+  if(state.slot==='weapon')return null;
+  var s=rollSpecs()[0],v=s?Number(it&&it.item&&it.item.skills&&it.item.skills[s.key]):NaN;
+  return Number.isFinite(v)?v:null
+}
+function sameStatItems(sales,stat){return sales.filter(function(it){return statValue(it)===stat})}
+function nearestWorse(sales){
+  var target=singleStatTarget(),vals=sales.map(statValue).filter(function(v){return v!==null&&v<target});
+  if(!vals.length)return [];
+  var best=Math.max.apply(null,vals);
+  return robustFilter(sameStatItems(sales,best))
+}
+function nearbyBetter(sales){
+  var target=singleStatTarget();
+  return robustFilter(sales.filter(function(it){
+    var v=statValue(it);return v!==null&&v>target&&v<=target+5
+  }))
+}
+function cheapBetterPattern(better,reference){
+  var target=singleStatTarget();
+  var cheap=better.filter(function(it){return salePrice(it)<reference-.0005});
+  if(!cheap.length)return {count:0,price:null};
+  var price=weightedQuantileBy(cheap,.55,function(it){
+    var d=Math.max(1,statValue(it)-target);
+    return recencyWeight(saleAge(it))/(d*d)
+  });
+  return {count:cheap.length,price:price}
+}
+function weaponCritAdjustment(crit){
+  var band=WEAPON_STATS[state.tier-1].criticalChance,min=band[0],max=band[1],c=Number(crit);
+  if(c<=min)return -2;if(c>=max)return 3;
+  return ((c-min)/(max-min)-.5)*2.4
+}
+function weaponScore(skills){
+  var a=Number(skills&&skills.attack),c=Number(skills&&skills.criticalChance);
+  if(!Number.isFinite(a)||!Number.isFinite(c))return null;
+  return a+c*WEAPON_CRIT_WEIGHT+weaponCritAdjustment(c)
+}
+function weaponRelation(it){
+  var c=Number(it&&it.item&&it.item.skills&&it.item.skills.criticalChance),mine=Number(state.rolls.criticalChance);
+  if(c===mine)return 'same';return c>mine?'higher':'lower'
+}
+function weaponComparables(sales){
+  var target=weaponScore(state.rolls);
+  var rows=sales.map(function(it){
+    var score=weaponScore(it.item.skills),rel=weaponRelation(it);
+    return {it:it,d:score===null?Infinity:Math.abs(score-target),rank:rel==='same'?0:(rel==='higher'?1:2)}
+  }).filter(function(x){return Number.isFinite(x.d)});
+  rows.sort(function(a,b){return a.rank-b.rank||a.d-b.d||(saleAge(a.it)||999)-(saleAge(b.it)||999)});
+  return robustFilter(rows.slice(0,12).map(function(x){return x.it}))
+}
+function velocityForSingle(sales,coverage){
+  var target=singleStatTarget(),sum=0;
+  sales.forEach(function(it){
+    var v=statValue(it);if(v===null)return;
+    var d=Math.abs(v-target);if(d>5)return;
+    sum+=recencyWeight(saleAge(it))/(1+d)
+  });
+  return sum/Math.max(.25,coverage)
+}
+function velocityForWeapon(items,coverage){
+  var target=weaponScore(state.rolls),sum=0;
+  items.forEach(function(it){
+    var s=weaponScore(it.item.skills);if(s===null)return;
+    var d=Math.abs(s-target),rel=weaponRelation(it);
+    var pref=rel==='same'?1:(rel==='higher'?.8:.55);
+    sum+=recencyWeight(saleAge(it))*pref/(1+d)
+  });
+  return sum/Math.max(.25,coverage)
+}
+function floorSignal(exposure){
+  if(exposure>=2)return {key:'stale',label:'stale floor'};
+  if(exposure>=.65)return {key:'watch',label:'watch floor'};
+  return {key:'fresh',label:'fresh floor'}
+}
+function priceUnderFloor(){return round3(Math.max(.001,Number(state.lowestOffer)-.001))}
+function confidenceLabel(score){return score>=70?'High':(score>=45?'Medium':'Low')}
+function quantileForMode(){return state.mode==='quick'?.55:.70}
+function queueLimit(){return state.mode==='quick'?1.5:6}
+
+function singleModel(sales,meta){
+  var target=singleStatTarget(),coverage=Math.max(.25,Number(meta.coverageHours||0));
+  var exact=robustFilter(sales.filter(exactMatch));
+  var worse=nearestWorse(sales);
+  var better=hasPossibleBetterRoll()?nearbyBetter(sales):[];
+  var velocity=velocityForSingle(sales,coverage);
+  var exposure=velocity*Number(state.lowestAgeHours||0);
+  var signal=floorSignal(exposure);
+  var q=quantileForMode();
+
+  var exactTarget=exact.length?weightedQuantile(exact,q):null;
+  var worseTarget=worse.length>=3?weightedQuantile(worse,state.mode==='quick'?.60:.72):null;
+  var histTarget=null,source='';
+
+  if(exact.length>=3){histTarget=exactTarget;source='exact'}
+  else if(exact.length){
+    histTarget=exactTarget;
+    if(worseTarget!==null)histTarget=Math.max(histTarget,worseTarget);
+    source='sparse exact + nearest worse'
+  }else if(worseTarget!==null){
+    histTarget=worseTarget;source='nearest worse'
+  }else{
+    histTarget=priceUnderFloor();source='live floor'
+  }
+
+  var primary=exact.length?exact:worse;
+  var disp=dispersion(primary);
+  var score=0;
+  score+=Math.min(22,22*(coverage/Math.max(1,initialTargetHours())));
+  score+=exact.length>=6?40:(exact.length>=3?32:(exact.length===2?20:(exact.length===1?12:0)));
+  if(exact.length<3&&worse.length>=6)score+=20;
+  else if(exact.length<3&&worse.length>=3)score+=13;
+  if(disp!==null)score+=disp<=.06?12:(disp<=.12?7:2);
+  if(meta.deep)score+=5;
+  if(meta.partial)score-=12;
+
+  var pressure=cheapBetterPattern(better,Math.max(Number(state.lowestOffer),histTarget||0));
+  var stale=signal.key==='stale';
+  var pressureNeeded=state.higherCheaper?2:3;
+  var pressureActive=stale&&pressure.count>=pressureNeeded&&pressure.price!==null;
+  if(state.higherCheaper&&!stale)score-=4;
+  if(pressureActive)score+=5;
+  score=Math.max(0,Math.min(100,Math.round(score)));
+
+  var floor=Number(state.lowestOffer),under=priceUnderFloor();
+  var higher=histTarget>floor+.0005 && score>=70 && !stale && !pressureActive;
+  var direct=under;
+
+  if(!higher){
+    if(histTarget<under){
+      var w=signal.key==='stale'?(state.mode==='quick'?.48:.30):(state.mode==='quick'?.22:.12);
+      direct=under*(1-w)+histTarget*w
+    }
+    if(pressureActive&&pressure.price<direct){
+      var pw=Math.min(.30,.10+pressure.count*.035+(state.higherCheaper?.05:0));
+      direct=direct*(1-pw)+pressure.price*pw
+    }
+    direct=round3(Math.min(under,Math.max(.001,direct)))
+  }
+
+  return {
+    kind:'single',exact:exact,worse:worse,better:better,selected:(exact.length?exact:worse).slice(0,12),
+    histTarget:round3(histTarget),source:source,velocity:velocity,exposure:exposure,signal:signal,
+    confidenceScore:score,confidence:confidenceLabel(score),higher:higher,directPrice:direct,
+    pressure:pressure,pressureActive:pressureActive,dispersion:disp
+  }
+}
+function weaponModel(sales,meta){
+  var coverage=Math.max(.25,Number(meta.coverageHours||0));
+  var comp=weaponComparables(sales);
+  var velocity=velocityForWeapon(comp,coverage);
+  var exposure=velocity*Number(state.lowestAgeHours||0);
+  var signal=floorSignal(exposure);
+  var target=weaponScore(state.rolls);
+  var hist=weightedQuantileBy(comp,quantileForMode(),function(it){
+    var d=Math.abs(weaponScore(it.item.skills)-target),rel=weaponRelation(it);
+    var pref=rel==='same'?1:(rel==='higher'?.8:.55);
+    return recencyWeight(saleAge(it))*pref/(1+d)
+  });
+  if(hist===null)hist=priceUnderFloor();
+
+  var disp=dispersion(comp),score=0;
+  score+=Math.min(25,25*(coverage/Math.max(1,initialTargetHours())));
+  score+=comp.length>=10?38:(comp.length>=6?30:(comp.length>=3?18:5));
+  if(comp.filter(function(it){return weaponRelation(it)==='same'}).length>=3)score+=12;
+  if(disp!==null)score+=disp<=.06?12:(disp<=.12?7:2);
+  if(meta.deep)score+=5;if(meta.partial)score-=12;
+  score=Math.max(0,Math.min(100,Math.round(score)));
+
+  var floor=Number(state.lowestOffer),under=priceUnderFloor();
+  var higher=hist>floor+.0005&&score>=70&&signal.key!=='stale';
+  var direct=under;
+  if(!higher&&hist<under){
+    var w=signal.key==='stale'?(state.mode==='quick'?.45:.28):(state.mode==='quick'?.18:.10);
+    direct=round3(Math.min(under,under*(1-w)+hist*w))
+  }
+
+  return {
+    kind:'weapon',selected:comp,histTarget:round3(hist),source:'score comparables',
+    velocity:velocity,exposure:exposure,signal:signal,confidenceScore:score,
+    confidence:confidenceLabel(score),higher:higher,directPrice:direct,dispersion:disp
+  }
+}
+function buildModel(sales,meta){return state.slot==='weapon'?weaponModel(sales,meta):singleModel(sales,meta)}
+
+function txLabel(it){
+  var s=it.item.skills||{};
+  if(state.slot==='weapon')return 'A'+Number(s.attack)+' · C'+Number(s.criticalChance);
+  var sp=rollSpecs()[0];return itemName().split(' ').slice(-1)[0]+' · '+sp.label+' '+Number(s[sp.key])
+}
+function renderSales(items){
+  if(!items.length)return '<div class="small">No strong pricing sales in this scan.</div>';
+  return items.slice().sort(function(a,b){return (saleAge(a)||999)-(saleAge(b)||999)}).map(function(it){
+    return '<div class="sale-row"><span class="p">'+fmt(salePrice(it))+'</span><span>'+esc(txLabel(it))+'</span><span class="age">'+ageText(saleAge(it))+'</span></div>'
+  }).join('')
+}
+function renderDetails(m,meta){
+  var rows=[];
+  function row(a,b,c){rows.push('<div class="ladder-row"><span>'+esc(a)+'</span><span>'+esc(b)+'</span><span>'+esc(c)+'</span></div>')}
+  row('History',Number(meta.coverageHours||0).toFixed(1)+'h',(meta.deep?'deep':'fast')+' target '+meta.targetHours+'h');
+  row('Confidence',m.confidence+' '+m.confidenceScore+'/100',m.source);
+  row('Velocity',m.velocity.toFixed(2)+'/h','relevant completed sales');
+  row('Exposure',m.exposure.toFixed(2),m.signal.label);
+  if(m.kind==='single'){
+    row('Exact',String(m.exact.length),'same stat');
+    row('Nearest worse',String(m.worse.length),'upward support only');
+    row('Better',String(m.better.length),'downward only when stale');
+    row('Better pressure',m.pressure.price===null?'—':fmt(m.pressure.price),m.pressureActive?'ACTIVE':'inactive');
+    row('Higher flag',state.higherCheaper?'yes':'no',state.higherCheaper?(m.signal.key==='stale'?'can strengthen pressure':'warning only'):'not reported');
+  }else{
+    var same=m.selected.filter(function(it){return weaponRelation(it)==='same'}).length;
+    var hi=m.selected.filter(function(it){return weaponRelation(it)==='higher'}).length;
+    var lo=m.selected.filter(function(it){return weaponRelation(it)==='lower'}).length;
+    row('Crit mix',same+'/'+hi+'/'+lo,'same / higher / lower');
+  }
+  row('Mode',state.mode==='quick'?'Quick':'Patient','queue limit '+queueLimit()+'h');
+  return rows.join('')
+}
+function confidenceClass(c){return c==='High'?'high':(c==='Medium'?'medium':'low')}
+
+function renderResult(m,meta){
+  state.model=m;state.requestMeta=meta;state.selectedPosition=null;
+  $('resultCard').hidden=false;showSummary();
+  $('historicalX').textContent=fmt(m.histTarget);
+  $('questionX').textContent=fmt(m.histTarget);
+  $('confidence').textContent=m.confidence+' '+m.confidenceScore;
+  $('confidence').className='pill '+confidenceClass(m.confidence);
+  $('floorSignal').textContent=m.signal.label;
+  $('floorSignal').className='pill '+m.signal.key;
+  $('salesWindow').textContent=m.selected.length;
+  $('velocity').textContent=m.velocity.toFixed(2);
+  $('coverage').textContent=Number(meta.coverageHours||0).toFixed(1)+'h';
+  $('salesList').innerHTML=renderSales(m.selected);
+  $('ladder').innerHTML=renderDetails(m,meta);
+  $('question').hidden=true;$('finalBox').hidden=true;
+  paintPositionButtons();
+
+  var deeperPossible=m.confidence!=='High' && !meta.deep &&
+    (meta.nextCursor||Number(meta.coverageHours||0)<deepTargetHours());
+  $('deepBtn').hidden=!deeperPossible;
+  if(deeperPossible)$('deepHint').textContent=' · extend toward '+deepTargetHours()+'h';
+
+  var floor=fmt(state.lowestOffer);
+  if(m.higher){
+    $('xLabel').textContent='Supported higher price X';
+    $('historicalExplain').innerHTML=
+      '<strong>'+esc(itemName())+' · '+esc(describeRoll())+'</strong>. History supports <strong>'+fmt(m.histTarget)+'</strong>, above the current '+floor+' floor. '
+      +(m.signal.key==='fresh'?'The floor is still fresh. ':'')
+      +'Before recommending X, check how much live supply sits in front of it.';
+    $('question').hidden=false
+  }else{
+    $('xLabel').textContent='Historical target';
+    var why='';
+    if(m.confidence!=='High'&&deeperPossible){
+      why=' Evidence is not yet high-confidence; you can check deeper before accepting the conservative result.'
+    }
+    if(m.kind==='single'&&state.higherCheaper&&!m.pressureActive){
+      why+=' The higher-stat-cheaper flag is noted, but it does not lower the price unless the market is stale and history shows a repeated cheaper-better pattern.'
+    }
+    $('historicalExplain').innerHTML=
+      '<strong>'+esc(itemName())+' · '+esc(describeRoll())+'</strong>. Historical target: <strong>'+fmt(m.histTarget)+'</strong>. '
+      +'Current floor: '+floor+' · '+ageText(state.lowestAgeHours)+'.'+why;
+    showFinal(m.directPrice,'Direct recommendation',
+      m.signal.key==='stale'
+        ?'The current floor has survived enough expected demand that trying above it is not justified.'
+        :'There is not enough high-confidence evidence to justify moving above the current floor.')
+  }
+  debug(meta,m)
+}
+function showFinal(price,headline,reason){
+  $('finalPrice').textContent=fmt(price);
+  $('finalExplain').innerHTML='<strong>'+esc(headline)+'.</strong> '+esc(reason);
+  $('finalBox').hidden=false
+}
+function buildPositionButtons(){
+  var out='';for(var i=1;i<=12;i++)out+='<button type="button" class="posbtn" data-pos="'+i+'">'+i+'</button>';
+  out+='<button type="button" class="posbtn past" data-pos="13">Past 12</button>';
+  $('positionGrid').innerHTML=out
+}
+function paintPositionButtons(){
+  document.querySelectorAll('[data-pos]').forEach(function(b){
+    b.setAttribute('aria-pressed',Number(b.getAttribute('data-pos'))===state.selectedPosition?'true':'false')
+  })
+}
+function finalFromPosition(pos){
+  var m=state.model;if(!m||!m.higher)return;
+  state.selectedPosition=pos;paintPositionButtons();
+  var blockers=pos===13?12:Math.max(0,pos-1);
+  var qh=m.velocity>0?blockers/m.velocity:Infinity;
+  var limit=queueLimit(),accept=false;
+
+  if(pos===1)accept=true;
+  else if(pos===13){
+    // Unknown beyond 12. Quick mode never accepts unknown depth.
+    // Patient mode accepts only when even the minimum 12-listing queue is comfortably short.
+    accept=state.mode==='patient'&&Number.isFinite(qh)&&qh<=Math.min(3,limit/2)&&m.confidence==='High'
+  }else{
+    accept=Number.isFinite(qh)&&qh<=limit
+  }
+
+  if(accept){
+    showFinal(m.histTarget,'Try the higher supported price',
+      blockers+' visible listing'+(blockers===1?'':'s')+' sit at or below X. At '+m.velocity.toFixed(2)+'/h, the estimated queue is about '+qh.toFixed(1)+'h, inside your '+(state.mode==='quick'?'Quick':'Patient')+' tolerance.')
+  }else{
+    showFinal(priceUnderFloor(),'Beat the current floor',
+      (pos===13?'At least 12':String(blockers))+' listings sit at or below X. The queue is '+(Number.isFinite(qh)?'at least '+qh.toFixed(1)+'h':'too uncertain')+', which is too heavy for this mode.')
+  }
+}
+function debug(meta,m){
+  var lines=[
+    'itemCode: '+state.itemCode,
+    'roll: '+describeRoll(),
+    'current floor: '+fmt(state.lowestOffer),
+    'listing age: '+ageText(state.lowestAgeHours),
+    'mode: '+state.mode,
+    'higher-stat cheaper flag: '+(state.higherCheaper?'YES':'no'),
+    'scan: '+(meta.deep?'DEEP':'fast'),
+    'target coverage: '+meta.targetHours+'h',
+    'hours covered: '+Number(meta.coverageHours||0).toFixed(2),
+    'pages fetched this run: '+meta.pages,
+    'raw rows downloaded this run: '+meta.downloaded,
+    'itemMarket rows cached: '+meta.marketRows,
+    'persistent cache: '+(meta.persistentCache?'YES':'no'),
+    'partial: '+(meta.partial?'YES':'no'),
+    'confidence: '+m.confidence+' '+m.confidenceScore+'/100',
+    'velocity: '+m.velocity.toFixed(2)+'/h',
+    'floor exposure: '+m.exposure.toFixed(2),
+    'floor signal: '+m.signal.label,
+    'historical target: '+fmt(m.histTarget),
+    'higher-price branch: '+(m.higher?'YES':'no'),
+    'direct price: '+fmt(m.directPrice)
+  ];
+  if(m.kind==='single'){
+    lines.push('exact sales: '+m.exact.length);
+    lines.push('nearest-worse sales: '+m.worse.length);
+    lines.push('better sales: '+m.better.length);
+    lines.push('better cheap pattern: '+m.pressure.count+' @ '+(m.pressure.price===null?'—':fmt(m.pressure.price)));
+    lines.push('better pressure active: '+(m.pressureActive?'YES':'no'))
+  }else{
+    lines.push('weapon comparables: '+m.selected.length)
+  }
+  lines.push('duration: '+meta.durationMs+' ms');
+  $('debug').textContent=lines.join('\n')
+}
+
+function analyse(deep){
+  if(!canAnalyse())return;
+  if(!apiKey()){
+    $('settings').hidden=false;$('apiKey').focus();setStatus('Add your API key first.','error');return
+  }
+  state.deep=!!deep;state.itemCode=itemCode();
+  $('analyseBtn').disabled=true;$('deepBtn').disabled=true;
+  setStatus((deep?'Extending':'Starting')+' history…');
+  getMarketTransactions(state.itemCode,!!deep).then(function(res){
+    var sales=res.items.filter(isSale).filter(function(it){return saleAge(it)<=res.meta.targetHours+.05});
+    var m=buildModel(sales,res.meta);
+    renderResult(m,res.meta);
+    setStatus((deep?'Deep':'Fast')+' scan ready · '+Number(res.meta.coverageHours||0).toFixed(1)+'h · '+res.meta.durationMs+' ms'+(res.meta.persistentCache?' · cache':'')+'.',res.meta.partial?'error':'ok')
+  }).catch(function(e){
+    setStatus('Lookup failed: '+(e&&e.name==='AbortError'?'timeout':(e.message||'unknown error')),'error')
+  }).finally(function(){
+    $('analyseBtn').disabled=!canAnalyse();$('deepBtn').disabled=false
+  })
+}
+
+/* events */
+$('rarities').addEventListener('click',function(e){
+  var b=e.target.closest('[data-tier]');if(!b)return;
+  state.tier=Number(b.getAttribute('data-tier'));state.rolls={};state.slot=state.slot||null;
+  state.lowestOffer=null;state.lowestAgeHours=null;state.higherCheaper=false;
+  $('lowestOffer').value='';$('lowestAge').value='';$('higherCheaper').checked=false;
+  resetResult();buildRarities();buildSlots();if(state.slot)buildRolls();refreshFlow()
+});
+$('slots').addEventListener('click',function(e){
+  var b=e.target.closest('[data-slot]');if(!b)return;
+  state.slot=b.getAttribute('data-slot');state.rolls={};state.lowestOffer=null;state.lowestAgeHours=null;state.higherCheaper=false;
+  $('lowestOffer').value='';$('lowestAge').value='';$('higherCheaper').checked=false;
+  resetResult();buildSlots();buildRolls()
+});
+$('rolls').addEventListener('click',function(e){
+  var b=e.target.closest('[data-roll],[data-stepkey]');if(!b)return;
+  if(b.hasAttribute('data-roll'))state.rolls[b.getAttribute('data-rollkey')]=Number(b.getAttribute('data-roll'));
+  else{
+    var key=b.getAttribute('data-stepkey'),step=Number(b.getAttribute('data-step'));
+    var sp=rollSpecs().filter(function(x){return x.key===key})[0],v=Number(state.rolls[key]);
+    if(!Number.isFinite(v))v=sp.band[0];
+    state.rolls[key]=Math.max(sp.band[0],Math.min(sp.band[1],v+step))
+  }
+  resetResult();buildRolls()
+});
+$('rolls').addEventListener('input',function(e){
+  var el=e.target.closest('[data-rollinput]');if(!el)return;
+  var key=el.getAttribute('data-rollinput'),sp=rollSpecs().filter(function(x){return x.key===key})[0],v=Number(el.value);
+  if(Number.isFinite(v))state.rolls[key]=Math.max(sp.band[0],Math.min(sp.band[1],v));
+  resetResult();refreshFlow()
+});
+$('lowestOffer').addEventListener('input',function(){
+  var v=Number(this.value);state.lowestOffer=Number.isFinite(v)&&v>0?round3(v):null;resetResult();refreshFlow()
+});
+$('ageQuick').addEventListener('click',function(e){
+  var b=e.target.closest('[data-age-hours]');if(!b)return;
+  state.lowestAgeHours=Number(b.getAttribute('data-age-hours'));
+  if(state.lowestAgeHours<1){$('lowestAge').value=Math.round(state.lowestAgeHours*60);$('lowestAgeUnit').value='minutes'}
+  else{$('lowestAge').value=state.lowestAgeHours;$('lowestAgeUnit').value='hours'}
+  paintAgeButtons();resetResult();refreshFlow()
+});
+function setCustomAge(){
+  var v=Number($('lowestAge').value),u=$('lowestAgeUnit').value;
+  state.lowestAgeHours=!Number.isFinite(v)||v<0?null:(u==='minutes'?v/60:(u==='days'?v*24:v));
+  paintAgeButtons();resetResult();refreshFlow()
+}
+$('lowestAge').addEventListener('input',setCustomAge);
+$('lowestAgeUnit').addEventListener('change',setCustomAge);
+document.querySelectorAll('[data-mode]').forEach(function(b){
+  b.addEventListener('click',function(){
+    state.mode=this.getAttribute('data-mode');paintMode();resetResult();refreshFlow()
+  })
+});
+$('higherCheaper').addEventListener('change',function(){state.higherCheaper=this.checked;resetResult();refreshFlow()});
+$('analyseBtn').addEventListener('click',function(){analyse(false)});
+$('deepBtn').addEventListener('click',function(){analyse(true)});
+$('positionGrid').addEventListener('click',function(e){
+  var b=e.target.closest('[data-pos]');if(b)finalFromPosition(Number(b.getAttribute('data-pos')))
+});
+$('editBtn').addEventListener('click',function(){
+  document.body.classList.remove('has-result');$('resultCard').hidden=true;refreshFlow()
+});
+$('settingsBtn').addEventListener('click',function(){$('settings').hidden=false;$('apiKey').value=apiKey()});
+$('closeSettings').addEventListener('click',function(){$('settings').hidden=true});
+$('saveKey').addEventListener('click',function(){
+  try{localStorage.setItem('warera-api-key',$('apiKey').value.trim())}catch(e){}
+  $('settings').hidden=true
+});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')$('settings').hidden=true});
+
+buildRarities();buildSlots();buildPositionButtons();paintMode();paintAgeButtons();refreshFlow();
+try{var k=localStorage.getItem('warera-api-key');if(k)$('apiKey').value=k}catch(e){}
+console.log('ETC test22 — compact adaptive model');
+})();
+</script>
+</body>
+</html>
