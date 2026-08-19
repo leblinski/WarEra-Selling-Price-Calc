@@ -1,0 +1,3258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ETC — Equipment Trading Calculator for WarEra</title>
+<meta name="description" content="Equipment Trading Calculator for WarEra. Enter a rival's price and get the figure that beats it by the smallest increment — or a warning when the item is worth more flipped or broken into scraps.">
+<meta name="theme-color" content="#0E1A20">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500&family=Saira+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ground: #0E1A20;
+    --panel: #15252D;
+    --panel-2: #1C3039;
+    --line: #2A4553;
+    --ink: #EAF0F2;
+    --dim: #8FA8B3;
+    --brass: #C89B3C;
+    --brass-deep: #7A5E22;
+    --brass-rgb: 200,155,60;
+    --verdigris: #6BB8A8;
+    --rust: #C2703F;
+    --radius: 10px;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+
+  body {
+    transition: background-color 160ms ease, color 160ms ease;
+    margin: 0;
+    padding: 28px 20px calc(48px + env(safe-area-inset-bottom));
+    background: var(--ground);
+    color: var(--ink);
+    font-family: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    font-size: 16px; line-height: 1.55; -webkit-font-smoothing: antialiased;
+  }
+
+
+  .eyebrow {
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 600; font-size: 13px; letter-spacing: 0.18em;
+    text-transform: uppercase; color: var(--brass); margin: 0 0 2px;
+  }
+  h1 { font-family: "Saira Condensed", ui-sans-serif, sans-serif; font-weight: 700; font-size: 34px; line-height: 1.05; margin: 0 0 8px; }
+  .standfirst { color: var(--dim); font-size: 14.5px; margin: 0 0 18px; }
+
+  .label {
+    display: block; font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 600; font-size: 12.5px; letter-spacing: 0.13em;
+    text-transform: uppercase; color: var(--dim); margin: 0 0 7px;
+  }
+
+
+  input[type="text"], input[type="number"] {
+    width: 100%; height: 58px; padding: 0 14px;
+    background: var(--panel); border: 1px solid rgba(var(--brass-rgb), 0.38);
+    border-radius: var(--radius);
+    color: var(--ink); font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums;
+    -moz-appearance: textfield; appearance: none;
+  }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  input:hover { border-color: rgba(var(--brass-rgb), 0.62); }
+  input:focus { outline: none; border-color: var(--brass); box-shadow: 0 0 0 3px rgba(var(--brass-rgb),0.18); }
+  input.armed { border-color: var(--verdigris); }
+
+  .fields { display: grid; grid-template-columns: 1fr 76px; gap: 8px; align-items: end; margin-bottom: 6px; }
+
+  .fields .label { margin-bottom: 7px; }
+
+  .taxfield input:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .wrap { max-width: 860px; margin: 0 auto; }
+
+  .layout { display: grid; grid-template-columns: minmax(0, 1fr) 236px; gap: 30px; align-items: start; }
+  @media (max-width: 820px) { .layout { grid-template-columns: 1fr; gap: 22px; } }
+
+  .history { position: sticky; top: 20px; }
+  @media (max-width: 820px) { .history { position: static; border-top: 1px solid var(--line); padding-top: 18px; } }
+
+  .hist-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+  .hist-clear {
+    background: none; border: none; padding: 0; cursor: pointer;
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif; font-weight: 600;
+    font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--dim);
+  }
+  .hist-clear:hover { color: var(--rust); }
+  .hist-clear[hidden] { display: none; }
+
+  .hist-list { display: grid; gap: 6px; }
+  .hist-item {
+    position: relative; width: 100%; text-align: left; font: inherit; color: inherit;
+    background: var(--panel); border: 1px solid rgba(var(--brass-rgb), 0.26); border-radius: 8px;
+    padding: 9px 11px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .hist-item:hover { border-color: var(--brass-deep); }
+  .hist-item:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--brass-rgb),0.22); }
+  .hist-item.flash { border-color: var(--verdigris); }
+  .hist-in {
+    display: block; font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; word-break: break-all;
+  }
+  .hist-out {
+    display: block; font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 12.5px; color: var(--dim); margin-top: 1px; word-break: break-all;
+  }
+  .hist-item.flash .hist-out { color: var(--verdigris); }
+  .hist-empty { font-size: 13px; color: var(--dim); margin: 0; }
+
+  .topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+
+  .colours-toggle {
+    background: none; border: none; padding: 0; cursor: pointer;
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 600; font-size: 11.5px; letter-spacing: 0.13em;
+    text-transform: uppercase; color: var(--dim); white-space: nowrap;
+  }
+  .colours-toggle:hover, .colours-toggle[aria-expanded="true"] { color: var(--brass); }
+  .colours-toggle::after { content: " +"; }
+  .colours-toggle[aria-expanded="true"]::after { content: " \2212"; }
+
+  .swatches { display: flex; gap: 7px; flex-wrap: wrap; justify-content: flex-end; }
+  .swatches[hidden] { display: none; }
+  .swatch {
+    width: 22px; height: 22px; border-radius: 50%; cursor: pointer; padding: 0;
+    border: 2px solid transparent; background-clip: padding-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .swatch { border: 2px solid var(--line); }
+  .swatch:hover { transform: scale(1.12); }
+  .swatch[aria-pressed="true"] { border-color: var(--ink); }
+  .swatch:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--brass-rgb),0.35); }
+
+  .byline { display: flex; flex-direction: column; align-items: flex-end; gap: 5px; flex: none; margin-top: 2px; }
+  .byline-label {
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 600; font-size: 11.5px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--dim);
+  }
+
+  .tip {
+    font-size: 12.5px; color: var(--brass); text-decoration: none;
+    border-bottom: 1px dashed rgba(var(--brass-rgb),0.45); padding-bottom: 1px;
+    white-space: nowrap;
+  }
+  .tip:hover { border-bottom-style: solid; }
+  .tip[hidden] { display: none; }
+  .tip.thanked { color: var(--verdigris); border-bottom-color: transparent; cursor: default; }
+  .tip.thanked:hover { border-bottom-style: dashed; border-bottom-color: transparent; }
+
+  .profile {
+    display: flex; align-items: center; gap: 10px;
+    text-decoration: none; color: inherit; flex: none;
+    border: 1px solid var(--line); border-radius: 999px;
+    padding: 5px 14px 5px 5px; margin-top: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .profile:hover { border-color: var(--brass-deep); background: var(--panel); }
+  .profile:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--brass-rgb),0.22); }
+
+  .profile-pic {
+    width: 38px; height: 38px; border-radius: 50%; flex: none;
+    background: var(--panel-2) center/cover no-repeat;
+    border: 1px solid var(--brass-deep);
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 700; font-size: 15px; color: var(--brass); letter-spacing: 0.02em;
+  }
+
+  .profile-name {
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 700; font-size: 15.5px; letter-spacing: 0.03em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;
+  }
+
+  @media (max-width: 560px) {
+    .topbar { gap: 10px; }
+    .profile { padding: 4px 10px 4px 4px; }
+    .profile-pic { width: 32px; height: 32px; font-size: 13px; }
+    .profile-name { font-size: 14px; max-width: 96px; }
+    }
+
+  .inputwrap { position: relative; }
+
+  .hint { font-size: 13px; color: var(--dim); margin: 0 0 18px; }
+
+  .docket {
+    position: relative; display: block; width: 100%; text-align: left;
+    background: var(--panel-2); border: 1px solid var(--brass-deep);
+    border-radius: var(--radius); padding: 18px 20px 20px; margin-bottom: 10px;
+    cursor: pointer; overflow: hidden; font: inherit; color: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .docket::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+    background: repeating-linear-gradient(to bottom, var(--brass) 0 7px, transparent 7px 15px);
+  }
+  .docket[disabled] { opacity: 0.5; cursor: default; }
+  .docket-label {
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif; font-weight: 600;
+    font-size: 12.5px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--brass); margin: 0 0 2px;
+  }
+  .docket-figure {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-weight: 600;
+    font-size: 46px; line-height: 1.12; letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums; margin: 0;
+    -webkit-user-select: text; user-select: text; -webkit-touch-callout: default;
+    word-break: break-all;
+  }
+  .docket-hint { font-size: 13px; color: var(--dim); margin: 4px 0 0; }
+  .stamp {
+    position: absolute; right: 14px; top: 14px; transform: rotate(-9deg) scale(0.9);
+    border: 2px solid var(--verdigris); border-radius: 4px; color: var(--verdigris);
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif; font-weight: 700;
+    font-size: 15px; letter-spacing: 0.2em; padding: 3px 10px 2px;
+    opacity: 0; pointer-events: none; transition: opacity 140ms ease, transform 140ms ease;
+  }
+  .docket.is-copied .stamp { opacity: 1; transform: rotate(-9deg) scale(1); }
+  .docket.is-failed .stamp {
+    opacity: 1; transform: rotate(-9deg) scale(1);
+    border-color: var(--brass); color: var(--brass); font-size: 12px; letter-spacing: 0.06em;
+  }
+
+  .market {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; height: 52px; margin: 14px 0 24px;
+    border: 1px solid var(--brass-deep); border-radius: var(--radius);
+    background: var(--panel); color: var(--brass); text-decoration: none;
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 700; font-size: 15px; letter-spacing: 0.09em; text-transform: uppercase;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .market:hover { border-color: var(--brass); background: var(--panel-2); }
+  .market:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--brass-rgb),0.22); }
+
+  .soundpick { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: -8px 0 22px 4px; }
+  .soundpick[hidden] { display: none; }
+  .soundpick-label {
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 600; font-size: 11.5px; letter-spacing: 0.13em;
+    text-transform: uppercase; color: var(--dim);
+  }
+  .soundpick-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+  .soundbtn {
+    border: 1px solid rgba(var(--brass-rgb), 0.30); border-radius: 999px; background: transparent;
+    color: var(--dim); cursor: pointer; padding: 5px 13px;
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 600; font-size: 12.5px; letter-spacing: 0.08em; text-transform: uppercase;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .soundbtn:hover { border-color: var(--brass-deep); color: var(--ink); }
+  .soundbtn[aria-pressed="true"] { border-color: var(--brass); color: var(--brass); background: var(--panel); }
+  .soundbtn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--brass-rgb),0.22); }
+
+  .flip {
+    position: relative; border: 1px solid var(--verdigris); border-radius: var(--radius);
+    padding: 16px 20px 18px; margin: 0 0 16px; overflow: hidden;
+  }
+  .flip[hidden] { display: none; }
+  .flip::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+    background: repeating-linear-gradient(to bottom, var(--verdigris) 0 7px, transparent 7px 15px);
+  }
+  .flip-label {
+    margin: 0 0 6px; font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 700; font-size: 14px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--verdigris);
+  }
+  .flip-lead { margin: 0; font-size: 13.5px; color: var(--dim); }
+  .flip-figure {
+    margin: 2px 0 0; font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-weight: 600; font-size: 36px; line-height: 1.15; letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums; color: var(--ink); word-break: break-all;
+  }
+  .flip-detail { margin: 1px 0 0; font-size: 13.5px; color: var(--dim); }
+
+  @media (max-width: 430px) { .flip-figure { font-size: 30px; } }
+
+  .scrap-tabs { display: flex; gap: 6px; margin: 13px 0 6px; }
+  .scrap-tabnote { margin: 0 0 4px; font-size: 12.5px; color: var(--dim); }
+
+  .scrap-rows { display: grid; gap: 3px; margin: 12px 0 0; }
+  .scrap-row {
+    display: flex; justify-content: space-between; gap: 10px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px;
+    font-variant-numeric: tabular-nums; color: var(--dim);
+    padding: 3px 8px; border-radius: 5px;
+  }
+  .scrap-row.hit { color: var(--verdigris); background: rgba(var(--brass-rgb), 0.07); }
+  .scrap-row .tier { letter-spacing: 0.03em; }
+
+  .scrap-src { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(var(--brass-rgb), 0.20); }
+  .scrap-src-label {
+    display: block; margin-bottom: 7px;
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 600; font-size: 11.5px; letter-spacing: 0.13em;
+    text-transform: uppercase; color: var(--dim);
+  }
+  .scrap-btns { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 9px; }
+  #scrapPrice {
+    width: 120px; height: 40px; padding: 0 11px; font-size: 16px;
+    background: var(--panel); border: 1px solid rgba(var(--brass-rgb), 0.38);
+    border-radius: var(--radius); color: var(--ink);
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums;
+  }
+  #scrapPrice[readonly] { opacity: 0.7; cursor: default; }
+  .scrap-note { font-size: 12.5px; color: var(--dim); margin-left: 10px; }
+
+  .scrap-alert { animation: scrapPulse 1.1s ease-in-out 3; }
+  @keyframes scrapPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(var(--brass-rgb), 0); }
+    50% { box-shadow: 0 0 0 5px rgba(var(--brass-rgb), 0.28); }
+  }
+  @media (prefers-reduced-motion: reduce) { .scrap-alert { animation: none; } }
+
+  .rarity { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 0 6px; }
+  .rarity-label {
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 600; font-size: 11.5px; letter-spacing: 0.13em;
+    text-transform: uppercase; color: var(--dim);
+  }
+  .rarity-btns { display: flex; gap: 5px; flex: 1 1 auto; min-width: 0; }
+  /* The badge art carries its own label, so nothing is drawn over it. */
+  .rarity-btn {
+    border: 1px solid transparent; border-radius: 9px; background: transparent;
+    padding: 2px; cursor: pointer; flex: 1 1 0; min-width: 0;
+    -webkit-tap-highlight-color: transparent;
+    opacity: 0.45; filter: saturate(0.55);
+    transition: opacity 120ms ease, filter 120ms ease;
+  }
+  .rarity-btn .badge {
+    display: block; width: 100%; aspect-ratio: 1 / 1;
+    background-image: url('badges.png');
+    background-size: 600% 100%; background-repeat: no-repeat; background-position-y: center;
+  }
+  .rarity-btn:hover { opacity: 0.8; filter: none; }
+  .rarity-btn[aria-pressed="true"] {
+    opacity: 1; filter: none; border-color: var(--tier, var(--brass)); background: var(--panel);
+  }
+
+
+  .listanyway {
+    display: block; margin: -4px 0 14px; padding: 6px 13px; cursor: pointer;
+    border: 1px dashed var(--line); border-radius: 999px;
+    background: transparent; color: var(--dim);
+    font-family: "IBM Plex Sans", ui-sans-serif, sans-serif; font-size: 12.5px;
+    opacity: 0.75;
+  }
+  .listanyway[hidden] { display: none; }
+  .listanyway:hover { color: var(--ink); border-color: rgba(var(--brass-rgb), 0.5); }
+
+  .docket.blocked { border-color: var(--verdigris); }
+  .docket.blocked .docket-figure {
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-size: 30px; letter-spacing: 0.02em; text-transform: uppercase; color: var(--verdigris);
+  }
+  .docket.blocked::before { background: repeating-linear-gradient(to bottom, var(--verdigris) 0 7px, transparent 7px 15px); }
+  @media (max-width: 430px) { .docket.blocked .docket-figure { font-size: 24px; } }
+
+  .slider-wrap { margin-top: 13px; }
+  .slider-wrap[hidden] { display: none; }
+  .flip-detail strong {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-weight: 600;
+    font-variant-numeric: tabular-nums; color: var(--ink);
+  }
+  .flip-detail strong.gain { color: var(--verdigris); }
+  #secondSlider {
+    width: 100%; margin: 0 0 10px; height: 26px; padding: 0;
+    background: transparent; -webkit-appearance: none; appearance: none; cursor: pointer;
+  }
+  #secondSlider::-webkit-slider-runnable-track {
+    height: 5px; border-radius: 3px; background: rgba(var(--brass-rgb), 0.28);
+  }
+  #secondSlider::-moz-range-track {
+    height: 5px; border-radius: 3px; background: rgba(var(--brass-rgb), 0.28);
+  }
+  #secondSlider::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; margin-top: -8px;
+    width: 21px; height: 21px; border-radius: 50%;
+    background: var(--verdigris); border: 2px solid var(--ground);
+  }
+  #secondSlider::-moz-range-thumb {
+    width: 21px; height: 21px; border-radius: 50%; border: 2px solid var(--ground);
+    background: var(--verdigris);
+  }
+  #secondSlider:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--brass-rgb), 0.25); border-radius: 6px; }
+
+  .slider-row { display: flex; align-items: center; gap: 10px; }
+  .stepbtn {
+    flex: none; width: 34px; height: 34px; border-radius: 50%; cursor: pointer;
+    border: 1px solid rgba(var(--brass-rgb), 0.38); background: var(--panel);
+    color: var(--ink); font-size: 18px; line-height: 1; padding: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .stepbtn:hover { border-color: var(--brass); }
+  .stepbtn:active { background: var(--panel-2); }
+
+
+  .gobtn {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    width: 58px; height: 50px; border-radius: 9px; cursor: pointer; padding: 0;
+    border: 1px solid var(--brass-deep); background: var(--panel-2);
+    color: var(--brass); font-size: 25px; line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .gobtn:hover { border-color: var(--brass); background: var(--panel); }
+  .gobtn:active { transform: translateY(-50%) scale(0.94); }
+  .gobtn:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(var(--brass-rgb), 0.28); }
+  #price { padding-right: 74px; }
+  #tax { padding: 0 8px; font-size: 19px; text-align: center; }
+
+
+  .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; margin: 11px 0 6px; }
+  .keypad[hidden] { display: none; }
+  .key {
+    height: 52px; cursor: pointer; border-radius: var(--radius);
+    border: 1px solid rgba(var(--brass-rgb), 0.30); background: var(--panel);
+    color: var(--ink); font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 21px; font-weight: 500; padding: 0;
+    -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none;
+  }
+  .key:active { background: var(--panel-2); border-color: var(--brass); }
+  .key.wiped { border-color: var(--rust); color: var(--rust); }
+
+  .key.enter {
+    grid-column: span 3; margin-top: 3px;
+    border-color: var(--brass-deep); background: var(--panel-2); color: var(--brass);
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-size: 16px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+  }
+  .key.enter:active { background: var(--panel); border-color: var(--brass); }
+  .key.act { color: var(--brass); font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+             font-size: 15px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+
+  @media (max-width: 620px) {
+    /* The title cannot fit beside the badge, so the badge and Settings sit on
+       their own row above it and the heading takes the full width. */
+    .topbar { flex-direction: column-reverse; align-items: stretch; gap: 12px; }
+    .byline { flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; }
+    h1 { font-size: 27px; }
+    .rarity { gap: 5px; margin: 8px 0 2px; }
+    .rarity-label { width: 100%; margin-bottom: 2px; }
+    .rarity-btns { width: 100%; }
+    .hint { margin-bottom: 10px; font-size: 12.5px; }
+    .docket { padding: 13px 16px 15px; }
+    .docket-figure { font-size: 34px; }
+    .keypad { gap: 6px; margin: 10px 0 14px; }
+    .key { height: 48px; font-size: 20px; }
+    .key.enter { height: 46px; }
+    .standfirst { margin-bottom: 14px; }
+  }
+
+  .settings-btn {
+    border: 1px solid var(--brass-deep); border-radius: 999px;
+    background: var(--panel); color: var(--brass); cursor: pointer;
+    padding: 7px 16px; white-space: nowrap;
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 700; font-size: 13px; letter-spacing: 0.13em; text-transform: uppercase;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .settings-btn:hover { border-color: var(--brass); background: var(--panel-2); }
+  .settings-btn[aria-expanded="true"] { background: var(--panel-2); border-color: var(--brass); }
+  .settings-btn::after { content: " +"; }
+  .settings-btn[aria-expanded="true"]::after { content: " \2212"; }
+
+  /* An overlay rather than an inline block: opening it must not move the page,
+     because on iOS the keyboard dismissing at the same moment re-adjusts the
+     scroll afterwards and undoes anything we set. */
+  .settings-panel {
+    position: fixed; inset: 0; z-index: 40;
+    background: rgba(0,0,0,0.55);
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 16px;
+  }
+  .settings-panel[hidden] { display: none; }
+  .settings-sheet {
+    max-width: 540px; margin: 0 auto;
+    background: var(--ground); border: 1px solid rgba(var(--brass-rgb), 0.35);
+    border-radius: 14px; padding: 0 18px 6px;
+  }
+  .settings-bar {
+    position: sticky; top: 0; z-index: 1; background: var(--ground);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 0 12px; margin-bottom: 4px;
+    border-bottom: 1px solid rgba(var(--brass-rgb), 0.20);
+  }
+  .settings-title {
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 700; font-size: 17px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--brass);
+  }
+  .settings-close {
+    width: 40px; height: 40px; border-radius: 50%; cursor: pointer; padding: 0;
+    border: 1px solid var(--line); background: var(--panel);
+    color: var(--ink); font-size: 22px; line-height: 1;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .settings-close:hover { border-color: var(--brass); }
+  .settings-head {
+    margin: 0 0 8px; font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 600; font-size: 11.5px; letter-spacing: 0.13em;
+    text-transform: uppercase; color: var(--dim);
+  }
+  .settings-panel .swatches { justify-content: flex-start; margin-bottom: 16px; }
+  .settings-panel .soundpick { margin: 0 0 16px 0; }
+
+  .quick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: -6px 0 14px; }
+  .quick-chip {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+    padding: 9px 13px; cursor: pointer; text-align: left;
+    border: 1px solid rgba(var(--brass-rgb), 0.28); border-radius: var(--radius);
+    background: var(--panel); color: inherit;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .quick-chip:hover { border-color: var(--brass); }
+  .quick-label {
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 600; font-size: 11px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--dim);
+  }
+  .quick-val {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 19px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink);
+  }
+  .quick-chip.win { border-color: var(--verdigris); background: rgba(var(--brass-rgb), 0.07); }
+  .quick-chip.win .quick-label, .quick-chip.win .quick-val { color: var(--verdigris); }
+
+  #apiKey {
+    display: block; width: 100%; height: 42px; padding: 0 11px; font-size: 15px; margin-bottom: 7px;
+    background: var(--panel); border: 1px solid rgba(var(--brass-rgb), 0.38);
+    border-radius: var(--radius); color: var(--ink);
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+  }
+  .apikey-note { margin: 0 0 14px; font-size: 12.5px; color: var(--dim); }
+
+  .workrow { display: flex; gap: 8px; align-items: stretch; margin: 10px 0 14px; }
+  .workrow[hidden] { display: none; }
+  .workrow.lefty { flex-direction: row-reverse; }
+  /* Height is pinned to the keypad in JS so swapping panes cannot shift the
+     page. The sales list scrolls inside rather than growing the block. */
+  .workpane { flex: 1 1 auto; min-width: 0; }
+  .salespane { display: flex; flex-direction: column; height: 100%;
+               overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .workpane .keypad { margin: 0; }
+
+  .salestab {
+    flex: none; width: 44px; cursor: pointer; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid rgba(var(--brass-rgb), 0.34); border-radius: var(--radius);
+    background: var(--panel); color: var(--brass);
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Upright glyphs stacked downward, so it reads the same whichever side the
+     tab sits on — a rotated label reads upside down on one of them. */
+  .salestab-text {
+    display: block; writing-mode: vertical-rl; text-orientation: upright;
+    -webkit-text-orientation: upright;
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 700; font-size: 15px; letter-spacing: 0.02em; line-height: 1.05;
+    text-transform: uppercase; text-align: center;
+    /* word-spacing runs along the inline axis, which is vertical here, so the
+       gap between the words grows without starting a second column. */
+    word-spacing: 0.7em;
+    white-space: nowrap;
+  }
+  .salestab[aria-expanded="true"] { background: var(--panel-2); border-color: var(--brass); }
+
+  .salespane[hidden] { display: none; }
+  .sales-head {
+    margin: 0; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 600; font-size: 11.5px; letter-spacing: 0.13em;
+    text-transform: uppercase; color: var(--dim);
+  }
+  .slotgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 10px; }
+  .slotgrid[hidden] { display: none; }
+  /* Drawn rather than loaded: no asset URLs to guess at, nothing to hotlink,
+     and an inline path can take the rarity colour that the price implies. */
+  .slotbtn {
+    position: relative; height: 62px; cursor: pointer; padding: 0;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid rgba(var(--brass-rgb), 0.28); border-radius: var(--radius);
+    background: var(--panel); color: var(--tier, var(--dim));
+    -webkit-tap-highlight-color: transparent;
+  }
+  .slotart {
+    display: block; width: 52px; height: 52px; border-radius: 6px;
+    background-image: url('items.png');
+    background-size: 600% 600%; background-repeat: no-repeat;
+  }
+  .slotbtn[aria-pressed="true"] {
+    border-color: var(--tier, var(--brass)); background: var(--panel-2);
+  }
+  .slotbtn[aria-pressed="true"]::before {
+    content: ""; position: absolute; inset: 0; border-radius: var(--radius);
+    background: currentColor; opacity: 0.10;
+  }
+
+  .sales-bar { display: flex; align-items: baseline; gap: 8px; flex: none; margin-bottom: 8px; }
+  .sales-back {
+    flex: none; width: 26px; height: 26px; padding: 0; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 6px;
+    background: var(--panel); color: var(--ink); font-size: 14px; line-height: 1;
+  }
+  .sales-back[hidden] { display: none; }
+  .sales-pick {
+    flex: none; width: 30px; height: 30px; border-radius: 5px;
+    background-image: url('items.png'); background-size: 600% 600%; background-repeat: no-repeat;
+  }
+  .sales-pick[hidden] { display: none; }
+
+  .rollgrid { display: block; margin-bottom: 8px; flex: none; }
+  .rollset { margin-bottom: 6px; }
+  .rolllabel {
+    display: block; margin-bottom: 3px;
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 600; font-size: 10.5px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--dim);
+  }
+  .rollbtns { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+  .rollstep { display: flex; align-items: center; gap: 6px; }
+  .rollchip {
+    display: flex; align-items: center; gap: 8px; width: 100%; height: 32px;
+    padding: 0 10px; cursor: pointer; text-align: left;
+    border: 1px solid var(--brass-deep); border-radius: 7px;
+    background: var(--panel-2); color: var(--ink);
+    -webkit-tap-highlight-color: transparent;
+  }
+  .chiplabel {
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 600; font-size: 10.5px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--dim);
+  }
+  .chipval {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 15px; font-weight: 600; color: var(--brass);
+  }
+  .chipedit {
+    margin-left: auto; font-size: 11.5px; color: var(--dim);
+    text-decoration: underline; text-underline-offset: 2px;
+  }
+  .stepbtn.sm { width: 30px; height: 30px; font-size: 16px; }
+  .rollnum {
+    width: 86px; height: 30px; padding: 0 8px; text-align: center;
+    background: var(--panel); border: 1px solid rgba(var(--brass-rgb), 0.34);
+    border-radius: 6px; color: var(--ink);
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px;
+  }
+  .rollgrid[hidden] { display: none; }
+  .rollbtn {
+    height: 30px; cursor: pointer; padding: 0;
+    border: 1px solid rgba(var(--brass-rgb), 0.24); border-radius: 6px;
+    background: var(--panel); color: var(--ink);
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .rollbtn[aria-pressed="true"] {
+    border-color: var(--tier, var(--brass)); color: var(--tier, var(--brass)); background: var(--panel-2);
+  }
+  .sale-row.match { outline: 1px solid var(--verdigris); outline-offset: -1px; }
+
+  .sales-out { font-size: 13px; color: var(--dim); }
+  .retry {
+    margin-left: 6px; padding: 4px 12px; cursor: pointer;
+    border: 1px solid var(--brass-deep); border-radius: 999px;
+    background: var(--panel); color: var(--brass);
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  .sale-row {
+    display: flex; justify-content: space-between; gap: 8px; padding: 4px 6px;
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12.5px;
+    border-radius: 5px;
+  }
+  .sale-row:nth-child(odd) { background: rgba(var(--brass-rgb), 0.05); }
+  .sale-price { color: var(--ink); font-weight: 600; }
+  .sale-fast { color: var(--verdigris); }
+  .targetrow { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; flex: none; }
+  .targetrow[hidden] { display: none; }
+  .targetrow label {
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 600; font-size: 10.5px; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--dim);
+  }
+  #targetPrice {
+    flex: 1 1 auto; min-width: 0; height: 30px; padding: 0 9px;
+    background: var(--panel); border: 1px solid rgba(var(--brass-rgb), 0.34);
+    border-radius: 6px; color: var(--ink);
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 13px;
+  }
+  .clearbtn {
+    flex: none; width: 30px; height: 30px; padding: 0; cursor: pointer;
+    border: 1px solid var(--line); border-radius: 6px;
+    background: var(--panel); color: var(--dim); font-size: 16px; line-height: 1;
+  }
+
+  .salesopts { display: flex; gap: 5px; margin-bottom: 8px; flex: none; }
+  .salesopts[hidden] { display: none; }
+  .optbtn {
+    flex: 1 1 0; height: 28px; cursor: pointer; padding: 0;
+    border: 1px solid rgba(var(--brass-rgb), 0.26); border-radius: 6px;
+    background: var(--panel); color: var(--dim);
+    font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 600; font-size: 11.5px; letter-spacing: 0.08em; text-transform: uppercase;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .optbtn[aria-pressed="true"] { border-color: var(--brass); color: var(--brass); background: var(--panel-2); }
+
+  .sales-credit {
+    margin: 0 0 0 auto; flex: none; font-size: 10px; color: var(--dim);
+    letter-spacing: 0.02em; white-space: nowrap;
+  }
+  .sales-credit a {
+    color: var(--brass); text-decoration: none;
+    border-bottom: 1px dashed rgba(var(--brass-rgb), 0.45); padding-bottom: 1px;
+  }
+
+  .sales-window {
+    margin: 0 0 6px; font-size: 12.5px; color: var(--dim);
+  }
+  .sales-window strong {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; color: var(--ink);
+  }
+  .sales-summary {
+    margin: 8px 0 0; padding-top: 8px; border-top: 1px solid rgba(var(--brass-rgb), 0.2);
+    font-size: 13px; color: var(--dim);
+  }
+  .sales-summary strong {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; color: var(--verdigris);
+  }
+  .spark { display: block; width: 100%; height: 40px; margin: 8px 0 2px; }
+
+  .warn { color: var(--rust); font-size: 13.5px; margin: 12px 0 0; }
+  .warn[hidden] { display: none; }
+
+  .toggles { display: grid; gap: 10px; margin-bottom: 22px; }
+  .toggle {
+    display: flex; align-items: flex-start; gap: 11px;
+    border: 1px solid rgba(var(--brass-rgb), 0.22); border-radius: var(--radius);
+    padding: 12px 14px; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  }
+  .toggle:hover { border-color: #3A5A6B; }
+  .toggle input { margin: 2px 0 0; width: 18px; height: 18px; accent-color: var(--brass); flex: none; cursor: pointer; }
+  .toggle-text strong {
+    display: block; font-family: "Saira Condensed", ui-sans-serif, sans-serif;
+    font-weight: 700; font-size: 14.5px; letter-spacing: 0.07em; text-transform: uppercase;
+    color: var(--ink); margin-bottom: 1px;
+  }
+  .toggle-text span { font-size: 13px; color: var(--dim); }
+  .toggle-text .credit { display: block; margin-top: 4px; font-style: italic; font-size: 12px; color: var(--brass); opacity: 0.85; }
+  .toggle.on { border-color: var(--brass-deep); background: rgba(var(--brass-rgb), 0.07); }
+  .toggle.on .toggle-text strong { color: var(--brass); }
+
+
+  footer a { color: var(--brass); }
+  footer { border-top: 1px solid var(--line); padding-top: 18px; color: var(--dim); font-size: 13px; }
+  footer p { margin: 0 0 8px; }
+  footer code { font-family: "IBM Plex Mono", ui-monospace, monospace; color: var(--ink); font-size: 12.5px; }
+  footer a { color: var(--brass); }
+
+  kbd {
+    font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 11.5px;
+    background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px;
+    padding: 1px 5px; color: var(--ink);
+  }
+
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  @media (max-width: 430px) {
+    h1 { font-size: 29px; }
+    .docket-figure { font-size: 36px; }
+        }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="topbar">
+    <div>
+      <p class="eyebrow">ETC &middot; WarEra</p>
+      <h1>Equipment Trading Calculator</h1>
+    </div>
+    <div class="byline">
+      <span class="byline-label">Designed by</span>
+      <a class="profile" id="profile" href="https://app.warera.io/user/6a3c07b69ad47ac4cf746b61" target="_blank" rel="noopener noreferrer">
+        <span class="profile-pic" id="profilePic" aria-hidden="true"></span>
+        <span class="profile-name" id="profileName">Lebly</span>
+      </a>
+      <a class="tip" id="tipLink" href="https://app.warera.io/user/6a3c07b69ad47ac4cf746b61" target="_blank" rel="noopener noreferrer" hidden>Tip my latest article &nearr;</a>
+      <button type="button" class="settings-btn" id="settingsBtn" aria-expanded="false" aria-controls="settingsPanel">Settings</button>
+    </div>
+  </div>
+
+  <p class="standfirst">Enter the price you're undercutting and the figure to type into the game is on your clipboard — tax already divided out.</p>
+
+  <div class="settings-panel" id="settingsPanel" hidden>
+    <div class="settings-sheet">
+    <div class="settings-bar">
+      <span class="settings-title">Settings</span>
+      <button type="button" class="settings-close" id="settingsClose" aria-label="Close settings">&times;</button>
+    </div>
+    <p class="settings-head">WarEra API key</p>
+    <input type="password" id="apiKey" placeholder="wra_…" autocomplete="off" spellcheck="false" aria-label="WarEra API key">
+    <p class="apikey-note">Needed only for the <strong>Sold at</strong> panel. Generate one in the game under Settings &rarr; API Tokens. It is kept in this browser and sent nowhere but WarEra.</p>
+
+    <p class="settings-head">Handedness</p>
+    <div class="soundpick-btns" id="handBtns" role="group" aria-label="Which side the Sales tab sits on">
+      <button type="button" class="soundbtn" data-hand="right" aria-pressed="true">Right handed</button>
+      <button type="button" class="soundbtn" data-hand="left" aria-pressed="false">Left handed</button>
+    </div>
+    <p class="apikey-note">Puts the Sold at tab under your thumb.</p>
+
+    <p class="settings-head">Colour</p>
+    <div class="swatches" id="swatches" role="group" aria-label="Accent colour"></div>
+
+  <div class="soundpick" id="soundPick">
+    <span class="soundpick-label">Sound</span>
+    <div class="soundpick-btns" id="soundBtns"></div>
+  </div>
+
+  <div class="toggles">
+    <label class="toggle on" id="beatWrap">
+      <input type="checkbox" id="beatMode" checked>
+      <span class="toggle-text">
+        <strong>Beat their price</strong>
+        <span id="beatDesc">Undercuts by the smallest amount that still wins. Switch off to just convert a price you name yourself.</span>
+        <span class="credit">Toggle inspired by Biertierchen.</span>
+      </span>
+    </label>
+
+    <label class="toggle" id="quickWrap">
+      <input type="checkbox" id="quickInput" checked>
+      <span class="toggle-text">
+        <strong>Alt+Tab Quick Input</strong>
+        <span>Switching back to this window puts the cursor in the box with the old price selected, so you can paste or type straight over it.</span>
+      </span>
+    </label>
+
+    <label class="toggle" id="autoWrap">
+      <input type="checkbox" id="autoCopy" checked>
+      <span class="toggle-text">
+        <strong>Auto clipboard result</strong>
+        <span>Pasting a price copies the result straight away, since a pasted price arrives complete. Typing never copies on its own — press Enter when you're done.</span>
+      </span>
+    </label>
+
+    <label class="toggle" id="soundWrap">
+      <input type="checkbox" id="sound" checked>
+      <span class="toggle-text">
+        <strong>Copy sound</strong>
+        <span>A short tick when the figure reaches the clipboard, a lower tone if the browser blocked it — so you know it landed without looking.</span>
+      </span>
+    </label>
+  </div>
+    </div>
+  </div>
+
+  <div class="layout">
+  <main>
+
+  <div class="fields">
+    <div>
+      <label class="label" for="price" id="priceLabel">Their price</label>
+      <div class="inputwrap">
+        <input type="text" id="price" value="" placeholder="e.g. 45.831" inputmode="decimal" autocomplete="off" spellcheck="false" enterkeyhint="done">
+        <button type="button" class="gobtn" id="goBtn" aria-label="Check this price and copy">&#10003;</button>
+      </div>
+    </div>
+    <div class="taxfield" id="taxfield">
+      <label class="label" for="tax" id="taxLabel">Tax %</label>
+      <input type="number" id="tax" value="1" step="0.1" min="0" inputmode="decimal">
+    </div>
+  </div>
+  <div class="rarity" role="group" aria-label="Item rarity">
+    <span class="rarity-label" id="rarityLabel">From price</span>
+    <div class="rarity-btns" id="rarityBtns"></div>
+  </div>
+
+  <p class="hint" id="hint">Press <kbd>Enter</kbd> to copy the result.</p>
+
+  <button type="button" class="docket" id="docket" disabled>
+    <p class="docket-label" id="docketLabel">Type this to undercut them</p>
+    <p class="docket-figure" id="figure">&mdash;</p>
+    <p class="docket-hint" id="docketHint">Tap to copy</p>
+    <span class="stamp" id="stamp" aria-hidden="true">Copied</span>
+  </button>
+
+  <div class="quick" id="quick">
+    <button type="button" class="quick-chip" id="quickFlip">
+      <span class="quick-label">Flip from</span>
+      <span class="quick-val" id="quickFlipVal">&mdash;</span>
+    </button>
+    <button type="button" class="quick-chip" id="quickScrap">
+      <span class="quick-label">Scrap value</span>
+      <span class="quick-val" id="quickScrapVal">&mdash;</span>
+    </button>
+  </div>
+
+  <button type="button" class="listanyway" id="listAnyway" hidden></button>
+
+  <div class="workrow" id="workrow" hidden>
+    <button type="button" class="salestab" id="salesTab" aria-expanded="false" aria-label="Recent sales">
+      <span class="salestab-text">Sold at</span>
+    </button>
+    <div class="workpane" id="workpane">
+      <div class="keypad" id="keypad"></div>
+      <div class="salespane" id="salesPane" hidden>
+        <div class="sales-bar">
+          <button type="button" class="sales-back" id="salesBack" hidden aria-label="Back to pieces">&larr;</button>
+          <span class="sales-pick" id="salesPick" hidden></span>
+          <p class="sales-head" id="salesHead">Which piece is it?</p>
+          <p class="sales-credit">supported by <a href="https://warerastats.io/" target="_blank" rel="noopener noreferrer">warerastats.io</a></p>
+        </div>
+        <div class="slotgrid" id="slotGrid"></div>
+        <div class="rollgrid" id="rollGrid" hidden></div>
+        <div class="targetrow" id="targetRow" hidden>
+          <label for="targetPrice">Around</label>
+          <input type="text" id="targetPrice" inputmode="decimal" autocomplete="off" placeholder="any price">
+          <button type="button" class="clearbtn" id="targetClear" aria-label="Clear target">&times;</button>
+        </div>
+        <div class="salesopts" id="salesOpts" hidden>
+          <button type="button" class="optbtn" data-hours="12">12h</button>
+          <button type="button" class="optbtn" data-hours="24" aria-pressed="true">24h</button>
+          <button type="button" class="optbtn" data-depth="40">Quick</button>
+          <button type="button" class="optbtn" data-depth="100" aria-pressed="true">Deep</button>
+        </div>
+        <div class="sales-out" id="salesOut"></div>
+      </div>
+    </div>
+  </div>
+  <p class="sr-only" id="live" role="status" aria-live="polite"></p>
+
+  <p class="warn" id="warn" hidden></p>
+
+  <div class="flip" id="flip" hidden>
+    <p class="flip-label">Flip it?</p>
+    <p class="flip-lead" id="flipLead">Worth flipping only if the second offer is</p>
+    <p class="flip-figure" id="flipFigure">&mdash;</p>
+    <p class="flip-detail" id="flipDetail">or higher</p>
+
+    <div class="slider-wrap" id="sliderWrap">
+      <div class="slider-row">
+        <button type="button" class="stepbtn" id="stepDown" aria-label="Lower by 0.001">&minus;</button>
+        <input type="range" id="secondSlider" min="0" max="100" step="1" value="0" aria-label="Second offer price">
+        <button type="button" class="stepbtn" id="stepUp" aria-label="Raise by 0.001">+</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="flip" id="scrapBox" hidden>
+    <p class="flip-label">Dismantle it?</p>
+    <p class="flip-lead" id="scrapLead">Worth buying to break for scraps if it is</p>
+    <p class="flip-figure" id="scrapVerdict">&mdash;</p>
+    <p class="flip-detail" id="scrapDetail"></p>
+
+    <div class="scrap-tabs" role="group" aria-label="How to read the scrap values">
+      <button type="button" class="soundbtn" data-view="listed" aria-pressed="true">As listed</button>
+      <button type="button" class="soundbtn" data-view="typed" aria-pressed="false">To type</button>
+    </div>
+    <p class="scrap-tabnote" id="scrapTabNote"></p>
+    <div class="scrap-rows" id="scrapRows"></div>
+
+    <div class="scrap-src">
+      <span class="scrap-src-label">Scrap price</span>
+      <div class="scrap-btns" role="group" aria-label="Which scrap price to use">
+        <button type="button" class="soundbtn" data-src="bid" aria-pressed="true">Best buyer</button>
+        <button type="button" class="soundbtn" data-src="ask" aria-pressed="false">Best seller</button>
+        <button type="button" class="soundbtn" data-src="mid" aria-pressed="false">Average</button>
+        <button type="button" class="soundbtn" data-src="own" aria-pressed="false">Set it</button>
+      </div>
+      <input type="text" id="scrapPrice" value="0.218" inputmode="decimal" autocomplete="off" spellcheck="false" aria-label="Scrap price">
+      <span class="scrap-note" id="scrapNote"></span>
+    </div>
+  </div>
+
+  <a class="market" href="https://app.warera.io/market/equipments" target="_blank" rel="noopener noreferrer">
+    Open the equipment marketplace <span aria-hidden="true">&nearr;</span>
+  </a>
+
+
+
+  </main>
+
+  <aside class="history">
+    <div class="hist-head">
+      <span class="label" style="margin:0;">Recent</span>
+      <button type="button" class="hist-clear" id="histClear" hidden>Clear</button>
+    </div>
+    <div class="hist-list" id="histList"></div>
+    <p class="hist-empty" id="histEmpty">Prices you copy will collect here. Tap one to put its figure back on the clipboard.</p>
+  </aside>
+
+  </div>
+
+  <footer>
+    <p>Market data supported by <a href="https://warerastats.io/" target="_blank" rel="noopener noreferrer">warerastats.io</a></p>
+    <p><span>build 115</span></p>
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+
+  // True only while a copy is putting focus back where it found it, so the
+  // field's focus handler can tell a restore from the user arriving.
+  var restoringFocus = false;
+
+  var state = {
+    figure: '',
+    listFigure: '',
+    scrapValue: '',
+    lastPrice: '',
+    stampTimer: null
+  };
+
+  /* ============ exact decimals ============
+     Prices are handled as an integer plus a scale, never as floats, so a
+     four-decimal entry under a 1% multiplier lands exactly where intended. */
+
+  function dec(str) {
+    var s = String(str).trim();
+    var neg = s.charAt(0) === '-';
+    if (neg || s.charAt(0) === '+') { s = s.slice(1); }
+    if (s === '' || s === '.' || !/^\d*(\.\d*)?$/.test(s)) { return null; }
+    var p = s.split('.');
+    var i = BigInt((p[0] || '0') + (p[1] || ''));
+    return { i: neg ? -i : i, s: (p[1] || '').length };
+  }
+
+  function decStr(d) {
+    var neg = d.i < 0n;
+    var a = (neg ? -d.i : d.i).toString();
+    if (d.s === 0) { return (neg ? '-' : '') + a; }
+    while (a.length <= d.s) { a = '0' + a; }
+    return (neg ? '-' : '') + a.slice(0, a.length - d.s) + '.' + a.slice(a.length - d.s);
+  }
+
+
+  /* ============ clipboard ============ */
+
+  // Copies via a throwaway textarea. Three details matter and all three were
+  // wrong before: the element needs a real text node for a DOM Range to find,
+  // it must be focused or its internal selection isn't the one copied, and any
+  // existing page selection has to be cleared first — otherwise execCommand
+  // copies whatever was highlighted elsewhere, such as the price field.
+  function legacyCopy(text) {
+    var active = document.activeElement;
+    var selStart = null, selEnd = null;
+    try {
+      if (active && active.tagName === 'INPUT') {
+        selStart = active.selectionStart;
+        selEnd = active.selectionEnd;
+      }
+    } catch (e) {}
+
+    var sel = window.getSelection();
+    try { sel.removeAllRanges(); } catch (e) {}
+
+    var f = document.createElement('textarea');
+    f.value = text;
+    f.textContent = text;
+    f.setAttribute('readonly', '');
+    f.contentEditable = 'true';
+    f.style.cssText = 'position:fixed;top:50%;left:0;width:1px;height:1px;padding:0;border:none;opacity:0;font-size:16px;';
+    document.body.appendChild(f);
+
+    var ok = false;
+    var forced = false;
+
+    // Belt and braces: the copy event carries the payload explicitly, so even
+    // if some other selection ends up being the active one, the data written
+    // is still the figure we asked for.
+    var handler = function (e) {
+      try {
+        (e.clipboardData || window.clipboardData).setData('text/plain', text);
+        e.preventDefault();
+        forced = true;
+      } catch (err) {}
+    };
+    document.addEventListener('copy', handler, true);
+
+    try {
+      f.focus();
+      var range = document.createRange();
+      range.selectNodeContents(f);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      f.setSelectionRange(0, text.length);
+      ok = document.execCommand('copy');
+    } catch (e) { ok = false; }
+
+    document.removeEventListener('copy', handler, true);
+    ok = ok || forced;
+
+    try { sel.removeAllRanges(); } catch (e) {}
+    document.body.removeChild(f);
+
+    if (active && active.focus && active !== document.body) {
+      try {
+        // Marked so the field's focus handler knows this is a restore after a
+        // copy, not the user arriving. Without it, every keystroke would
+        // re-select the field and the next character would overwrite.
+        restoringFocus = true;
+        active.focus();
+        if (selStart !== null) { active.setSelectionRange(selStart, selEnd); }
+      } catch (e) {}
+      restoringFocus = false;
+    }
+    return ok;
+  }
+
+  function selectFigure() {
+    try {
+      var range = document.createRange();
+      range.selectNodeContents($('figure'));
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+    } catch (e) {}
+  }
+
+  /* ============ copy sounds ============
+     Synthesised rather than loaded, so there's no file to host. The original
+     was a triangle wave at 1180Hz with a very fast attack, which reads as a
+     crack; these use sine waves, lower pitches and softer attacks. */
+
+  var audioCtx = null;
+
+  function tone(o) {
+    var now = audioCtx.currentTime + (o.delay || 0);
+    var osc = audioCtx.createOscillator();
+    var gain = audioCtx.createGain();
+
+    osc.type = o.type || 'sine';
+    osc.frequency.setValueAtTime(o.from, now);
+    if (o.to && o.to !== o.from) {
+      osc.frequency.exponentialRampToValueAtTime(o.to, now + o.dur);
+    }
+
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(o.gain, now + (o.attack || 0.010));
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + o.dur);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(now);
+    osc.stop(now + o.dur + 0.03);
+  }
+
+  var SOUNDS = [
+    // Three notes of a major triad, played fast enough to read as one gesture.
+    { id: 'harp', name: 'Harp', play: function () {
+        tone({ from: 523, dur: 0.20, gain: 0.070, attack: 0.006 });
+        tone({ from: 659, dur: 0.20, gain: 0.064, attack: 0.006, delay: 0.055 });
+        tone({ from: 784, dur: 0.28, gain: 0.058, attack: 0.006, delay: 0.110 }); } },
+
+    // Two notes a fifth apart.
+    { id: 'chime', name: 'Chime', play: function () {
+        tone({ from: 880,  dur: 0.32, gain: 0.090, attack: 0.012 });
+        tone({ from: 1320, dur: 0.26, gain: 0.050, attack: 0.012, delay: 0.045 }); } },
+
+    // Real bells have inharmonic partials, roughly 2x, 2.76x and 5.4x the
+    // fundamental, each decaying faster than the last. That's what makes a
+    // bell sound struck rather than beeped.
+    { id: 'bell', name: 'Bell', play: function () {
+        tone({ from: 587,  dur: 0.55, gain: 0.070, attack: 0.004 });
+        tone({ from: 1174, dur: 0.34, gain: 0.032, attack: 0.004 });
+        tone({ from: 1620, dur: 0.20, gain: 0.018, attack: 0.004 });
+        tone({ from: 3170, dur: 0.09, gain: 0.007, attack: 0.003 }); } },
+
+    // Struck wood: a strong fundamental with a brief fourth harmonic on top.
+    { id: 'marimba', name: 'Marimba', play: function () {
+        tone({ from: 523,  dur: 0.26, gain: 0.110, attack: 0.006 });
+        tone({ from: 2092, dur: 0.07, gain: 0.022, attack: 0.004 }); } },
+
+    // Two ascending notes, which reads as "finished" rather than "attention".
+    { id: 'rise', name: 'Rise', play: function () {
+        tone({ from: 659, dur: 0.11, gain: 0.095, attack: 0.010 });
+        tone({ from: 988, dur: 0.22, gain: 0.085, attack: 0.010, delay: 0.075 }); } },
+
+    // A quick upward sweep, the way a water drop resonates as it closes.
+    { id: 'drop', name: 'Drop', play: function () {
+        tone({ from: 420, to: 1500, dur: 0.075, gain: 0.100, attack: 0.005 });
+        tone({ from: 1500, dur: 0.13, gain: 0.030, attack: 0.008, delay: 0.070 }); } },
+
+    // Metal on metal: bright inharmonic partials over a short body.
+    { id: 'coin', name: 'Coin', play: function () {
+        tone({ from: 1050, dur: 0.11, gain: 0.045, attack: 0.002 });
+        tone({ from: 2100, dur: 0.18, gain: 0.042, attack: 0.002 });
+        tone({ from: 3150, dur: 0.12, gain: 0.026, attack: 0.002 });
+        tone({ from: 4700, dur: 0.07, gain: 0.012, attack: 0.002 }); } },
+
+    // Two partials four hertz apart, which beat against each other and shimmer.
+    { id: 'glass', name: 'Glass', play: function () {
+        tone({ from: 1568, dur: 0.42, gain: 0.050, attack: 0.008 });
+        tone({ from: 1572, dur: 0.42, gain: 0.042, attack: 0.008 });
+        tone({ from: 3136, dur: 0.14, gain: 0.011, attack: 0.005 }); } },
+
+    // Dry and percussive: body plus two fast harmonics, gone in 55ms.
+    { id: 'wood', name: 'Wood', play: function () {
+        tone({ from: 780, dur: 0.055, gain: 0.100, attack: 0.003 });
+        tone({ from: 1560, dur: 0.030, gain: 0.028, attack: 0.002 });
+        tone({ from: 2600, dur: 0.020, gain: 0.011, attack: 0.002 }); } },
+
+    // One clean note with a long smooth tail, sonar-like.
+    { id: 'ping', name: 'Ping', play: function () {
+        tone({ from: 1046, dur: 0.60, gain: 0.068, attack: 0.006 });
+        tone({ from: 2093, dur: 0.20, gain: 0.010, attack: 0.005 }); } }
+  ];
+
+  function currentSound() {
+    var id = 'harp';
+    try { id = localStorage.getItem('warera-calc-soundid') || 'harp'; } catch (e) {}
+    for (var i = 0; i < SOUNDS.length; i++) { if (SOUNDS[i].id === id) { return SOUNDS[i]; } }
+    return SOUNDS[0];
+  }
+
+  function ensureAudio() {
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) { return false; }
+      if (!audioCtx) { audioCtx = new Ctx(); }
+      if (audioCtx.state === 'suspended') { audioCtx.resume(); }
+      return true;
+    } catch (e) { return false; }
+  }
+
+  function playSound(id) {
+    if (!ensureAudio()) { return; }
+    for (var i = 0; i < SOUNDS.length; i++) {
+      if (SOUNDS[i].id === id) { try { SOUNDS[i].play(); } catch (e) {} return; }
+    }
+  }
+
+  function beep(ok) {
+    if (!$('sound').checked) { return; }
+    if (!ensureAudio()) { return; }
+    try {
+      if (ok) { currentSound().play(); }
+      else { tone({ from: 300, to: 170, dur: 0.30, gain: 0.13, attack: 0.020 }); }
+    } catch (e) {}
+  }
+
+  function showStamp(ok, value) {
+    var d = $('docket');
+    d.classList.remove('is-copied', 'is-failed');
+    var isWarning = (String(value).indexOf('DO NOT LIST') === 0);
+    $('stamp').textContent = ok ? (isWarning ? 'Warning copied' : 'Copied') : 'Hold to copy';
+    d.classList.add(ok ? 'is-copied' : 'is-failed');
+    $('live').textContent = ok ? ('Copied ' + value) : 'Copy blocked. The number is selected — long-press to copy.';
+    beep(ok);
+    if (state.stampTimer) { clearTimeout(state.stampTimer); }
+    state.stampTimer = setTimeout(function () { d.classList.remove('is-copied', 'is-failed'); }, 1700);
+  }
+
+  // Runs synchronously so it stays inside the keypress or tap that triggered it.
+  function copy(value) {
+    if (!value || value === '\u2014') { return; }
+    var ok = legacyCopy(value);
+    if (!ok && navigator.clipboard && navigator.clipboard.writeText) {
+      try {
+        navigator.clipboard.writeText(value).then(
+          function () { showStamp(true, value); },
+          function () { showStamp(false, value); selectFigure(); }
+        );
+        return;
+      } catch (e) { ok = false; }
+    }
+    if (ok && navigator.clipboard && navigator.clipboard.writeText) {
+      try { navigator.clipboard.writeText(value); } catch (e) {}
+    }
+    showStamp(ok, value);
+    if (!ok) { selectFigure(); }
+  }
+
+  var lastTap = 0;
+  function tapCopy(e) {
+    if (Date.now() - lastTap < 500) { return; }
+    lastTap = Date.now();
+    if (e && e.cancelable) { e.preventDefault(); }
+    // Force the pending evaluation first. Without this, tapping inside the
+    // settle window copies the undercut price even when the finished number
+    // means the item should be dismantled instead.
+    settleNow();
+    copy(state.figure);
+    histPush(state.lastPrice, state.figure);
+  }
+
+  var touchStart = null;
+  document.addEventListener('touchstart', function (e) {
+    var t = e.changedTouches && e.changedTouches[0];
+    touchStart = t ? { x: t.clientX, y: t.clientY } : null;
+  }, { passive: true });
+
+  function wasTap(e) {
+    if (!touchStart) { return false; }
+    var t = e.changedTouches && e.changedTouches[0];
+    if (!t) { return false; }
+    return Math.abs(t.clientX - touchStart.x) < 12 && Math.abs(t.clientY - touchStart.y) < 12;
+  }
+
+  /* ============ history ============
+     Records only what you actually copied, so half-typed prices don't flood it.
+     Each entry keeps the figure that was produced at the time, along with the
+     mode it came from, so tapping it gives back exactly what you copied. */
+
+  // Session storage, not local: the list survives reloads and Alt+Tabbing but
+  // is gone once the browser closes, so nobody returns to yesterday's prices.
+  var HIST_KEY = 'warera-calc-history-v2';
+  var HIST_MAX = 14;
+  var hist = [];
+
+  function histStore() {
+    try { return window.sessionStorage; } catch (e) { return null; }
+  }
+
+  function histLoad() {
+    try { localStorage.removeItem('warera-calc-history'); } catch (e) {}
+    try { localStorage.removeItem('warera-calc-history-v2'); } catch (e) {}
+    try {
+      var s = histStore();
+      var raw = s ? JSON.parse(s.getItem(HIST_KEY) || '[]') : [];
+      hist = Array.isArray(raw) ? raw.filter(function (h) { return h && h.inp && h.out; }) : [];
+    } catch (e) { hist = []; }
+  }
+
+  function histSave() {
+    try {
+      var s = histStore();
+      if (s) { s.setItem(HIST_KEY, JSON.stringify(hist.slice(0, HIST_MAX))); }
+    } catch (e) {}
+  }
+
+  function histPush(inp, out) {
+    if (!inp || !out) { return; }
+    for (var i = 0; i < hist.length; i++) {
+      if (hist[i].inp === inp && hist[i].out === out) { hist.splice(i, 1); break; }
+    }
+    hist.unshift({ inp: inp, out: out });
+    if (hist.length > HIST_MAX) { hist.length = HIST_MAX; }
+    histSave();
+    histRender();
+  }
+
+  function histRender() {
+    var list = $('histList');
+    $('histEmpty').style.display = hist.length ? 'none' : 'block';
+    $('histClear').hidden = !hist.length;
+
+    var html = '';
+    hist.forEach(function (h, i) {
+      html += '<button type="button" class="hist-item" data-i="' + i + '"'
+        + ' aria-label="Copy ' + h.out + ', from their price ' + h.inp + '">'
+        + '<span class="hist-in">' + h.inp + '</span>'
+        + '<span class="hist-out">type ' + h.out + '</span>'
+        + '</button>';
+    });
+    list.innerHTML = html;
+  }
+
+  function histFlash(node) {
+    if (!node) { return; }
+    node.classList.add('flash');
+    setTimeout(function () { node.classList.remove('flash'); }, 1400);
+  }
+
+  /* ============ profile badge ============
+     Pulls the name and portrait from user.getUserLite. Field names aren't
+     documented, so several plausible ones are tried; whatever is found is
+     cached so the badge still appears when the API is unreachable. */
+
+  var PROFILE_ID = '6a3c07b69ad47ac4cf746b61';
+  var PROFILE_CACHE = 'warera-profile-' + PROFILE_ID;
+  var API_DIRECT = 'https://api2.warera.io/trpc';
+  var API_GATEWAY = 'https://gateway.warerastats.io/trpc';
+
+  function pick(obj, names) {
+    if (!obj || typeof obj !== 'object') { return null; }
+    for (var i = 0; i < names.length; i++) {
+      var v = obj[names[i]];
+      if (v !== undefined && v !== null && v !== '') { return v; }
+    }
+    return null;
+  }
+
+  // The image may arrive as a URL, a path, or an object of sizes.
+  function imageUrl(v) {
+    if (!v) { return null; }
+    if (typeof v === 'object') {
+      v = pick(v, ['url', 'src', 'href', 'large', 'medium', 'small', 'path', 'key']);
+    }
+    if (typeof v !== 'string' || !v) { return null; }
+    if (/^https?:\/\//i.test(v)) { return v; }
+    if (v.indexOf('//') === 0) { return 'https:' + v; }
+    if (v.charAt(0) === '/') { return 'https://app.warera.io' + v; }
+    return null;
+  }
+
+  function initialsOf(name) {
+    var parts = String(name || '?').trim().split(/[\s_-]+/).filter(Boolean);
+    if (!parts.length) { return '?'; }
+    if (parts.length === 1) { return parts[0].slice(0, 2).toUpperCase(); }
+    return (parts[0].charAt(0) + parts[1].charAt(0)).toUpperCase();
+  }
+
+  function paintProfile(data) {
+    if (!data || !data.name) { return; }
+    $('profileName').textContent = data.name;
+    $('profile').setAttribute('aria-label', data.name + ' — open WarEra profile');
+
+    var pic = $('profilePic');
+    if (data.img) {
+      // Confirm the image actually loads before swapping out the initials.
+      var probe = new Image();
+      probe.onload = function () {
+        pic.style.backgroundImage = 'url("' + data.img + '")';
+        pic.textContent = '';
+      };
+      probe.onerror = function () { pic.textContent = initialsOf(data.name); };
+      probe.src = data.img;
+    } else {
+      pic.textContent = initialsOf(data.name);
+    }
+  }
+
+  function readProfile(raw) {
+    var d = raw;
+    if (d && d.result) { d = (d.result.data !== undefined) ? d.result.data : d.result; }
+    if (d && d.data !== undefined && d.result === undefined) { d = d.data; }
+    if (!d || typeof d !== 'object') { return null; }
+    if (d.user && typeof d.user === 'object') { d = d.user; }
+
+    var name = pick(d, ['username', 'name', 'login', 'displayName']);
+    var img = imageUrl(pick(d, ['avatarUrl', 'avatar', 'profilePicture', 'picture', 'image']));
+    if (!name && !img) { return null; }
+    return { name: name || 'Profile', img: img };
+  }
+
+  // Known-good values so the badge renders immediately, even where outbound
+  // requests are blocked. The API refresh below overwrites them when it can,
+  // which matters because the avatar filename changes on every upload.
+  var PROFILE_SEED = {
+    name: 'Lebly',
+    img: 'https://media.warera.io/avatars/6a3c07b69ad47ac4cf746b61-1786663240690-6l9nnf6u.jpg'
+  };
+
+  function loadProfile() {
+    var shown = PROFILE_SEED;
+    try {
+      var cached = JSON.parse(localStorage.getItem(PROFILE_CACHE) || 'null');
+      if (cached && cached.name) { shown = cached; }
+    } catch (e) {}
+    paintProfile(shown);
+
+    var qs = '/user.getUserLite?input=' + encodeURIComponent(JSON.stringify({ userId: PROFILE_ID }));
+
+    var bases = [API_GATEWAY, API_DIRECT];
+
+    function attempt(i) {
+      if (i >= bases.length) { return; }
+      fetchSoon(bases[i] + qs, { headers: { 'Accept': 'application/json' } })
+        .then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.json(); })
+        .then(function (json) {
+          var info = readProfile(json);
+          if (!info) { throw new Error('unrecognised shape'); }
+          paintProfile(info);
+          try { localStorage.setItem(PROFILE_CACHE, JSON.stringify(info)); } catch (e) {}
+        })
+        .catch(function () { attempt(i + 1); });
+    }
+
+    attempt(0);
+  }
+
+  /* ============ local profile file ============
+     warera-profile.json sits next to this page in the repo, so fetching it is
+     same-origin and never hits CORS. It's the authoritative source: edit it in
+     GitHub and the badge updates. The API calls below only fill in whatever it
+     leaves blank, so everything still works if the file is missing. */
+
+  var localDone = false;
+
+  function loadLocalProfile() {
+    return fetch('warera-profile.json', { cache: 'no-store' })
+      .then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.json(); })
+      .then(function (j) {
+        if (!j || typeof j !== 'object') { throw new Error('bad file'); }
+
+        var info = {
+          name: j.name || PROFILE_SEED.name,
+          img: j.avatar || PROFILE_SEED.img
+        };
+        paintProfile(info);
+        try { localStorage.setItem(PROFILE_CACHE, JSON.stringify(info)); } catch (e) {}
+
+        // Accepts a full URL or a bare ID — the ID is the 24-character hex
+        // run, so pasting the whole address from the browser works.
+        var art = j.article || {};
+        var raw = String(art.url || art.id || '').trim();
+        var m = raw.match(/[a-f0-9]{24}/i);
+        var id = m ? m[0] : '';
+        if (id) {
+          paintTip({ id: id, title: art.title || '' });
+          localDone = true;
+        }
+        return { hasArticle: !!id };
+      });
+  }
+
+  /* ============ latest article ============
+     There's no author-filtered endpoint documented, so this first tries
+     passing an author param in case the API honours it, then falls back to
+     scanning recent articles in order — the first match is the newest.
+     Results are cached for six hours to keep page loads cheap. */
+
+  var ARTICLE_CACHE = 'warera-article-' + PROFILE_ID;
+  var ARTICLE_TTL = 6 * 60 * 60 * 1000;
+  var ARTICLE_PAGES = 3;
+  var ARTICLE_BATCH = 100;
+
+  // Records which article was clicked, not merely that one was. A new article
+  // has a different id, so the invitation comes back on its own.
+  var TIPPED_KEY = 'warera-tipped-article';
+
+  function tippedArticle() {
+    try { return localStorage.getItem(TIPPED_KEY) || ''; } catch (e) { return ''; }
+  }
+
+  function paintTip(article) {
+    var link = $('tipLink');
+    if (!article || !article.id) { return; }
+
+    link.href = 'https://app.warera.io/article/' + article.id;
+    if (article.title) { link.title = article.title; }
+    link.setAttribute('data-article', article.id);
+
+    var thanked = (tippedArticle() === article.id);
+    link.textContent = thanked ? 'Thank you for your support <3' : 'Tip my latest article \u2197';
+    link.classList.toggle('thanked', thanked);
+    link.hidden = false;
+  }
+
+  function articleItems(json) {
+    var d = json;
+    if (d && d.result) { d = (d.result.data !== undefined) ? d.result.data : d.result; }
+    if (!d) { return []; }
+    if (Array.isArray(d)) { return d; }
+    return Array.isArray(d.items) ? d.items : [];
+  }
+
+  function nextCursor(json) {
+    var d = json;
+    if (d && d.result) { d = (d.result.data !== undefined) ? d.result.data : d.result; }
+    return (d && typeof d === 'object') ? (d.nextCursor || null) : null;
+  }
+
+  function mineFrom(items) {
+    for (var i = 0; i < items.length; i++) {
+      var a = items[i];
+      var author = a && (typeof a.author === 'string' ? a.author : (a.author && a.author._id));
+      if (author === PROFILE_ID) {
+        return { id: a._id || a.id, title: a.title || a.name || '' };
+      }
+    }
+    return null;
+  }
+
+  function loadLatestArticle() {
+    if (localDone) { return; }
+    try {
+      var cached = JSON.parse(localStorage.getItem(ARTICLE_CACHE) || 'null');
+      if (cached && cached.id) {
+        paintTip(cached);
+        if (Date.now() - (cached.at || 0) < ARTICLE_TTL) { return; }
+      }
+    } catch (e) {}
+
+    var bases = [API_GATEWAY, API_DIRECT];
+
+    function call(base, params) {
+      return fetchSoon(base + '/article.getArticlesPaginated?input=' + encodeURIComponent(JSON.stringify(params)),
+        { headers: { 'Accept': 'application/json' } })
+        .then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.json(); });
+    }
+
+    function found(hit) {
+      hit.at = Date.now();
+      paintTip(hit);
+      try { localStorage.setItem(ARTICLE_CACHE, JSON.stringify(hit)); } catch (e) {}
+    }
+
+    function scan(base, cursor, page) {
+      if (page > ARTICLE_PAGES) { return Promise.reject(new Error('not found in scan')); }
+      var params = { type: 'last', limit: ARTICLE_BATCH };
+      if (cursor) { params.cursor = cursor; }
+      return call(base, params).then(function (json) {
+        var items = articleItems(json);
+        if (!items.length) { throw new Error('empty'); }
+        var hit = mineFrom(items);
+        if (hit) { return hit; }
+        var next = nextCursor(json);
+        if (!next) { throw new Error('exhausted'); }
+        return scan(base, next, page + 1);
+      });
+    }
+
+    function tryBase(i) {
+      if (i >= bases.length) { return; }
+      var base = bases[i];
+
+      // Optimistic: maybe the endpoint accepts an author filter.
+      call(base, { type: 'last', limit: 20, author: PROFILE_ID })
+        .then(function (json) {
+          var items = articleItems(json);
+          var hit = mineFrom(items);
+          // Only trust it if the filter clearly worked.
+          if (hit && items.length && mineFrom(items.slice(0, 1))) { return hit; }
+          if (hit) { return hit; }
+          return scan(base, null, 1);
+        })
+        .then(found)
+        .catch(function () { tryBase(i + 1); });
+    }
+
+    tryBase(0);
+  }
+
+  /* ============ colour settings ============
+     Full palettes rather than accents — ground, panels, rules and text all
+     move together, so light schemes work as well as dark ones. */
+
+  var THEMES = [
+    { id: 'gunmetal', name: 'Gunmetal', vars: {
+      ground:'#0E1A20', panel:'#15252D', 'panel-2':'#1C3039', line:'#2A4553',
+      ink:'#EAF0F2', dim:'#8FA8B3', brass:'#C89B3C', 'brass-deep':'#7A5E22',
+      'brass-rgb':'200,155,60', verdigris:'#6BB8A8', rust:'#C2703F' } },
+
+    { id: 'obsidian', name: 'Obsidian', vars: {
+      ground:'#111215', panel:'#1D1F23', 'panel-2':'#282A2F', line:'#484B51',
+      ink:'#EEEFF2', dim:'#9AA2B7', brass:'#E87217', 'brass-deep':'#6A3A16',
+      'brass-rgb':'232,114,23', verdigris:'#65C3A0', rust:'#D4725E' } },
+
+    { id: 'moss', name: 'Moss', vars: {
+      ground:'#0F1813', panel:'#192620', 'panel-2':'#23342C', line:'#41584D',
+      ink:'#EEF2F0', dim:'#9AB7A9', brass:'#E47285', 'brass-deep':'#842736',
+      'brass-rgb':'228,114,133', verdigris:'#65C3A0', rust:'#D4725E' } },
+
+    { id: 'wine', name: 'Wine', vars: {
+      ground:'#180E13', panel:'#271920', 'panel-2':'#34222B', line:'#59404D',
+      ink:'#F2EEF0', dim:'#B79AA8', brass:'#27A586', 'brass-deep':'#1A4C40',
+      'brass-rgb':'39,165,134', verdigris:'#65C3A0', rust:'#D4725E' } },
+
+    { id: 'parchment', name: 'Parchment', vars: {
+      ground:'#F8F3EC', panel:'#EEE4D5', 'panel-2':'#E6D7C2', line:'#C8AF88',
+      ink:'#2B2317', dim:'#6E5F49', brass:'#10628E', 'brass-deep':'#4C98C0',
+      'brass-rgb':'16,98,142', verdigris:'#186D53', rust:'#A13221' } },
+
+    { id: 'daylight', name: 'Daylight', vars: {
+      ground:'#EEF2F7', panel:'#D8E2EB', 'panel-2':'#C6D4E1', line:'#91A8C0',
+      ink:'#17212B', dim:'#506377', brass:'#7A30CF', 'brass-deep':'#B196CF',
+      'brass-rgb':'122,48,207', verdigris:'#186D53', rust:'#A13221' } }
+  ];
+
+  function applyTheme(id) {
+    var t = null;
+    for (var i = 0; i < THEMES.length; i++) { if (THEMES[i].id === id) { t = THEMES[i]; break; } }
+    if (!t) { t = THEMES[0]; }
+
+    var root = document.documentElement;
+    for (var key in t.vars) {
+      if (Object.prototype.hasOwnProperty.call(t.vars, key)) {
+        root.style.setProperty('--' + key, t.vars[key]);
+      }
+    }
+
+    var meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) { meta.setAttribute('content', t.vars.ground); }
+
+    var buttons = $('swatches').querySelectorAll('.swatch');
+    for (var j = 0; j < buttons.length; j++) {
+      buttons[j].setAttribute('aria-pressed', buttons[j].getAttribute('data-id') === t.id ? 'true' : 'false');
+    }
+
+    try { localStorage.setItem('warera-calc-theme', t.id); } catch (e) {}
+  }
+
+  function buildSwatches() {
+    var html = '';
+    THEMES.forEach(function (t) {
+      // Split disc: background on one side, accent on the other.
+      html += '<button type="button" class="swatch" data-id="' + t.id + '"'
+        + ' style="background:linear-gradient(135deg,' + t.vars.ground + ' 0 50%,'
+        + t.vars.brass + ' 50% 100%)" aria-pressed="false"'
+        + ' title="' + t.name + '" aria-label="' + t.name + '"></button>';
+    });
+    $('swatches').innerHTML = html;
+
+    $('swatches').addEventListener('click', function (e) {
+      var n = e.target;
+      while (n && n !== document.body && !(n.classList && n.classList.contains('swatch'))) { n = n.parentNode; }
+      if (n && n.classList && n.classList.contains('swatch')) { applyTheme(n.getAttribute('data-id')); }
+    });
+
+    var saved = 'gunmetal';
+    try { saved = localStorage.getItem('warera-calc-theme') || 'gunmetal'; } catch (e) {}
+    applyTheme(saved);
+  }
+
+  /* ============ the calculation ============ */
+
+  // Pulls a price out of whatever was pasted. Separator handling matters:
+  // a naive comma-to-dot swap turns 1,234.56 into 1.234, which would list
+  // equipment at a thousandth of its price. When both separators appear, the
+  // later one is the decimal point and the earlier one is grouping.
+  function extractNumber(text) {
+    var m = String(text == null ? '' : text).match(/\d[\d.,\s]*\d|\d/);
+    if (!m) { return null; }
+    var s = m[0].replace(/\s/g, '');
+    var lastDot = s.lastIndexOf('.');
+    var lastComma = s.lastIndexOf(',');
+
+    if (lastDot > -1 && lastComma > -1) {
+      if (lastDot > lastComma) { s = s.replace(/,/g, ''); }
+      else { s = s.replace(/\./g, '').replace(',', '.'); }
+    } else if (lastComma > -1) {
+      s = s.replace(',', '.');
+    }
+
+    var parts = s.split('.');
+    if (parts.length > 2) {
+      s = parts.slice(0, -1).join('') + '.' + parts[parts.length - 1];
+    }
+    return /^\d+(\.\d+)?$/.test(s) ? s : null;
+  }
+
+  function readPrice() {
+    var clean = extractNumber($('price').value);
+    if (clean) {
+      var d = dec(clean);
+      if (d && d.i > 0n) { state.lastPrice = clean; return d; }
+    }
+    if (!state.lastPrice) { return null; }
+    return dec(state.lastPrice);
+  }
+
+  // Normalise any price to thousandths, since the market trims trailing zeros.
+  function toThousandths(R) {
+    if (R.s <= 3) { return R.i * (10n ** BigInt(3 - R.s)); }
+    var div = 10n ** BigInt(R.s - 3);
+    return (R.i + div / 2n) / div;
+  }
+
+  // Largest three-decimal figure whose post-tax price lands below `i3`.
+  // Returns null when the price is too low to undercut at all.
+  function undercutEntry(i3, num, den) {
+    var target = { i: i3 * 10n - 5n, s: 4 };
+    if (target.i <= 0n) { return null; }
+    var D = num * (10n ** BigInt(target.s));
+    var N = target.i * (10n ** BigInt(3)) * den;
+    var q = N / D;
+    var e = (q * D === N) ? q - 1n : q;
+    return e > 0n ? { i: e, s: 3 } : null;
+  }
+
+  // The undercut figure updates on every keystroke, but the resell and
+  // dismantle verdicts wait for a commit, so a half-typed number is never
+  // judged. Committing is explicit: the check button beside the field, Enter
+  // on a hardware keyboard, pasting, copying, tapping out, or switching away.
+  // iOS's number pad has no return key, which is what the button is for.
+  function calcLive() { calc(false); }
+  function settleNow() { calc(true); }
+
+  function calc(settled) {
+    if (settled === undefined) { settled = true; }
+    var beating = $('beatMode').checked;
+
+    var R = readPrice();
+    if (!R) {
+      $('figure').textContent = '\u2014';
+      state.figure = '';
+      $('docket').disabled = true;
+      $('warn').hidden = true;
+      $('docketLabel').textContent = beating ? 'Type this to undercut them' : 'Type this figure';
+      $('priceLabel').textContent = beating ? 'Their price' : 'Price you want shown';
+      // Both cards render in a waiting state rather than appearing from nowhere
+      // once a price is typed.
+      flipCheck(0n, 101n, 100n, beating);
+      scrapCheck(0n, 101n, 100n);
+      return;
+    }
+
+    var T = dec(String($('tax').value)) || { i: 0n, s: 0 };
+    var den = 100n * (10n ** BigInt(T.s));
+    var num = den + T.i;
+
+    // The market shows three decimals but trims trailing zeros, so a listing
+    // displayed as 50.5 is really 50.500. Normalise to thousandths first,
+    // otherwise the half-step is sized from however many digits were typed and
+    // "50.5" gets undercut by 0.05 instead of 0.0005.
+    var PLACES = 3;
+    var i3 = toThousandths(R);
+
+    var target = beating ? { i: i3 * 10n - 5n, s: 4 } : { i: i3, s: 3 };
+    if (target.i <= 0n) { target = { i: i3, s: 3 }; }
+
+    var D = num * (10n ** BigInt(target.s));
+    var N = target.i * (10n ** BigInt(PLACES)) * den;
+    var q = N / D;
+    var entry;
+
+    if (beating) {
+      entry = undercutEntry(i3, num, den);
+      if (!entry) {
+        $('figure').textContent = '\u2014';
+        state.figure = '';
+        $('warn').textContent = 'That price is too low to undercut at three decimals.';
+        $('warn').hidden = false;
+        $('flip').hidden = true;
+        $('scrapBox').hidden = true;
+        return;
+      }
+    } else {
+      // Plain conversion wants the figure whose displayed price is closest to
+      // what you asked for, so this rounds to nearest. Flooring, as the beating
+      // branch does, would land a step low roughly half the time.
+      var rounded = (2n * N + D) / (2n * D);
+      entry = { i: rounded <= 0n ? 1n : rounded, s: PLACES };
+    }
+
+    $('warn').hidden = true;
+    $('docket').disabled = false;
+
+    var entryText = decStr(entry);
+    state.figure = entryText;
+    $('figure').textContent = entryText;
+
+    $('docketLabel').textContent = beating ? 'Type this to undercut them' : 'Type this figure';
+    $('priceLabel').textContent = beating ? 'Their price' : 'Price you want shown';
+
+    if (!settled) {
+      flipCheck(0n, 101n, 100n, $('beatMode').checked);
+      $('listAnyway').hidden = true;
+      $('docket').classList.remove('blocked', 'scrap-alert');
+      $('docketHint').textContent = 'Tap to copy';
+      state.listFigure = '';
+      return;
+    }
+
+    flipCheck(i3, num, den, beating);
+    var dismantle = scrapCheck(i3, num, den);
+
+    // If breaking it for scraps beats listing it, the clipboard gets a warning
+    // instead of a price. The message must contain no digits at all: the game's
+    // price field strips non-numeric characters, so "worth 35.126" would paste
+    // as 35.126 and list at that price — the exact accident this prevents.
+    var wasBlocked = $('docket').classList.contains('blocked');
+    if (dismantle && beating) {
+      state.listFigure = entryText;
+      state.figure = 'DO NOT LIST - DISMANTLE THIS FOR SCRAPS';
+      $('figure').textContent = 'Dismantle it';
+      $('docketLabel').textContent = 'Better move';
+      $('docketHint').textContent = state.scrapValue + ' of scraps for ' + decStr({ i: i3, s: 3 })
+        + '. Tap to copy the warning.';
+      $('docket').classList.add('blocked');
+      if (!wasBlocked) {
+        $('docket').classList.remove('scrap-alert');
+        void $('docket').offsetWidth;
+        $('docket').classList.add('scrap-alert');
+      }
+      $('listAnyway').textContent = 'Ignore the warning and list at ' + entryText;
+      $('listAnyway').hidden = false;
+    } else {
+      state.listFigure = '';
+      $('docket').classList.remove('blocked', 'scrap-alert');
+      $('docketHint').textContent = 'Tap to copy';
+      $('listAnyway').hidden = true;
+    }
+  }
+
+  // Worth buying this listing to resell? You pay the displayed price but
+  // receive only the figure you type, so the next offer up has to clear your
+  // cost by more than the tax. This solves for the price where that starts:
+  //   10*E*num < den*(10*S - 5)  is the undercut condition, and we want
+  //   E >= buy + 0.001, so  S > (10*(buy+1)*num + 5*den) / (10*den).
+  var flipState = { buy: 0n, min: 0n, max: 0n, num: 101n, den: 100n };
+
+  function flipCheck(buyI3, num, den, beating) {
+    var box = $('flip');
+    if (!beating) { box.hidden = true; return; }
+
+    // Shown before a price is entered too, so the card is not a surprise that
+    // appears later — it just has nothing to work out yet.
+    if (buyI3 <= 0n) {
+      box.hidden = false;
+      $('flipFigure').textContent = '\u2014';
+      $('quickFlipVal').textContent = '\u2014';
+      $('flipLead').textContent = 'Worth flipping only if the second offer is';
+      $('flipDetail').textContent = 'Enter a price above to see where flipping starts to pay.';
+      $('sliderWrap').hidden = true;
+      return;
+    }
+    $('sliderWrap').hidden = false;
+
+    var s3 = (10n * (buyI3 + 1n) * num + 5n * den) / (10n * den) + 1n;
+
+    // Capped at a 5% margin. The band top is far higher, but a second offer
+    // sitting 80% above the first is not something you'd wait around for, and
+    // stretching the slider that far makes single steps impossible to hit.
+    var target = (buyI3 * 105n) / 100n;
+    var top = (10n * target * num + 5n * den) / (10n * den) + 1n;
+    if (top <= s3) { top = s3 + 20n; }
+
+    var changed = (flipState.buy !== buyI3);
+    flipState = { buy: buyI3, min: s3, max: top, num: num, den: den };
+
+    box.hidden = false;
+    $('quickFlipVal').textContent = decStr({ i: s3, s: 3 });
+    $('flipFigure').textContent = decStr({ i: s3, s: 3 });
+
+    var slider = $('secondSlider');
+    slider.min = '0';
+    slider.max = String(top - s3);
+    if (changed || Number(slider.value) > Number(top - s3)) { slider.value = '0'; }
+    paintSlider();
+  }
+
+  function paintSlider() {
+    if (!flipState.min) { return; }
+    var offset = BigInt($('secondSlider').value || '0');
+    var second = flipState.min + offset;
+
+    var entry = undercutEntry(second, flipState.num, flipState.den);
+    if (!entry) { return; }
+
+    var profit = entry.i - flipState.buy;
+    var pct = Number(profit) / Number(flipState.buy) * 100;
+
+    // Written into the big figure at the top of the card, well clear of
+    // wherever the finger is on the track.
+    $('flipFigure').textContent = decStr({ i: second, s: 3 });
+
+    var profitText = (profit >= 0n ? '+' : '\u2212')
+      + decStr({ i: profit < 0n ? -profit : profit, s: 3 })
+      + ' (' + pct.toFixed(2) + '%)';
+
+    $('flipDetail').innerHTML = (offset === 0n ? 'or higher. ' : '')
+      + 'List at <strong>' + decStr(entry) + '</strong>'
+      + ' for <strong class="gain">' + profitText + '</strong>';
+  }
+
+  /* ============ dismantle check ============
+     Scraps are an ordinary tradeable item, so the price can be read live and
+     the thresholds move with the market instead of going stale. Yields are
+     fixed per rarity. You receive what you type when selling the scraps, so
+     the displayed price is divided by the tax the same way everything else is. */
+
+  var RARITIES = [
+    // Names as the wiki and the game use them. `upto` is the top of each price
+    // band: the game only allows a listing between 0.7x and 1.6x of the item's
+    // value, and those windows don't overlap between tiers — there's a 47%+
+    // gap — so the price alone says which tier it is. Boundaries sit in the
+    // middle of each gap.
+    { id: 'basic',      name: 'Basic',      abbr: 'Basic', scraps: 6,    colour: '#9AA0A6', upto: 2.485,   top: 2.149 },
+    { id: 'reinforced', name: 'Reinforced', abbr: 'Reinf', scraps: 18,   colour: '#5BB85B', upto: 8.069,   top: 6.447 },
+    { id: 'advanced',   name: 'Advanced',   abbr: 'Adv',   scraps: 54,   colour: '#4A90D9', upto: 27.346,  top: 22.150 },
+    { id: 'elite',      name: 'Elite',      abbr: 'Elite', scraps: 162,  colour: '#9B6FC6', upto: 92.080,  top: 74.383 },
+    { id: 'legendary',  name: 'Legendary',  abbr: 'Leg',   scraps: 486,  colour: '#D4B106', upto: 268.430, top: 250.919 },
+    { id: 'mythic',     name: 'Mythic',     abbr: 'Myth',  scraps: 1458, colour: '#C0503B', upto: Infinity, top: 653.580 }
+  ];
+
+
+  // Nothing here is worth waiting on: if a lookup stalls, drop it and carry on.
+  function fetchSoon(url, opts, ms) {
+    opts = opts || {};
+    if (!window.AbortController) { return fetch(url, opts); }
+    var ac = new AbortController();
+    opts.signal = ac.signal;
+    var timer = setTimeout(function () { ac.abort(); }, ms || 6000);
+    return fetch(url, opts).then(
+      function (r) { clearTimeout(timer); return r; },
+      function (e) { clearTimeout(timer); throw e; }
+    );
+  }
+
+  var scrapMarket = { bid: null, ask: null };
+  var scrapView = 'listed';
+  try { scrapView = localStorage.getItem('warera-calc-scrapview') || 'listed'; } catch (e) {}
+
+  // A manual choice holds only while the price stays in the band it was made
+  // for. Move the price into a different band and detection takes over again,
+  // so a pin can never quietly follow you onto the next item.
+  var pinnedRarity = null;
+  var pinnedFor = null;
+
+  function rarityFromPrice(priceStr) {
+    var v = parseFloat(priceStr);
+    if (isNaN(v) || v <= 0) { return RARITIES[0]; }
+    for (var i = 0; i < RARITIES.length; i++) {
+      if (v < RARITIES[i].upto) { return RARITIES[i]; }
+    }
+    return RARITIES[RARITIES.length - 1];
+  }
+
+  function currentRarity(priceStr) {
+    var auto = rarityFromPrice(priceStr);
+    return pinnedRarity || auto;
+  }
+
+  function buildRarity() {
+    var html = '';
+    RARITIES.forEach(function (r, i) {
+      html += '<button type="button" class="rarity-btn" data-id="' + r.id + '"'
+        + ' aria-pressed="false" title="' + r.name + '" aria-label="' + r.name + '">'
+        + '<span class="badge" style="background-position-x:' + (i * 20) + '%"></span>'
+        + '</button>';
+    });
+    $('rarityBtns').innerHTML = html;
+
+    $('rarityBtns').addEventListener('click', function (e) {
+      var n = e.target;
+      while (n && n !== document.body && !(n.classList && n.classList.contains('rarity-btn'))) { n = n.parentNode; }
+      if (!n || !n.classList || !n.classList.contains('rarity-btn')) { return; }
+      var id = n.getAttribute('data-id');
+      // Tapping the one already showing releases it back to automatic.
+      if (pinnedRarity && pinnedRarity.id === id) {
+        pinnedRarity = null;
+        pinnedFor = null;
+      } else {
+        for (var i = 0; i < RARITIES.length; i++) {
+          if (RARITIES[i].id === id) { pinnedRarity = RARITIES[i]; }
+        }
+        pinnedFor = rarityFromPrice(state.lastPrice || '0').id;
+      }
+      calc();
+    });
+  }
+
+  function paintRarity(chosen, auto) {
+    try { $('slotGrid').style.setProperty('--tier', chosen.colour); } catch (e) {}
+    setArtFrame(tierOf(chosen.id));
+    var all = $('rarityBtns').querySelectorAll('.rarity-btn');
+    for (var i = 0; i < all.length; i++) {
+      var on = all[i].getAttribute('data-id') === chosen.id;
+      all[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+      all[i].setAttribute('style', on ? ('color:' + chosen.colour + ';border-color:' + chosen.colour) : '');
+    }
+    $('rarityLabel').textContent = pinnedRarity ? 'Set by you \u00b7 tap again to release' : 'From price';
+  }
+
+  function scrapSource() {
+    try { return localStorage.getItem('warera-calc-scrapsrc') || 'bid'; } catch (e) { return 'bid'; }
+  }
+
+  function scrapPriceFor(src) {
+    if (src === 'own') { return extractNumber($('scrapPrice').value); }
+    if (src === 'bid') { return scrapMarket.bid; }
+    if (src === 'ask') { return scrapMarket.ask; }
+    if (src === 'mid' && scrapMarket.bid && scrapMarket.ask) {
+      var b = dec(scrapMarket.bid), a = dec(scrapMarket.ask);
+      var s = Math.max(b.s, a.s) + 1;
+      var sum = b.i * (10n ** BigInt(s - b.s)) + a.i * (10n ** BigInt(s - a.s));
+      return decStr({ i: sum / 2n, s: s });
+    }
+    return null;
+  }
+
+  // With the rarity known the answer is definite: this item is either worth
+  // more as scrap than as a listing, or it isn't.
+  function scrapCheck(buyI3, num, den) {
+    var box = $('scrapBox');
+    var noPrice = (buyI3 <= 0n);
+
+    var src = scrapSource();
+    var priceStr = scrapPriceFor(src) || extractNumber($('scrapPrice').value) || '0.218';
+    var P = dec(priceStr);
+    if (!P || P.i <= 0n) { box.hidden = true; return; }
+
+
+    var auto = rarityFromPrice(decStr({ i: buyI3, s: 3 }));
+    // Dropped as soon as the price implies a different tier than it did when
+    // you picked. Checking only the upper bound was wrong: pinning Epic and
+    // then typing 5 kept Epic, because 5 sits below Epic's ceiling.
+    if (pinnedRarity && pinnedFor !== auto.id) {
+      pinnedRarity = null;
+      pinnedFor = null;
+    }
+    var chosen = noPrice ? (pinnedRarity || RARITIES[0]) : (pinnedRarity || auto);
+    if (!noPrice) { paintRarity(chosen, auto); }
+    var mine = null, rows = '';
+
+    RARITIES.forEach(function (r) {
+      // What the scraps net you, in listing-price terms — directly comparable
+      // to what you would pay for the item.
+      var t = (BigInt(r.scraps) * P.i * (10n ** BigInt(3)) * den) / (num * (10n ** BigInt(P.s)));
+      // The same value as a figure you would type, for when you are selling the
+      // item and do not want to list it below what it is worth in pieces.
+      var typed = (t * den) / num;
+
+      var isMine = (r.id === chosen.id);
+      if (isMine) { mine = t; }
+      rows += '<div class="scrap-row' + (isMine ? ' hit' : '') + '">'
+        + '<span class="tier">' + r.name + '</span>'
+        + '<span>' + decStr({ i: (scrapView === 'typed' ? typed : t), s: 3 }) + '</span></div>';
+    });
+
+    box.hidden = false;
+    $('scrapRows').innerHTML = rows;
+
+    if (noPrice) {
+      $('scrapLead').textContent = 'What each rarity is worth broken up';
+      $('scrapVerdict').textContent = decStr({ i: mine, s: 3 });
+      $('scrapDetail').textContent = 'Enter a price above and this says whether to break it or list it.';
+      $('scrapTabNote').textContent = scrapView === 'typed'
+        ? 'The figure to type if you list the item at its scrap value. Do not go below it.'
+        : 'What the scraps are worth, as a listing price. Buy below this and breaking it up wins.';
+      $('scrapNote').textContent = src === 'own' ? 'your figure'
+        : (scrapMarket.bid ? 'live from the market' : 'market unavailable, using a stored figure');
+      return false;
+    }
+
+    var worth = buyI3 < mine;
+    var gap = worth ? mine - buyI3 : buyI3 - mine;
+
+    $('scrapLead').textContent = worth
+      ? ('A ' + chosen.name + ' is worth more broken up. Scrap value:')
+      : ('A ' + chosen.name + ' breaks down into only');
+    state.scrapValue = decStr({ i: mine, s: 3 });
+    $('scrapVerdict').textContent = state.scrapValue;
+    $('quickScrapVal').textContent = state.scrapValue;
+    $('quickScrap').classList.toggle('win', !noPrice && buyI3 < mine);
+    $('scrapDetail').textContent = worth
+      ? ('You pay ' + decStr({ i: buyI3, s: 3 }) + ', so you clear ' + decStr({ i: gap, s: 3 }) + ' per item.')
+      : ('You would pay ' + decStr({ i: buyI3, s: 3 }) + ', which is ' + decStr({ i: gap, s: 3 }) + ' too much.');
+
+    $('scrapTabNote').textContent = scrapView === 'typed'
+      ? 'The figure to type if you list the item at its scrap value. Do not go below it.'
+      : 'What the scraps are worth, as a listing price. Buy below this and breaking it up wins.';
+
+    $('scrapNote').textContent = src === 'own' ? 'your figure'
+      : (scrapMarket.bid ? 'live from the market' : 'market unavailable, using a stored figure');
+
+    return worth;
+  }
+
+  function setScrapSource(src) {
+    try { localStorage.setItem('warera-calc-scrapsrc', src); } catch (e) {}
+    var btns = document.querySelectorAll('.scrap-btns .soundbtn');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].setAttribute('aria-pressed', btns[i].getAttribute('data-src') === src ? 'true' : 'false');
+    }
+    var fromMarket = scrapPriceFor(src);
+    if (src !== 'own' && fromMarket) { $('scrapPrice').value = fromMarket; }
+    $('scrapPrice').readOnly = (src !== 'own');
+    calc();
+  }
+
+  // Scraps are an item, so the same endpoints the order book uses apply here.
+  function loadScrapPrice() {
+    var bases = [API_GATEWAY, API_DIRECT];
+
+    function tryOrders(code, i) {
+      if (i >= bases.length) { return; }
+      fetchSoon(bases[i] + '/tradingOrder.getTopOrders?input=' + encodeURIComponent(JSON.stringify({ itemCode: code })),
+            { headers: { 'Accept': 'application/json' } })
+        .then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.text(); })
+        .then(function (text) {
+          var d = JSON.parse(text);
+          if (d && d.result) { d = (d.result.data !== undefined) ? d.result.data : d.result; }
+          var buys = (d && (d.buyOrders || d.buy || d.bids)) || [];
+          var sells = (d && (d.sellOrders || d.sell || d.asks)) || [];
+          var best = function (list, highest) {
+            var out = null;
+            list.forEach(function (o) {
+              var v = o && (o.price !== undefined ? o.price : o.unitPrice);
+              if (v === undefined || v === null) { return; }
+              var n = parseFloat(v);
+              if (isNaN(n)) { return; }
+              if (out === null || (highest ? n > out : n < out)) { out = n; }
+            });
+            return out === null ? null : String(out);
+          };
+          var bid = best(buys, true), ask = best(sells, false);
+          if (!bid && !ask) { throw new Error('no orders'); }
+          scrapMarket.bid = bid; scrapMarket.ask = ask;
+          try { localStorage.setItem('warera-calc-scrapcache', JSON.stringify(scrapMarket)); } catch (e) {}
+          setScrapSource(scrapSource());
+        })
+        .catch(function () { tryOrders(code, i + 1); });
+    }
+
+    function findCode(i) {
+      if (i >= bases.length) { return; }
+      fetchSoon(bases[i] + '/itemTrading.getPrices?input=' + encodeURIComponent(JSON.stringify({})),
+            { headers: { 'Accept': 'application/json' } })
+        .then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.json(); })
+        .then(function (json) {
+          var d = json;
+          if (d && d.result) { d = (d.result.data !== undefined) ? d.result.data : d.result; }
+          var codes = Array.isArray(d)
+            ? d.map(function (x) { return x && (x.itemCode || x.code || x.item); })
+            : Object.keys(d || {});
+          var match = null;
+          codes.forEach(function (c) { if (c && /scrap/i.test(c) && !match) { match = c; } });
+          if (!match) { throw new Error('no scrap item'); }
+          tryOrders(match, 0);
+        })
+        .catch(function () { findCode(i + 1); });
+    }
+
+    try {
+      var cached = JSON.parse(localStorage.getItem('warera-calc-scrapcache') || 'null');
+      if (cached && (cached.bid || cached.ask)) { scrapMarket = cached; }
+    } catch (e) {}
+
+    findCode(0);
+  }
+
+  /* ============ modes ============ */
+
+  function buildSounds() {
+    var chosen = currentSound().id;
+    var html = '';
+    SOUNDS.forEach(function (s) {
+      html += '<button type="button" class="soundbtn" data-id="' + s.id + '"'
+        + ' aria-pressed="' + (s.id === chosen ? 'true' : 'false') + '">' + s.name + '</button>';
+    });
+    $('soundBtns').innerHTML = html;
+
+    // Clicking is a gesture, so the tone plays as an audition and also unlocks
+    // audio for later automatic copies.
+    $('soundBtns').addEventListener('click', function (e) {
+      var n = e.target;
+      while (n && n !== document.body && !(n.classList && n.classList.contains('soundbtn'))) { n = n.parentNode; }
+      if (!n || !n.classList || !n.classList.contains('soundbtn')) { return; }
+      var id = n.getAttribute('data-id');
+      try { localStorage.setItem('warera-calc-soundid', id); } catch (e2) {}
+      var all = $('soundBtns').querySelectorAll('.soundbtn');
+      for (var i = 0; i < all.length; i++) {
+        all[i].setAttribute('aria-pressed', all[i].getAttribute('data-id') === id ? 'true' : 'false');
+      }
+      playSound(id);
+    });
+  }
+
+  function syncToggleStyles() {
+    $('beatWrap').classList.toggle('on', $('beatMode').checked);
+    $('quickWrap').classList.toggle('on', $('quickInput').checked);
+    $('autoWrap').classList.toggle('on', $('autoCopy').checked);
+    $('soundWrap').classList.toggle('on', $('sound').checked);
+    $('soundPick').hidden = !$('sound').checked;
+    $('price').classList.toggle('armed', $('quickInput').checked);
+    $('hint').innerHTML = $('autoCopy').checked
+      ? 'Tap <kbd>&#10003;</kbd> when done — the result is copied for you.'
+      : 'Tap <kbd>&#10003;</kbd> to check and copy.';
+  }
+
+  /* ============ wiring ============ */
+
+  $('price').addEventListener('input', calcLive);
+  $('tax').addEventListener('input', calcLive);
+
+  // Enter copies the result. A keypress carries user activation, so the
+  // clipboard write is allowed.
+  $('price').addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter') { return; }
+    e.preventDefault();
+    settleNow();
+    copy(state.figure);
+    histPush(state.lastPrice, state.figure);
+    $('price').select();
+  });
+
+  // Selecting rather than clearing means typing or pasting still replaces the
+  // old value, but nothing is destroyed. Clearing was unsafe because restoring
+  // focus after a copy fires this same event, which wiped a value that had just
+  // been pasted.
+  $('price').addEventListener('blur', settleNow);
+  $('price').addEventListener('change', settleNow);
+  // Alt+Tabbing away mid-number commits it too, so nothing is left half-judged.
+  window.addEventListener('blur', settleNow);
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) { settleNow(); }
+  });
+
+  $('price').addEventListener('focus', function () {
+    if (restoringFocus) { return; }
+    var el = $('price');
+    setTimeout(function () {
+      if (restoringFocus) { return; }
+      try { el.setSelectionRange(0, el.value.length); } catch (e) {}
+    }, 0);
+  });
+
+  // Always intercepts, regardless of settings. A native paste inserts at the
+  // caret, which is how "50.955" became "550.955" when the field still held a
+  // digit. Replacing the whole value removes that possibility. Whether it then
+  // copies is up to the auto-clipboard toggle.
+  $('price').addEventListener('paste', function (e) {
+    var data = (e.clipboardData || window.clipboardData);
+    if (!data) { return; }
+    var clean = extractNumber(data.getData('text') || '');
+    e.preventDefault();
+    if (!clean) { return; }
+
+    $('price').value = clean;
+    state.lastPrice = clean;
+    settleNow();
+
+    if ($('autoCopy').checked) {
+      copy(state.figure);
+      histPush(state.lastPrice, state.figure);
+    }
+  });
+
+  // Alt+Tab back into the window and the box is already waiting, with whatever
+  // is in it selected so the next paste or keystroke replaces it.
+  // Coming back from the game, put the price field at the top of the screen so
+  // the field, the result and the keypad are all in view without scrolling.
+  function scrollToWork() {
+    try {
+      var anchor = document.querySelector('.fields');
+      if (!anchor) { return; }
+      var y = anchor.getBoundingClientRect().top + window.pageYOffset - 12;
+      window.scrollTo(0, y < 0 ? 0 : y);
+    } catch (e) {}
+  }
+
+  function armInput() {
+    if (!$('quickInput').checked) { return; }
+    setTimeout(function () {
+      // Re-checked here, not just on entry: the panel may have opened during
+      // the wait, and refocusing the field under it drags the page to the keypad.
+      if (!$('settingsPanel').hidden) { return; }
+      scrollToWork();
+      var el = $('price');
+      if (document.activeElement === el) { return; }
+      el.focus();
+      try { el.setSelectionRange(0, el.value.length); } catch (e) {}
+    }, 40);
+  }
+  window.addEventListener('focus', armInput);
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) { armInput(); }
+  });
+
+  $('beatMode').addEventListener('change', function () {
+    syncToggleStyles();
+    try { localStorage.setItem('warera-calc-beat', $('beatMode').checked ? '1' : '0'); } catch (e) {}
+    calc();
+  });
+
+  $('quickInput').addEventListener('change', function () {
+    syncToggleStyles();
+    try { localStorage.setItem('warera-calc-quick', $('quickInput').checked ? '1' : '0'); } catch (e) {}
+    if ($('quickInput').checked) { $('price').focus(); }
+  });
+
+  $('autoCopy').addEventListener('change', function () {
+    syncToggleStyles();
+    try { localStorage.setItem('warera-calc-auto', $('autoCopy').checked ? '1' : '0'); } catch (e) {}
+  });
+
+  $('sound').addEventListener('change', function () {
+    syncToggleStyles();
+    try { localStorage.setItem('warera-calc-sound', $('sound').checked ? '1' : '0'); } catch (e) {}
+    // The click is a user gesture, so this doubles as a preview and unlocks audio.
+    if ($('sound').checked) { playSound(currentSound().id); }
+  });
+
+  // The link opens in a new tab, so this page stays put and the change is seen.
+  $('tipLink').addEventListener('click', function () {
+    var id = $('tipLink').getAttribute('data-article');
+    if (!id) { return; }
+    try { localStorage.setItem(TIPPED_KEY, id); } catch (e) {}
+    $('tipLink').textContent = 'Thank you for your support <3';
+    $('tipLink').classList.add('thanked');
+  });
+
+  $('docket').addEventListener('touchend', function (e) { if (wasTap(e)) { tapCopy(e); } }, { passive: false });
+  $('docket').addEventListener('click', tapCopy);
+
+  // Tapping an entry puts its figure back on the clipboard, unchanged.
+  var lastHistTap = 0;
+  function histActivate(e) {
+    var node = e.target;
+    while (node && node !== document.body && !(node.classList && node.classList.contains('hist-item'))) {
+      node = node.parentNode;
+    }
+    if (!node || !node.classList || !node.classList.contains('hist-item')) { return; }
+    if (Date.now() - lastHistTap < 500) { return; }
+    lastHistTap = Date.now();
+    if (e.cancelable) { e.preventDefault(); }
+    var entry = hist[parseInt(node.getAttribute('data-i'), 10)];
+    if (!entry) { return; }
+    copy(entry.out);
+    histFlash(node);
+  }
+
+  $('histList').addEventListener('touchend', function (e) { if (wasTap(e)) { histActivate(e); } }, { passive: false });
+  $('histList').addEventListener('click', histActivate);
+
+  document.querySelector('.scrap-btns').addEventListener('click', function (e) {
+    var n = e.target;
+    while (n && n !== document.body && !(n.getAttribute && n.getAttribute('data-src'))) { n = n.parentNode; }
+    if (n && n.getAttribute && n.getAttribute('data-src')) { setScrapSource(n.getAttribute('data-src')); }
+  });
+
+  $('scrapPrice').addEventListener('input', function () {
+    if (scrapSource() === 'own') {
+      try { localStorage.setItem('warera-calc-scrapown', $('scrapPrice').value); } catch (e) {}
+      calc();
+    }
+  });
+
+  // One tap: commit the number, then copy whatever that number deserves —
+  // the undercut figure, or the dismantle warning if breaking it wins.
+  // iOS refuses to raise the system keyboard without a touch behind it, and no
+  // browser on iOS can change that — they are all WebKit. So on touch devices
+  // the page carries its own keypad: every press is a real tap, so it works
+  // instantly on returning from the game, with no keyboard to wait for.
+  /* ============ recent sales ============
+     Item codes are slot + tier for equipment (boots6 = mythic boots) and a
+     bare name for weapons. The tier comes from the rarity we already infer
+     from the price, so you only pick the slot. Stat ranges per rarity are
+     not needed: the sales come back with their real stats, so you compare
+     against what actually traded rather than against a table. */
+
+  // Stat ranges per tier, from warera.wiki. Values between the ranges cannot
+  // roll at all, so only the listed numbers are offered.
+  // Weapons carry two stats, from the game's own tooltips. Attack spans are
+  // wide — a Mythic jet rolls anywhere from 221 to 300 — so those get a
+  // stepper rather than a button per value.
+  var WEAPON_STATS = [
+    { attack: [21, 40],   criticalChance: [1, 5] },
+    { attack: [51, 60],   criticalChance: [6, 10] },
+    { attack: [71, 90],   criticalChance: [11, 15] },
+    { attack: [101, 130], criticalChance: [16, 20] },
+    { attack: [141, 170], criticalChance: [26, 35] },
+    { attack: [221, 300], criticalChance: [41, 50] }
+  ];
+
+  var STAT_RANGES = {
+    helmet: { key: 'criticalDamages', label: 'crit damage %',
+              tiers: [[1,15],[16,30],[31,50],[71,90],[91,110],[121,150]] },
+    boots:  { key: 'dodge', label: 'dodge',
+              tiers: [[1,5],[6,10],[11,15],[21,25],[31,40],[51,60]] },
+    chest:  { key: 'armor', label: 'armor',
+              tiers: [[1,5],[6,10],[11,15],[21,30],[36,50],[56,70]] },
+    pants:  { key: 'armor', label: 'armor',
+              tiers: [[1,5],[6,10],[11,15],[21,30],[36,50],[56,70]] },
+    gloves: { key: 'precision', label: 'precision %',
+              tiers: [[1,5],[6,10],[11,15],[21,25],[31,40],[51,60]] }
+  };
+
+  // One sprite sheet in the repo: six columns (weapon, boots, helmet, gloves,
+  // chest, pants) by six rows (Basic to Mythic), equal cells. Weapons are one
+  // per tier rather than a numbered set, so the weapon column doubles as the
+  // knife/gun/rifle/sniper/tank/jet progression.
+  var WEAPON_CODES = ['knife', 'gun', 'rifle', 'sniper', 'tank', 'jet'];
+  var WEAPON_NAMES = ['Knife', 'Gun', 'Rifle', 'Sniper', 'Tank', 'Jet'];
+
+  var SHEET_COLS = ['weapon', 'boots', 'helmet', 'gloves', 'chest', 'pants'];
+
+  function codeForSlot(slot, tier) {
+    if (slot.code === 'weapon') { return WEAPON_CODES[tier - 1]; }
+    return slot.tiered ? (slot.code + tier) : slot.code;
+  }
+
+  function sheetColumn(slotCode) {
+    var i = SHEET_COLS.indexOf(slotCode);
+    return i === -1 ? 0 : i;
+  }
+
+  // Six slots, matching the game. The weapon slot is one tile: which weapon it
+  // is follows from the tier, so an Advanced item means a rifle and a Mythic
+  // one means a jet. No point showing all six weapons at once.
+  var SLOTS = [
+    { code: 'helmet', name: 'Helmet', tiered: true },
+    { code: 'chest',  name: 'Chest',  tiered: true },
+    { code: 'boots',  name: 'Boots',  tiered: true },
+    { code: 'gloves', name: 'Gloves', tiered: true },
+    { code: 'pants',  name: 'Pants',  tiered: true },
+    { code: 'weapon', name: 'Weapon', tiered: false }
+  ];
+
+
+  var salesSlot = null;
+  var chosenRoll = {};
+  // Hours is a client-side cut of what came back; depth is what we ask for.
+  // Only depth changes how long the request takes.
+  var salesHours = 24, salesDepth = 100;
+  var salesLoaded = false;
+  var expandedStat = null;
+
+  function tierOf(rarityId) {
+    for (var i = 0; i < RARITIES.length; i++) {
+      if (RARITIES[i].id === rarityId) { return i + 1; }
+    }
+    return 1;
+  }
+
+  // Equipment art changes with the tier, so it is repointed whenever the price
+  // moves the item into a different band. Weapons have a single image.
+  // Equipment art changes with the tier, so each image is repointed whenever
+  // the price moves the item into a different band. Weapons have one image.
+  // Cells are equal, so each is addressed by a percentage of the sheet.
+  function setArtFrame(tier) {
+    try {
+      var y = ((tier - 1) / 5) * 100;
+      var arts = document.querySelectorAll('.slotart');
+      for (var i = 0; i < arts.length; i++) {
+        var el = arts[i];
+        var slotCode = el.getAttribute('data-art');
+        var slot = null;
+        for (var j = 0; j < SLOTS.length; j++) { if (SLOTS[j].code === slotCode) { slot = SLOTS[j]; } }
+        if (!slot) { continue; }
+        el.style.backgroundPosition = (sheetColumn(slot.code) * 20) + '% ' + y + '%';
+      }
+    } catch (e) {}
+  }
+
+  function buildSlots() {
+    try { $('slotGrid').style.setProperty('--tier', RARITIES[0].colour); } catch (e) {}
+    var html = '';
+    SLOTS.forEach(function (s) {
+      html += '<button type="button" class="slotbtn" data-slot="' + s.code + '"'
+        + ' aria-pressed="false" title="' + s.name + '" aria-label="' + s.name + '">'
+        + '<span class="slotart" data-art="' + s.code + '"></span>'
+        + '</button>';
+    });
+    $('slotGrid').innerHTML = html;
+    setArtFrame(1);
+
+    $('slotGrid').addEventListener('click', function (e) {
+      var n = e.target;
+      while (n && n !== document.body && !(n.getAttribute && n.getAttribute('data-slot'))) { n = n.parentNode; }
+      if (!n || !n.getAttribute) { return; }
+      salesSlot = n.getAttribute('data-slot');
+      chosenRoll = {};
+      expandedStat = null;
+      showSalesDetail(true);
+      loadSales();
+    });
+  }
+
+  function showSalesDetail(on) {
+    $('slotGrid').hidden = on;
+    $('salesBack').hidden = !on;
+    $('rollGrid').hidden = !on;
+    $('salesPick').hidden = !on;
+    $('salesOpts').hidden = !on;
+    $('targetRow').hidden = !on;
+    if (!on) {
+      $('salesHead').textContent = 'Which piece is it?';
+      $('salesOut').innerHTML = '';
+      $('rollGrid').innerHTML = '';
+      salesSlot = null;
+      chosenRoll = {};
+    }
+  }
+
+  // Only values the wiki lists can roll, so the gaps between tiers are simply
+  // not offered — there is no dodge 16 to 20 on any boot.
+  function rollSpecs(tier) {
+    if (salesSlot === 'weapon') {
+      var w = WEAPON_STATS[tier - 1];
+      if (!w) { return []; }
+      return [{ key: 'attack', label: 'attack', band: w.attack },
+              { key: 'criticalChance', label: 'crit %', band: w.criticalChance }];
+    }
+    var spec = STAT_RANGES[salesSlot];
+    if (!spec) { return []; }
+    var band = spec.tiers[tier - 1];
+    return band ? [{ key: spec.key, label: spec.label, band: band }] : [];
+  }
+
+  // Only values the game allows can roll, so the gaps between tiers are never
+  // offered. Wide spans switch to a stepper: eighty buttons is not a picker.
+  // Once a value is picked the grid folds down to a single chip, so the sales
+  // list gets the space instead of forty buttons you have finished with.
+  function buildRolls() {
+    var grid = $('rollGrid');
+    var rarity = currentRarity(state.lastPrice || '0');
+    var specs = rollSpecs(tierOf(rarity.id));
+    if (!specs.length) { grid.innerHTML = ''; grid.hidden = true; return; }
+
+    var html = '';
+    specs.forEach(function (s) {
+      var span = s.band[1] - s.band[0] + 1;
+      var picked = chosenRoll[s.key];
+      var hasPick = (picked !== undefined && isFinite(picked));
+      var wide = span > 24;
+
+      html += '<div class="rollset" data-key="' + s.key + '">';
+
+      if (hasPick && !wide && expandedStat !== s.key) {
+        html += '<button type="button" class="rollchip" data-expand="' + s.key + '">'
+          + '<span class="chiplabel">' + s.label + '</span>'
+          + '<span class="chipval">' + picked + '</span>'
+          + '<span class="chipedit">change</span></button>';
+      } else {
+        html += '<span class="rolllabel">' + s.label + '</span>';
+        if (!wide) {
+          html += '<div class="rollbtns">';
+          for (var v = s.band[0]; v <= s.band[1]; v++) {
+            html += '<button type="button" class="rollbtn" data-key="' + s.key + '" data-roll="' + v + '"'
+              + ' aria-pressed="' + (picked === v ? 'true' : 'false') + '">' + v + '</button>';
+          }
+          html += '</div>';
+        } else {
+          var cur = hasPick ? picked : '';
+          html += '<div class="rollstep">'
+            + '<button type="button" class="stepbtn sm" data-step="-1" data-key="' + s.key + '">&minus;</button>'
+            + '<input type="text" inputmode="numeric" class="rollnum" data-key="' + s.key + '"'
+            + ' value="' + cur + '" placeholder="' + s.band[0] + '\u2013' + s.band[1] + '">'
+            + '<button type="button" class="stepbtn sm" data-step="1" data-key="' + s.key + '">+</button>'
+            + '</div>';
+        }
+      }
+      html += '</div>';
+    });
+    grid.innerHTML = html;
+    grid.hidden = false;
+  }
+
+  function median(list) {
+    if (!list.length) { return null; }
+    var s = list.slice().sort(function (a, b) { return a - b; });
+    var m = Math.floor(s.length / 2);
+    return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+  }
+
+  function sparkline(prices) {
+    if (prices.length < 3) { return ''; }
+    var w = 260, hgt = 40, pad = 3;
+    var lo = Math.min.apply(null, prices), hi = Math.max.apply(null, prices);
+    var span = (hi - lo) || 1;
+    var pts = prices.map(function (p, i) {
+      var x = pad + (i / (prices.length - 1)) * (w - pad * 2);
+      var y = hgt - pad - ((p - lo) / span) * (hgt - pad * 2);
+      return x.toFixed(1) + ',' + y.toFixed(1);
+    }).join(' ');
+    return '<svg class="spark" viewBox="0 0 ' + w + ' ' + hgt + '" preserveAspectRatio="none" aria-hidden="true">'
+      + '<polyline points="' + pts + '" fill="none" stroke="currentColor" stroke-width="1.6"'
+      + ' stroke-linejoin="round" stroke-linecap="round" opacity="0.75"/></svg>';
+  }
+
+  function loadSales() {
+    var out = $('salesOut');
+    var key = '';
+    try { key = (localStorage.getItem('warera-api-key') || '').trim(); } catch (e) {}
+    if (!key) { out.innerHTML = 'Add your WarEra API key in Settings to see what things sold at.'; return; }
+    if (!salesSlot) { out.innerHTML = ''; return; }
+
+    var slot = null;
+    for (var i = 0; i < SLOTS.length; i++) { if (SLOTS[i].code === salesSlot) { slot = SLOTS[i]; } }
+    if (!slot) { return; }
+
+    var rarity = currentRarity(state.lastPrice || '0');
+    var code = codeForSlot(slot, tierOf(rarity.id));
+
+    var spec = STAT_RANGES[salesSlot];
+    var label = (slot.code === 'weapon')
+      ? (rarity.name + ' ' + WEAPON_NAMES[tierOf(rarity.id) - 1].toLowerCase())
+      : (rarity.name + ' ' + slot.name.toLowerCase() + (spec ? ' \u00b7 ' + spec.label : ''));
+    $('salesHead').textContent = label;
+    salesLoaded = false;
+    salesItems = [];
+    $('salesPick').style.backgroundPosition =
+      (sheetColumn(slot.code) * 20) + '% ' + ((tierOf(rarity.id) - 1) / 5 * 100) + '%';
+    buildRolls();
+    out.innerHTML = 'Looking up\u2026';
+
+    var qs = encodeURIComponent(JSON.stringify({
+      limit: salesDepth, transactionType: 'itemMarket', itemCode: code
+    }));
+
+    // Filtering by itemCode is slow on the gateway, so give it room and try
+    // again once before giving up — a single slow response is common.
+    function attempt(tries) {
+      fetchSoon(API_GATEWAY + '/transaction.getPaginatedTransactions?input=' + qs,
+                { headers: { 'Accept': 'application/json', 'X-API-Key': key } }, 25000)
+        .then(function (r) { if (!r.ok) { throw new Error('HTTP ' + r.status); } return r.json(); })
+        .then(function (json) {
+          var d = json;
+          if (d && d.result) { d = (d.result.data !== undefined) ? d.result.data : d.result; }
+          var items = (d && d.items) || [];
+          salesLoaded = true;
+          if (!items.length) { out.innerHTML = '<p class="sales-summary">No recent sales of ' + code + ' at all.</p>'; return; }
+          renderSales(items, code);
+        })
+        .catch(function (e) {
+          var slow = /abort/i.test(e.message || '');
+          if (tries > 0) { out.innerHTML = '<p class="sales-summary">Still looking\u2026</p>'; attempt(tries - 1); return; }
+          salesLoaded = true;
+          salesItems = [];
+          out.innerHTML = (slow ? 'The market is slow to answer. ' : 'Lookup failed. ')
+            + '<button type="button" class="retry" id="salesRetry">Try again</button>';
+          var b = document.getElementById('salesRetry');
+          if (b) { b.addEventListener('click', loadSales); }
+        });
+    }
+    attempt(1);
+  }
+
+  var salesItems = [], salesStats = [];
+
+  function prettyStat(k) {
+    return k.replace(/([A-Z])/g, ' $1').replace('critical', 'crit').toLowerCase().trim();
+  }
+
+  function renderSales(items, code) {
+    salesItems = items;
+
+    // The stat names come from the sales themselves, so nothing has to be
+    // known in advance about which slot carries which stat.
+    var keys = {};
+    items.forEach(function (it) {
+      var s = (it.item && it.item.skills) || {};
+      for (var k in s) { if (Object.prototype.hasOwnProperty.call(s, k)) { keys[k] = true; } }
+    });
+    salesStats = Object.keys(keys);
+
+    paintSales();
+  }
+
+  function rollValues() {
+    var out = {};
+    for (var k in chosenRoll) {
+      if (Object.prototype.hasOwnProperty.call(chosenRoll, k) && isFinite(chosenRoll[k])) {
+        out[k] = chosenRoll[k];
+      }
+    }
+    return out;
+  }
+
+  // A sale counts as comparable when every stat you entered is within 10%, or
+  // 2 points, whichever is wider — small rolls need the absolute allowance.
+  function isComparable(it, rolls, tol) {
+    var s = (it.item && it.item.skills) || {};
+    var any = false;
+    for (var k in rolls) {
+      if (!Object.prototype.hasOwnProperty.call(rolls, k)) { continue; }
+      any = true;
+      if (s[k] === undefined) { return false; }
+      if (Math.abs(s[k] - rolls[k]) > tol) { return false; }
+    }
+    return any;
+  }
+
+  // Only sales above the price you are looking at, within a window of 5 gold
+  // or 5% (whichever is wider), and only from the last day. Anything cheaper
+  // or older says nothing about whether this flip clears.
+  // Two modes. With a target, look either side of it — 3 coins or 2%, whichever
+  // is wider — for "is this the going rate?". Without one, look only above the
+  // listing price for "can I flip this?".
+  function priceWindow() {
+    var t = parseFloat(extractNumber($('targetPrice').value) || '');
+    if (isFinite(t) && t > 0) {
+      var pad = Math.max(3, t * 0.02);
+      return { lo: t - pad, hi: t + pad, around: t, pad: pad };
+    }
+    var p = parseFloat(state.lastPrice);
+    if (!isFinite(p) || p <= 0) { return null; }
+    return { lo: p, hi: p + Math.max(5, p * 0.05) };
+  }
+
+  function paintSales() {
+    var items = salesItems;
+    // Never return silently: a blank panel is indistinguishable from a hung
+    // request, and the two need different responses from you.
+    if (!salesLoaded) { $('salesOut').innerHTML = '<p class="sales-summary">Looking up\u2026</p>'; return; }
+    if (!items.length) {
+      $('salesOut').innerHTML = '<p class="sales-summary">No sales of that piece came back at all.</p>';
+      return;
+    }
+
+    var win = priceWindow();
+    var cutoff = Date.now() - salesHours * 3600 * 1000;
+    var rolls = rollValues();
+    var haveRolls = Object.keys(rolls).length > 0;
+
+    var inWindow = items.filter(function (it) {
+      var price = Number(it.money);
+      if (!isFinite(price)) { return false; }
+      if (win && (win.around ? (price < win.lo || price > win.hi) : (price <= win.lo || price > win.hi))) { return false; }
+      var when = it.createdAt ? new Date(it.createdAt).getTime() : 0;
+      return when >= cutoff;
+    });
+
+    var tol = 0;
+    if (haveRolls) {
+      while (tol < 3) {
+        var n = 0;
+        inWindow.forEach(function (it) { if (isComparable(it, rolls, tol)) { n++; } });
+        if (n >= 3) { break; }
+        tol++;
+      }
+    }
+
+    var rows = '', prices = [], quick = 0, comps = [];
+    inWindow.forEach(function (it) {
+      var price = Number(it.money);
+      prices.push(price);
+      var match = haveRolls && isComparable(it, rolls, tol);
+      if (match) { comps.push(price); }
+
+      var skills = (it.item && it.item.skills) || {};
+      var bits = [];
+      for (var k in skills) {
+        if (Object.prototype.hasOwnProperty.call(skills, k)) { bits.push(prettyStat(k) + ' ' + skills[k]); }
+      }
+
+      var hrs = null;
+      if (it.offerCreatedAt && it.createdAt) {
+        hrs = (new Date(it.createdAt) - new Date(it.offerCreatedAt)) / 3600000;
+        if (hrs < 24) { quick++; }
+      }
+      var when = hrs === null ? '' : (hrs < 24 ? hrs.toFixed(1) + 'h' : (hrs / 24).toFixed(1) + 'd');
+
+      rows += '<div class="sale-row' + (match ? ' match' : '') + '">'
+        + '<span class="sale-price">' + price.toFixed(3) + '</span>'
+        + '<span>' + (bits.join(', ') || '\u2014') + '</span>'
+        + '<span class="' + (hrs !== null && hrs < 24 ? 'sale-fast' : '') + '">' + when + '</span></div>';
+    });
+
+    var head = '';
+    if (win && win.around) {
+      head = '<p class="sales-window">Sales within <strong>' + win.pad.toFixed(3) + '</strong> of <strong>'
+        + win.around.toFixed(3) + '</strong> &mdash; ' + win.lo.toFixed(3) + ' to ' + win.hi.toFixed(3)
+        + ', last ' + salesHours + ' hours</p>';
+    } else if (win) {
+      head = '<p class="sales-window">Sales above <strong>' + win.lo.toFixed(3) + '</strong> up to <strong>'
+        + win.hi.toFixed(3) + '</strong>, last ' + salesHours + ' hours</p>';
+    }
+
+    if (!prices.length) {
+      // Say what was thrown away and why, so a blank result is readable.
+      var older = 0, outside = 0;
+      items.forEach(function (it) {
+        var pr = Number(it.money);
+        var when = it.createdAt ? new Date(it.createdAt).getTime() : 0;
+        if (when < cutoff) { older++; }
+        else if (win && (win.around ? (pr < win.lo || pr > win.hi) : (pr <= win.lo || pr > win.hi))) { outside++; }
+      });
+      $('salesOut').innerHTML = head
+        + '<p class="sales-summary"><strong>' + items.length + '</strong> sales came back, none in range. '
+        + outside + ' were outside the price window, ' + older + ' older than ' + salesHours + ' hours. '
+        + 'Try a wider window, or clear the target.</p>';
+      return;
+    }
+
+    var summary = '<p class="sales-summary">';
+    if (haveRolls && comps.length >= 3) {
+      summary += (tol === 0 ? 'That exact roll: ' : 'Rolls within ' + tol + ': ')
+        + '<strong>' + comps.length + '</strong> sold, median <strong>' + median(comps).toFixed(3) + '</strong>.';
+    } else if (haveRolls && comps.length > 0) {
+      summary += 'Only ' + comps.length + ' with a roll like yours. All rolls: <strong>'
+        + prices.length + '</strong> sold, median <strong>' + median(prices).toFixed(3) + '</strong>.';
+    } else {
+      summary += '<strong>' + prices.length + '</strong> sold ' + (win && win.around ? 'in that range' : 'above your price')
+        + ', median <strong>'
+        + median(prices).toFixed(3) + '</strong>.'
+        + (haveRolls ? '' : ' Pick your roll to narrow it.');
+    }
+    summary += ' ' + quick + ' of ' + prices.length + ' listed and sold within a day.</p>';
+
+    $('salesOut').innerHTML = head + sparkline(prices.slice().reverse()) + '<div>' + rows + '</div>' + summary;
+  }
+
+  function buildKeypad() {
+    var touch = false;
+    try { touch = window.matchMedia('(pointer: coarse)').matches; } catch (e) {}
+    if (!touch) { return; }
+
+    var keys = ['1','2','3','4','5','6','7','8','9','.','0','del'];
+    var html = '';
+    keys.forEach(function (k) {
+      if (k === 'del') {
+        html += '<button type="button" class="key act" data-k="del" aria-label="Delete">Del</button>';
+      } else {
+        html += '<button type="button" class="key" data-k="' + k + '">' + k + '</button>';
+      }
+    });
+    html += '<button type="button" class="key enter" data-k="enter">Enter</button>';
+    $('keypad').innerHTML = html;
+    $('workrow').hidden = false;
+
+    function apply(k) {
+      if (k === 'enter') {
+        settleNow();
+        copy(state.figure);
+        histPush(state.lastPrice, state.figure);
+        return;
+      }
+      var el = $('price');
+      var v = el.value;
+      if (k === 'del') { v = v.slice(0, -1); }
+      else if (k === '.') { if (v.indexOf('.') === -1) { v = (v || '0') + '.'; } }
+      else { v = v + k; }
+      el.value = v;
+      if (v) { state.lastPrice = extractNumber(v) || state.lastPrice; }
+      calcLive();
+    }
+
+    function keyFrom(e) {
+      var n = e.target;
+      while (n && n !== document.body && !(n.classList && n.classList.contains('key'))) { n = n.parentNode; }
+      return (n && n.classList && n.classList.contains('key')) ? n.getAttribute('data-k') : null;
+    }
+
+    // Handled on touchstart for an immediate response. preventDefault here also
+    // stops the field taking focus, which would slide the system keyboard up
+    // over the keypad — but it suppresses the synthesised click too, so the
+    // click handler below has to ignore anything that follows a touch.
+    // Holding Del clears the field, the way a numeric keypad normally does.
+    // A timer is unavoidable here: a long press is defined by duration.
+    var holdTimer = null;
+
+    function clearAll() {
+      $('price').value = '';
+      state.lastPrice = '';
+      calcLive();
+      var del = $('keypad').querySelector('[data-k="del"]');
+      if (del) {
+        del.classList.add('wiped');
+        setTimeout(function () { del.classList.remove('wiped'); }, 450);
+      }
+    }
+
+    function startHold(k) {
+      endHold();
+      if (k !== 'del') { return; }
+      holdTimer = setTimeout(clearAll, 550);
+    }
+
+    function endHold() {
+      if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+    }
+
+    var lastTouch = 0;
+    $('keypad').addEventListener('touchstart', function (e) {
+      var k = keyFrom(e);
+      if (!k) { return; }
+      e.preventDefault();
+      lastTouch = Date.now();
+      apply(k);
+      startHold(k);
+    }, { passive: false });
+
+    $('keypad').addEventListener('touchend', endHold);
+    $('keypad').addEventListener('touchcancel', endHold);
+    $('keypad').addEventListener('touchmove', endHold);
+    $('keypad').addEventListener('mouseup', endHold);
+    $('keypad').addEventListener('mouseleave', endHold);
+
+    $('keypad').addEventListener('mousedown', function (e) {
+      e.preventDefault();
+      var k = keyFrom(e);
+      if (k) { startHold(k); }
+    });
+
+    $('keypad').addEventListener('click', function (e) {
+      if (Date.now() - lastTouch < 700) { return; }
+      var k = keyFrom(e);
+      if (k) { apply(k); }
+    });
+  }
+
+  $('goBtn').addEventListener('click', function (e) {
+    e.preventDefault();
+    settleNow();
+    copy(state.figure);
+    histPush(state.lastPrice, state.figure);
+  });
+
+  document.querySelector('.scrap-tabs').addEventListener('click', function (e) {
+    var n = e.target;
+    while (n && n !== document.body && !(n.getAttribute && n.getAttribute('data-view'))) { n = n.parentNode; }
+    if (!n || !n.getAttribute) { return; }
+    scrapView = n.getAttribute('data-view');
+    try { localStorage.setItem('warera-calc-scrapview', scrapView); } catch (e2) {}
+    var all = document.querySelectorAll('.scrap-tabs [data-view]');
+    for (var i = 0; i < all.length; i++) {
+      all[i].setAttribute('aria-pressed', all[i].getAttribute('data-view') === scrapView ? 'true' : 'false');
+    }
+    calc();
+  });
+
+  // Nothing behind the overlay moves, so there is no scroll position to save.
+  // The field is blurred first because iOS scrolls the page to keep a focused
+  // input visible, which is what was dragging the view down to the keypad. The
+  // body is deliberately not locked either — setting overflow on it shifts the
+  // page on iOS, and the overlay already covers everything.
+  function setSettings(open) {
+    if (open) {
+      try {
+        if (document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }
+      } catch (e) {}
+    }
+    $('settingsPanel').hidden = !open;
+    $('settingsBtn').setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (open) { $('settingsPanel').scrollTop = 0; }
+  }
+
+  $('settingsBtn').addEventListener('click', function () {
+    setSettings($('settingsBtn').getAttribute('aria-expanded') !== 'true');
+  });
+  $('settingsClose').addEventListener('click', function () { setSettings(false); });
+  $('settingsPanel').addEventListener('click', function (e) {
+    if (e.target === $('settingsPanel')) { setSettings(false); }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !$('settingsPanel').hidden) { setSettings(false); }
+  });
+
+  function scrollToCard(el) {
+    try {
+      var y = el.getBoundingClientRect().top + window.pageYOffset - 12;
+      window.scrollTo(0, y < 0 ? 0 : y);
+    } catch (e) {}
+  }
+  $('quickFlip').addEventListener('click', function () { scrollToCard($('flip')); });
+  $('quickScrap').addEventListener('click', function () { scrollToCard($('scrapBox')); });
+
+  // The transaction and inventory endpoints need an X-API-Key header. A static
+  // page cannot hold a shared secret, so each person supplies their own — kept
+  // in their browser and sent only to WarEra.
+  try {
+    var savedKey = localStorage.getItem('warera-api-key');
+    if (savedKey) { $('apiKey').value = savedKey; }
+  } catch (e) {}
+
+  $('apiKey').addEventListener('input', function () {
+    try { localStorage.setItem('warera-api-key', $('apiKey').value.trim()); } catch (e) {}
+  });
+
+  // Measured while the keypad is on screen, then held for both panes.
+  function lockPaneHeight() {
+    try {
+      var pane = $('workpane');
+      if (!pane || $('workrow').hidden) { return; }
+      if ($('keypad').hidden) { return; }
+      var hgt = $('keypad').offsetHeight;
+      if (hgt > 0) { pane.style.height = hgt + 'px'; }
+    } catch (e) {}
+  }
+
+  function setHand(side) {
+    try { localStorage.setItem('warera-calc-hand', side); } catch (e) {}
+    $('workrow').classList.toggle('lefty', side === 'left');
+    var all = document.querySelectorAll('#handBtns [data-hand]');
+    for (var i = 0; i < all.length; i++) {
+      all[i].setAttribute('aria-pressed', all[i].getAttribute('data-hand') === side ? 'true' : 'false');
+    }
+  }
+  document.getElementById('handBtns').addEventListener('click', function (e) {
+    var n = e.target;
+    while (n && n !== document.body && !(n.getAttribute && n.getAttribute('data-hand'))) { n = n.parentNode; }
+    if (n && n.getAttribute) { setHand(n.getAttribute('data-hand')); }
+  });
+
+  $('salesTab').addEventListener('click', function () {
+    var open = $('salesTab').getAttribute('aria-expanded') === 'true';
+    if (!open) { lockPaneHeight(); }
+    $('salesTab').setAttribute('aria-expanded', open ? 'false' : 'true');
+    $('salesPane').hidden = open;
+    $('keypad').hidden = !open;
+    if (!open && salesSlot) { loadSales(); }
+  });
+
+  window.addEventListener('resize', function () {
+    if ($('salesPane').hidden) { $('workpane').style.height = ''; lockPaneHeight(); }
+  });
+
+  function scrollToCard(el) {
+    try {
+      var y = el.getBoundingClientRect().top + window.pageYOffset - 12;
+      window.scrollTo(0, y < 0 ? 0 : y);
+    } catch (e) {}
+  }
+  $('quickFlip').addEventListener('click', function () { scrollToCard($('flip')); });
+  $('quickScrap').addEventListener('click', function () { scrollToCard($('scrapBox')); });
+
+  $('targetPrice').addEventListener('input', paintSales);
+  $('targetClear').addEventListener('click', function () {
+    $('targetPrice').value = '';
+    paintSales();
+  });
+
+  $('salesOpts').addEventListener('click', function (e) {
+    var n = e.target;
+    while (n && n !== document.body && !(n.classList && n.classList.contains('optbtn'))) { n = n.parentNode; }
+    if (!n || !n.classList) { return; }
+
+    var hrs = n.getAttribute('data-hours'), dep = n.getAttribute('data-depth');
+    var group = hrs ? 'data-hours' : 'data-depth';
+    var all = $('salesOpts').querySelectorAll('[' + group + ']');
+    for (var i = 0; i < all.length; i++) { all[i].setAttribute('aria-pressed', all[i] === n ? 'true' : 'false'); }
+
+    if (hrs) { salesHours = parseInt(hrs, 10); paintSales(); }
+    else { salesDepth = parseInt(dep, 10); loadSales(); }
+  });
+
+  $('rollGrid').addEventListener('click', function (e) {
+    var n = e.target;
+    while (n && n !== document.body && !(n.getAttribute
+        && (n.getAttribute('data-roll') || n.getAttribute('data-step') || n.getAttribute('data-expand')))) {
+      n = n.parentNode;
+    }
+    if (!n || !n.getAttribute) { return; }
+
+    if (n.getAttribute('data-expand')) {
+      expandedStat = n.getAttribute('data-expand');
+      buildRolls();
+      return;
+    }
+
+    var key = n.getAttribute('data-key');
+
+    if (n.getAttribute('data-step')) {
+      var box = $('rollGrid').querySelector('.rollnum[data-key="' + key + '"]');
+      if (!box) { return; }
+      var cur = parseInt(box.value, 10);
+      var rarity = currentRarity(state.lastPrice || '0');
+      var spec = null;
+      rollSpecs(tierOf(rarity.id)).forEach(function (s) { if (s.key === key) { spec = s; } });
+      if (!spec) { return; }
+      if (!isFinite(cur)) { cur = spec.band[0] - (n.getAttribute('data-step') === '1' ? 1 : 0); }
+      cur += parseInt(n.getAttribute('data-step'), 10);
+      cur = Math.max(spec.band[0], Math.min(spec.band[1], cur));
+      box.value = cur;
+      chosenRoll[key] = cur;
+      paintSales();
+      return;
+    }
+
+    var v = parseInt(n.getAttribute('data-roll'), 10);
+    chosenRoll[key] = (chosenRoll[key] === v) ? undefined : v;
+    expandedStat = null;
+    buildRolls();
+    paintSales();
+  });
+
+  $('rollGrid').addEventListener('input', function (e) {
+    var el = e.target;
+    if (!el || !el.classList || !el.classList.contains('rollnum')) { return; }
+    var v = parseInt(el.value, 10);
+    chosenRoll[el.getAttribute('data-key')] = isFinite(v) ? v : undefined;
+    paintSales();
+  });
+
+  $('salesBack').addEventListener('click', function () { showSalesDetail(false); });
+
+  $('secondSlider').addEventListener('input', paintSlider);
+
+  function nudge(by) {
+    var s = $('secondSlider');
+    var v = Number(s.value) + by;
+    if (v < Number(s.min)) { v = Number(s.min); }
+    if (v > Number(s.max)) { v = Number(s.max); }
+    s.value = String(v);
+    paintSlider();
+  }
+  $('stepDown').addEventListener('click', function () { nudge(-1); });
+  $('stepUp').addEventListener('click', function () { nudge(1); });
+
+  $('listAnyway').addEventListener('click', function () {
+    if (!state.listFigure) { return; }
+    copy(state.listFigure);
+    histPush(state.lastPrice, state.listFigure);
+  });
+
+  $('histClear').addEventListener('click', function () {
+    hist = [];
+    histSave();
+    histRender();
+  });
+
+  // Restore preferences.
+  try {
+    var b = localStorage.getItem('warera-calc-beat');
+    var q = localStorage.getItem('warera-calc-quick');
+    var snd = localStorage.getItem('warera-calc-sound');
+    var au = localStorage.getItem('warera-calc-auto');
+    var t = localStorage.getItem('warera-calc-tax');
+    if (t) { $('tax').value = t; }
+    // Unset means default, which is on — only an explicit '0' turns one off.
+    if (b === '0') { $('beatMode').checked = false; }
+    if (q === '0') { $('quickInput').checked = false; }
+    if (snd === '0') { $('sound').checked = false; }
+    if (au === '0') { $('autoCopy').checked = false; }
+    // Left over from when this handled items and buy orders too.
+    localStorage.removeItem('warera-calc-side');
+    localStorage.removeItem('warera-calc-category');
+  } catch (e) {}
+
+  try { localStorage.removeItem('warera-calc-extra'); } catch (e) {}
+  $('tax').addEventListener('input', function () {
+    try { localStorage.setItem('warera-calc-tax', $('tax').value); } catch (e) {}
+  });
+
+  // The local file wins; the API only covers what it doesn't provide.
+  // Local file first, then the API refreshes the portrait — its filename
+  // carries an upload timestamp, so a stored URL goes stale on every change.
+  loadLocalProfile().then(function (got) {
+    if (!got.hasArticle) { loadLatestArticle(); }
+    loadProfile();
+  }).catch(function () {
+    paintProfile(PROFILE_SEED);
+    loadProfile();
+    loadLatestArticle();
+  });
+  try {
+    var ownScrap = localStorage.getItem('warera-calc-scrapown');
+    if (ownScrap && scrapSource() === 'own') { $('scrapPrice').value = ownScrap; }
+  } catch (e) {}
+  setScrapSource(scrapSource());
+  loadScrapPrice();
+
+  (function () {
+    var all = document.querySelectorAll('.scrap-tabs [data-view]');
+    for (var i = 0; i < all.length; i++) {
+      all[i].setAttribute('aria-pressed', all[i].getAttribute('data-view') === scrapView ? 'true' : 'false');
+    }
+  })();
+  buildKeypad();
+  buildSlots();
+  if (window.requestAnimationFrame) {
+    window.requestAnimationFrame(function () { window.requestAnimationFrame(lockPaneHeight); });
+  }
+  (function () {
+    var side = 'right';
+    try { side = localStorage.getItem('warera-calc-hand') || 'right'; } catch (e) {}
+    setHand(side);
+  })();
+  buildRarity();
+  buildSwatches();
+  buildSounds();
+  histLoad();
+  histRender();
+
+  syncToggleStyles();
+  calc();
+
+  console.log('ETC — Equipment Trading Calculator — build 115');
+})();
+</script>
+</body>
+</html>
