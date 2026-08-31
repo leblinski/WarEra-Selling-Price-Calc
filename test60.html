@@ -3734,9 +3734,12 @@ function setCraftOdds(odds){
   });
   paintCraft()
 }
+// A refresh confirmation holds the line briefly so the periodic repaint cannot wipe it.
+var dataStampHold=0;
 function paintDataStamp(){
   var idx=collector.index;
   if(!$('dataStamp'))return;
+  if(Date.now()<dataStampHold)return;
   if(!idx){$('dataStamp').textContent='Collector prices not loaded yet.';return}
   var age=dataAgeText(idx.generated_at);
   $('dataStamp').textContent='Prices collected '+(age||'at an unknown time')+
@@ -3745,9 +3748,14 @@ function paintDataStamp(){
 }
 // The collector republishes on a 10-minute cadence, so a manual refresh has to bypass
 // both the in-memory copies and the browser cache to be worth pressing.
+// This pulls whatever the collector last published; it cannot make the collector go and
+// collect, which would need a GitHub token in a public page. When nothing new has been
+// published the figures are supposed to stay put, so say so rather than looking inert.
 function refreshCollector(){
   var btn=$('refreshData');
   if(btn.disabled)return;
+  var before=(collector.index||{}).generated_at||null,started=Date.now();
+  dataStampHold=0;
   btn.disabled=true;btn.textContent='Refreshing…';
   var code=state.itemCode||(state.slot?itemCode():null);
   collector.shards={};collector.pending={};
@@ -3756,17 +3764,30 @@ function refreshCollector(){
   if(code)jobs.push(loadShard(code,true));
   var settle=function(pr){return pr.then(function(){return null},function(e){return e})};
   Promise.all(jobs.map(settle)).then(function(res){
-    var failed=res.filter(Boolean).length;
-    craftState.summary=collector.summary||craftState.summary;
-    craftState.books=collector.books||craftState.books;
-    craftState.error=craftState.summary&&craftState.books?null
-      :!craftState.books?'The collector is not publishing commodity order books yet, so input costs cannot be priced.'
-      :'Collector prices are not reachable right now.';
-    scrapMarket.bid=null;scrapMarket.ask=null;loadScrapPrice();
-    setCraftSource(craftState.src);
-    paintDataStamp();
-    if(failed)$('dataStamp').textContent=failed+' of '+jobs.length+' price files could not be refreshed.';
-    btn.disabled=false;btn.textContent='Refresh prices'
+    var done=function(){
+      var failed=res.filter(Boolean).length;
+      craftState.summary=collector.summary||craftState.summary;
+      craftState.books=collector.books||craftState.books;
+      craftState.error=craftState.summary&&craftState.books?null
+        :!craftState.books?'The collector is not publishing commodity order books yet, so input costs cannot be priced.'
+        :'Collector prices are not reachable right now.';
+      scrapMarket.bid=null;scrapMarket.ask=null;loadScrapPrice();
+      setCraftSource(craftState.src);
+      paintDataStamp();
+      var after=(collector.index||{}).generated_at||null;
+      var note=failed?failed+' of '+jobs.length+' price files could not be refreshed.'
+        :!after?'Checked just now. The collector has published nothing yet.'
+        :after!==before?'Updated just now. Prices collected '+dataAgeText(after)+'.'
+        :'Checked just now — the collector has published nothing newer. Prices collected '+
+          dataAgeText(after)+'.';
+      $('dataStamp').textContent=note;
+      dataStampHold=Date.now()+10000;
+      setTimeout(function(){dataStampHold=0;paintDataStamp()},10050);
+      btn.disabled=false;btn.textContent='Refresh prices'
+    };
+    // Hold the pressed state long enough to be seen; a cached round trip can finish in
+    // a few milliseconds, which reads as nothing having happened at all.
+    setTimeout(done,Math.max(0,450-(Date.now()-started)))
   })
 }
 function loadCraftData(bust){
