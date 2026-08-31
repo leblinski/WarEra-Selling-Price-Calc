@@ -2770,7 +2770,6 @@ h1 .title-word{white-space:nowrap}
 
       <div class="datastrip">
         <span class="datastrip-text" id="dataStamp">Loading collector prices…</span>
-        <button type="button" class="soundbtn" id="refreshData">Refresh prices</button>
       </div>
 
       <a class="market" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:52px;margin:14px 0 24px;border:1px solid var(--brass-deep);border-radius:var(--radius);background:var(--panel);color:var(--brass);text-decoration:none;font-family:'Saira Condensed',sans-serif;font-weight:700;font-size:15px;letter-spacing:.09em;text-transform:uppercase" href="https://app.warera.io/market/equipments" target="_blank" rel="noopener">
@@ -3748,15 +3747,14 @@ function paintDataStamp(){
 }
 // The collector republishes on a 10-minute cadence, so a manual refresh has to bypass
 // both the in-memory copies and the browser cache to be worth pressing.
-// This pulls whatever the collector last published; it cannot make the collector go and
-// collect, which would need a GitHub token in a public page. When nothing new has been
-// published the figures are supposed to stay put, so say so rather than looking inert.
+// The collector publishes on a fixed cadence, so the page can meet it rather than making
+// anyone ask. This pulls what was last published; it cannot make the collector go and
+// collect, which would need a GitHub token in a public page.
+var COLLECTOR_CADENCE_MS=10*60*1000,autoRefreshTimer=null,refreshInFlight=false;
 function refreshCollector(){
-  var btn=$('refreshData');
-  if(btn.disabled)return;
-  var before=(collector.index||{}).generated_at||null,started=Date.now();
-  dataStampHold=0;
-  btn.disabled=true;btn.textContent='Refreshing…';
+  if(refreshInFlight)return;
+  refreshInFlight=true;
+  var before=(collector.index||{}).generated_at||null;
   var code=state.itemCode||(state.slot?itemCode():null);
   collector.shards={};collector.pending={};
   craftState.sig=null;
@@ -3764,31 +3762,48 @@ function refreshCollector(){
   if(code)jobs.push(loadShard(code,true));
   var settle=function(pr){return pr.then(function(){return null},function(e){return e})};
   Promise.all(jobs.map(settle)).then(function(res){
-    var done=function(){
-      var failed=res.filter(Boolean).length;
-      craftState.summary=collector.summary||craftState.summary;
-      craftState.books=collector.books||craftState.books;
-      craftState.error=craftState.summary&&craftState.books?null
-        :!craftState.books?'The collector is not publishing commodity order books yet, so input costs cannot be priced.'
-        :'Collector prices are not reachable right now.';
-      scrapMarket.bid=null;scrapMarket.ask=null;loadScrapPrice();
-      setCraftSource(craftState.src);
-      paintDataStamp();
-      var after=(collector.index||{}).generated_at||null;
-      var note=failed?failed+' of '+jobs.length+' price files could not be refreshed.'
-        :!after?'Checked just now. The collector has published nothing yet.'
-        :after!==before?'Updated just now. Prices collected '+dataAgeText(after)+'.'
-        :'Checked just now — the collector has published nothing newer. Prices collected '+
-          dataAgeText(after)+'.';
-      $('dataStamp').textContent=note;
-      dataStampHold=Date.now()+10000;
-      setTimeout(function(){dataStampHold=0;paintDataStamp()},10050);
-      btn.disabled=false;btn.textContent='Refresh prices'
-    };
-    // Hold the pressed state long enough to be seen; a cached round trip can finish in
-    // a few milliseconds, which reads as nothing having happened at all.
-    setTimeout(done,Math.max(0,450-(Date.now()-started)))
+    refreshInFlight=false;
+    var failed=res.filter(Boolean).length;
+    craftState.summary=collector.summary||craftState.summary;
+    craftState.books=collector.books||craftState.books;
+    craftState.error=craftState.summary&&craftState.books?null
+      :!craftState.books?'The collector is not publishing commodity order books yet, so input costs cannot be priced.'
+      :'Collector prices are not reachable right now.';
+    scrapMarket.bid=null;scrapMarket.ask=null;loadScrapPrice();
+    setCraftSource(craftState.src);
+    var after=(collector.index||{}).generated_at||null;
+    if(!failed&&after&&after!==before){
+      dataStampHold=0;paintDataStamp();
+      $('dataStamp').textContent='Just updated. Prices collected '+dataAgeText(after)+'.';
+      dataStampHold=Date.now()+8000;
+      setTimeout(function(){dataStampHold=0;paintDataStamp()},8050)
+    }else{
+      dataStampHold=0;paintDataStamp()
+    }
+    scheduleAutoRefresh(failed>0)
   })
+}
+// Aim just past the moment the next publish is due, with a little jitter so every open
+// tab does not ask at the same instant. Past due means the collector is behind, and
+// asking faster will not make it publish, so back off to a steady re-check instead.
+function scheduleAutoRefresh(afterFailure){
+  clearTimeout(autoRefreshTimer);
+  var stamp=(collector.index||{}).generated_at,delay;
+  if(afterFailure)delay=60000;
+  else if(!stamp)delay=5*60000;
+  else{
+    delay=new Date(stamp).getTime()+COLLECTOR_CADENCE_MS+5000-Date.now();
+    // Already past due means the collector is behind, and asking sooner will not make it
+    // publish. A short positive wait is the normal case and is kept, with a floor so a
+    // publish that has only just landed does not trigger an immediate second request.
+    if(!isFinite(delay)||delay<0)delay=5*60000;
+    else if(delay<10000)delay=10000
+  }
+  delay+=Math.floor(Math.random()*15000);
+  autoRefreshTimer=setTimeout(function(){
+    if(document.visibilityState==='hidden'){scheduleAutoRefresh(false);return}
+    refreshCollector()
+  },delay)
 }
 function loadCraftData(bust){
   if(craftState.loading)return;
@@ -3802,7 +3817,7 @@ function loadCraftData(bust){
       :!craftState.summary&&!craftState.books?'Collector prices are not reachable right now.'
       :!craftState.books?'The collector is not publishing commodity order books yet, so input costs cannot be priced.'
       :'The collector is not publishing sale statistics right now.';
-    setCraftSource(craftState.src);paintDataStamp()
+    setCraftSource(craftState.src);paintDataStamp();scheduleAutoRefresh(!res[2])
   });
   paintCraft()
 }
@@ -3838,9 +3853,11 @@ function collectorFetch(path,bust){
 }
 function collectorFile(name,path,bust){
   if(!bust&&collectorAge(collector[name])<DATA_TTL)return Promise.resolve(collector[name]);
-  return collectorFetch(path,bust).then(function(json){
-    json._at=Date.now();collector[name]=json;return json
-  })
+  if(collector.pending[name]&&!bust)return collector.pending[name];
+  var p=collectorFetch(path,bust).then(function(json){
+    json._at=Date.now();collector[name]=json;delete collector.pending[name];return json
+  },function(err){delete collector.pending[name];throw err});
+  collector.pending[name]=p;return p
 }
 function loadIndex(bust){return collectorFile('index','index.json',bust)}
 function loadSummary(bust){return collectorFile('summary','summary.json',bust)}
@@ -5203,8 +5220,14 @@ $('ageChips').addEventListener('click',function(e){
   $('ageHelp').textContent='Optional. Add age only when you want ETC to test stale-market repricing.';
   $('ageHelp').style.color='var(--dim)'
 });
-$('refreshData').addEventListener('click',refreshCollector);
 setInterval(paintDataStamp,30000);
+// A tab left in the background skips its turns; catch up the moment it is looked at.
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState!=='visible')return;
+  paintDataStamp();
+  var stamp=(collector.index||{}).generated_at;
+  if(stamp&&Date.now()-new Date(stamp).getTime()>COLLECTOR_CADENCE_MS)refreshCollector()
+});
 $('craftSrcBtns').addEventListener('click',function(e){
   var b=e.target.closest('[data-craftsrc]');if(b)setCraftSource(b.getAttribute('data-craftsrc'))
 });
