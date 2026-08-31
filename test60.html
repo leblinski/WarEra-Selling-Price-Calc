@@ -3739,7 +3739,9 @@ function refreshCollector(){
     var failed=res.filter(Boolean).length;
     craftState.summary=collector.summary||craftState.summary;
     craftState.books=collector.books||craftState.books;
-    craftState.error=failed&&!craftState.summary?'Could not reach the collector.':null;
+    craftState.error=craftState.summary&&craftState.books?null
+      :!craftState.books?'The collector is not publishing commodity order books yet, so input costs cannot be priced.'
+      :'Collector prices are not reachable right now.';
     scrapMarket.bid=null;scrapMarket.ask=null;loadScrapPrice();
     setCraftSource(craftState.src);
     paintDataStamp();
@@ -3750,13 +3752,16 @@ function refreshCollector(){
 function loadCraftData(bust){
   if(craftState.loading)return;
   craftState.loading=true;craftState.error=null;
-  Promise.all([loadSummary(bust),loadBooks(bust),loadIndex(bust)]).then(function(res){
-    craftState.summary=res[0];craftState.books=res[1];craftState.loading=false;
-    setCraftSource(craftState.src);paintDataStamp()
-  },function(err){
+  var settle=function(pr){return pr.then(function(v){return v},function(){return null})};
+  Promise.all([settle(loadSummary(bust)),settle(loadBooks(bust)),settle(loadIndex(bust))]).then(function(res){
+    craftState.summary=res[0]||craftState.summary;
+    craftState.books=res[1]||craftState.books;
     craftState.loading=false;
-    craftState.error='Could not reach the collector: '+(err&&err.message?err.message:'request failed')+'.';
-    paintCraft()
+    craftState.error=craftState.summary&&craftState.books?null
+      :!craftState.summary&&!craftState.books?'Collector prices are not reachable right now.'
+      :!craftState.books?'The collector is not publishing commodity order books yet, so input costs cannot be priced.'
+      :'The collector is not publishing sale statistics right now.';
+    setCraftSource(craftState.src);paintDataStamp()
   });
   paintCraft()
 }
