@@ -352,11 +352,6 @@ input:focus{outline:none;border-color:var(--brass);box-shadow:0 0 0 3px rgba(var
   margin:0 0 8px;font-family:"Saira Condensed",sans-serif;font-weight:600;
   font-size:11.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim)
 }
-#apiKey{
-  display:block;width:100%;height:42px;padding:0 11px;font-size:15px;margin-bottom:7px;
-  background:var(--panel);border:1px solid rgba(var(--brass-rgb),.38);
-  border-radius:var(--radius);color:var(--ink);font-family:"IBM Plex Mono",monospace
-}
 .apikey-note{margin:0 0 14px;font-size:12.5px;color:var(--dim)}
 .soundpick-btns{display:flex;gap:6px;flex-wrap:wrap}
 .soundbtn{
@@ -582,6 +577,36 @@ kbd{
   padding:3px 7px;border-radius:5px
 }
 .scrap-row.hit{color:var(--verdigris);background:rgba(var(--brass-rgb),.07)}
+.craft-rows{display:grid;gap:3px;margin-top:10px}
+.craft-row{
+  display:grid;grid-template-columns:1.1fr .85fr .85fr .95fr .95fr;gap:9px;
+  font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--dim);
+  padding:3px 7px;border-radius:5px
+}
+.craft-row span+span{text-align:right}
+.craft-row.head{
+  font-family:"Saira Condensed",sans-serif;font-weight:600;font-size:10.5px;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--dim);opacity:.75
+}
+.craft-row.hit{background:rgba(var(--brass-rgb),.07);color:var(--ink)}
+.craft-row .up,.flip-figure.up{color:var(--verdigris)}
+.craft-row .down,.flip-figure.down{color:var(--rust)}
+.craft-fields{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:9px}
+.craft-fields label{display:flex;flex-direction:column;gap:4px;font-size:11.5px;color:var(--dim)}
+.craft-fields input{
+  width:118px;height:40px;padding:0 11px;font-size:15px;background:var(--panel);
+  border:1px solid rgba(var(--brass-rgb),.38);border-radius:var(--radius);
+  color:var(--ink);font-family:"IBM Plex Mono",monospace
+}
+.craft-fields input[readonly]{opacity:.7}
+.craft-foot{margin:9px 0 0;font-size:11.5px;color:var(--dim);line-height:1.45}
+.datastrip{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  margin:0 0 14px;padding:9px 13px;border:1px solid var(--line);
+  border-radius:var(--radius);background:var(--panel)
+}
+.datastrip-text{font-size:12px;color:var(--dim)}
+.datastrip button[disabled]{opacity:.55;cursor:default}
 .slider-wrap{margin-top:12px}
 .slider-row{display:flex;align-items:center;gap:8px}
 #secondSlider{
@@ -1706,14 +1731,6 @@ h1 .title-word{white-space:nowrap}
     background:rgba(var(--brass-rgb),.055)!important
   }
 
-  #apiKey{
-    border:1px solid rgba(var(--brass-rgb),.18)!important;
-    box-shadow:none!important
-  }
-  #apiKey:focus{
-    border-color:rgba(var(--brass-rgb),.58)!important
-  }
-
   .soundbtn{
     border:0!important;
     background:transparent!important
@@ -2301,9 +2318,6 @@ h1 .title-word{white-space:nowrap}
         <button type="button" class="settings-close" id="settingsClose">&times;</button>
       </div>
       <div class="settings-content" id="settingsContent">
-      <p class="settings-head">WarEra API key</p>
-      <input type="password" id="apiKey" placeholder="wra_…" autocomplete="off" spellcheck="false">
-      <p class="apikey-note">Stored only in this browser and sent as <code>X-API-Key</code> to gateway.warerastats.io.</p>
       <p class="settings-head">Calculator mode</p>
       <label class="checkrow" style="margin:0 0 14px">
         <input type="checkbox" id="beatMode" checked>
@@ -2723,6 +2737,41 @@ h1 .title-word{white-space:nowrap}
 
       <p class="warn" id="warn" hidden></p>
 
+      <section class="flip" id="craftBox">
+        <p class="flip-label">Craft it instead?</p>
+        <p class="flip-lead" id="craftLead">Buy the inputs, craft one piece at random, sell it</p>
+        <p class="flip-figure" id="craftVerdict">—</p>
+        <p class="flip-detail" id="craftDetail">Reading the collector's order books and sale history…</p>
+
+        <div class="craft-rows" id="craftRows"></div>
+        <p class="craft-foot" id="craftFoot"></p>
+
+        <div class="scrap-src">
+          <span class="scrap-src-label">Input prices</span>
+          <div class="scrap-btns" id="craftSrcBtns">
+            <button type="button" class="soundbtn" data-craftsrc="book" aria-pressed="true">Walk the book</button>
+            <button type="button" class="soundbtn" data-craftsrc="ask">Best seller</button>
+            <button type="button" class="soundbtn" data-craftsrc="own">Set it</button>
+          </div>
+          <div class="craft-fields">
+            <label for="craftScrap">Scraps<input type="text" id="craftScrap" value="0.223" inputmode="decimal" autocomplete="off" spellcheck="false" readonly></label>
+            <label for="craftSteel">Steel<input type="text" id="craftSteel" value="1.683" inputmode="decimal" autocomplete="off" spellcheck="false" readonly></label>
+          </div>
+          <span class="scrap-src-label" style="margin-top:4px">Weapon roll odds</span>
+          <div class="scrap-btns" id="craftOddsBtns">
+            <button type="button" class="soundbtn" data-craftodds="observed" aria-pressed="true">As traded</button>
+            <button type="button" class="soundbtn" data-craftodds="even">Even</button>
+          </div>
+          <p class="scrap-tabnote" id="craftNote"></p>
+        </div>
+      </section>
+
+
+      <div class="datastrip">
+        <span class="datastrip-text" id="dataStamp">Loading collector prices…</span>
+        <button type="button" class="soundbtn" id="refreshData">Refresh prices</button>
+      </div>
+
       <a class="market" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:52px;margin:14px 0 24px;border:1px solid var(--brass-deep);border-radius:var(--radius);background:var(--panel);color:var(--brass);text-decoration:none;font-family:'Saira Condensed',sans-serif;font-weight:700;font-size:15px;letter-spacing:.09em;text-transform:uppercase" href="https://app.warera.io/market/equipments" target="_blank" rel="noopener">
         Open the equipment marketplace <span aria-hidden="true">&nearr;</span>
       </a>
@@ -2749,11 +2798,12 @@ h1 .title-word{white-space:nowrap}
 'use strict';
 var $=function(id){return document.getElementById(id)};
 
-var API='https://gateway.warerastats.io/trpc';
-var PAGE_SIZE=100,FETCH_TIMEOUT=12000,CACHE_TTL=6*60*60*1000;
-var MARKET_FETCH_TIMEOUTS=[14000,28000,45000];
-var CACHE_PREFIX='etc-market-cache-stable1-';
-var MAX_HISTORY_HOURS=144;
+// Prices come from the Case I collector, which republishes pre-computed per-item files
+// every 10 minutes. No API key, one request per item, and every visitor sees the same
+// numbers. https://github.com/leblinski/-warera-case1-collector
+var DATA_BASE='https://leblinski.github.io/-warera-case1-collector';
+var FETCH_TIMEOUT=12000,DATA_TTL=5*60*1000,MIN_WINDOW_ROWS=5;
+var MAX_HISTORY_HOURS=168;
 var WEAPON_CRIT_WEIGHT=4.15;
 
 var RARITIES=[
@@ -2786,8 +2836,7 @@ var STAT_RANGES={
 
 var state={
   tier:2,slot:null,rolls:{},floor:null,age:null,mode:'quick',higherCheaper:false,
-  itemCode:null,model:null,meta:null,salesOpen:false,deep:false,queuePos:null,opportunityCount:null,hand:'right',keyBuffer:'',coreFigure:'',listFigure:'',lastPrice:'',scrapValue:'',beat:true,pinnedTier:null,copyStampTimer:null,legacyHours:24,legacyDepth:100,lastMarketSales:[],rawTransactions:[],rawChosen:null,analytics:{code:null,items:[],cursor:null,pages:0,loading:false},viewLocked:false,viewLockY:0,lastRollTouch:0,scrapComparedTarget:null,autoAnalyseTimer:null,lastAnalyseSig:'',marketLoading:false,backgroundMarketLoading:false,chartTab:'price',focusToastTimer:null,pinnedAtPrice:null,trendExpanded:false,
-  prefetchTimer:null,prefetchGeneration:0,prefetchTier:null,prefetchActive:0,prefetchQueue:[],prefetchDone:{}
+  itemCode:null,model:null,meta:null,salesOpen:false,deep:false,queuePos:null,opportunityCount:null,hand:'right',keyBuffer:'',coreFigure:'',listFigure:'',lastPrice:'',scrapValue:'',beat:true,pinnedTier:null,copyStampTimer:null,legacyHours:24,legacyDepth:100,lastMarketSales:[],rawTransactions:[],rawChosen:null,analytics:{code:null,items:[],cursor:null,pages:0,loading:false},viewLocked:false,viewLockY:0,lastRollTouch:0,scrapComparedTarget:null,autoAnalyseTimer:null,lastAnalyseSig:'',marketLoading:false,backgroundMarketLoading:false,chartTab:'price',focusToastTimer:null,pinnedAtPrice:null,trendExpanded:false
 };
 
 function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
@@ -2833,7 +2882,6 @@ function ageText(h){
   if(h<24)return h.toFixed(h<10?1:0)+'h';
   return (h/24).toFixed(1)+'d'
 }
-function apiKey(){try{return (localStorage.getItem('warera-api-key')||'').trim()}catch(e){return ''}}
 function setSalesStatus(t,c){$('salesStatus').textContent=t||'';$('salesStatus').className='sales-status'+(c?' '+c:'');if(!/tap here to retry/i.test(String(t||'')))delete $('salesStatus').dataset.retry}
 
 function updateCompactRarity(){
@@ -3305,9 +3353,10 @@ function coreCalc(settled){
   var shown=coreDisplayed(),beating=$('beatMode').checked;
   if(shown){
     syncTierFromPrice(shown);
-    scheduleTierPrefetch(450)
+    prefetchSelected()
   }
   state.beat=beating;
+  paintCraft();
   $('priceLabel').textContent=beating?'Price to beat':'Price to target';
   if(!shown){
     state.coreFigure='';state.listFigure='';
@@ -3433,28 +3482,290 @@ function setScrapSource(src){
   coreCalc(true)
 }
 function loadScrapPrice(){
-  var key=apiKey(),bases=[API],fallback=function(){setScrapSource(scrapSource())};
-  if(!key){fallback();return}
-  // Discover the scrap item code from the public price list, then read its order book.
-  fetchJSON(API+'/itemTrading.getPrices?input='+encodeURIComponent(JSON.stringify({})),{headers:{'Accept':'application/json','X-API-Key':key}},7000)
-    .then(function(json){
-      var d=json;if(d&&d.result)d=d.result.data!==undefined?d.result.data:d.result;
-      var codes=Array.isArray(d)?d.map(function(x){return x&&(x.itemCode||x.code||x.item)}):Object.keys(d||{});
-      var code=null;codes.forEach(function(c){if(c&&/scrap/i.test(c)&&!code)code=c});
-      if(!code)throw new Error('no scrap code');
-      return fetchJSON(API+'/tradingOrder.getTopOrders?input='+encodeURIComponent(JSON.stringify({itemCode:code})),{headers:{'Accept':'application/json','X-API-Key':key}},7000)
-    })
-    .then(function(json){
-      var d=json;if(d&&d.result)d=d.result.data!==undefined?d.result.data:d.result;
-      var buys=d&&(d.buyOrders||d.buy||d.bids)||[],sells=d&&(d.sellOrders||d.sell||d.asks)||[];
-      function best(list,high){
-        var out=null;list.forEach(function(o){var n=Number(o&&(o.price!==undefined?o.price:o.unitPrice));if(!Number.isFinite(n))return;if(out===null||(high?n>out:n<out))out=n});
-        return out===null?null:String(out)
-      }
-      scrapMarket.bid=best(buys,true);scrapMarket.ask=best(sells,false);
-      setScrapSource(scrapSource())
-    }).catch(fallback)
+  var fallback=function(){setScrapSource(scrapSource())};
+  loadIndex().then(function(index){
+    var row=(index.commodities||{}).scraps||{};
+    scrapMarket.bid=row.best_bid==null?null:String(row.best_bid);
+    scrapMarket.ask=row.best_ask==null?null:String(row.best_ask);
+    setScrapSource(scrapSource())
+  }).catch(fallback)
 }
+
+/* ---- Craft and resell --------------------------------------------------------
+   One Case I craft consumes 6·3^(t-1) scraps and 2^(t-1) steel and always returns
+   equipment of that tier. The tier is guaranteed; the slot and the roll are not.
+   Slots land 2:1:1:1:1:1 - the weapon is twice as likely as any single armour piece.
+   Armour rolls are flat across the tier's band; the weapon's measurably are not, so
+   its rolls are weighted by what actually trades unless you ask for even odds.
+   Every equipment price here is a completed sale from the collector, not an ask. */
+var CRAFT_SLOT_WEIGHT={weapon:2,helmet:1,chest:1,boots:1,gloves:1,pants:1};
+var CRAFT_STEEL=[1,2,4,8,16,32];
+var craftState={summary:null,books:null,error:null,loading:false,src:'book',odds:'observed'};
+try{
+  craftState.src=localStorage.getItem('warera-calc-craftsrc')||'book';
+  craftState.odds=localStorage.getItem('warera-calc-craftodds')||'observed'
+}catch(e){}
+
+// The full roll space for a slot at a tier, keyed the way the collector reports rolls.
+function craftRollSpace(slot,t){
+  var out=[],i,j;
+  if(slot==='weapon'){
+    var w=WEAPON_STATS[t-1];
+    for(i=w.attack[0];i<=w.attack[1];i++)
+      for(j=w.criticalChance[0];j<=w.criticalChance[1];j++)out.push(i+'/'+j);
+    return out
+  }
+  var r=STAT_RANGES[slot];if(!r)return out;
+  var band=r.tiers[t-1];
+  for(i=band[0];i<=band[1];i++)out.push(String(i));
+  return out
+}
+function craftRollKey(slot,skills){
+  if(!skills)return null;
+  if(slot==='weapon'){
+    return skills.attack==null||skills.criticalChance==null?null:skills.attack+'/'+skills.criticalChance
+  }
+  var r=STAT_RANGES[slot];
+  return !r||skills[r.key]==null?null:String(skills[r.key])
+}
+// What one piece of this slot is worth after tax, averaged over its roll space.
+function craftSlotValue(slot,t,taxMul){
+  var cat=((craftState.summary||{}).categories||{})[itemCodeForSlot(slot,t)];
+  if(!cat)return null;
+  var rolls=cat.rolls||{},seen={},key;
+  for(key in rolls){
+    if(!Object.prototype.hasOwnProperty.call(rolls,key))continue;
+    var k=craftRollKey(slot,(rolls[key].exact_roll||{}).skills);
+    if(k!==null)seen[k]=rolls[key]
+  }
+  var space=craftRollSpace(slot,t),byCount=slot==='weapon'&&craftState.odds==='observed';
+  var wsum=0,vsum=0,covered=0,samples=0;
+  for(var i=0;i<space.length;i++){
+    var row=seen[space[i]];if(!row)continue;
+    var stat=row.selected||row.fallback_48h;
+    if(!stat||stat.median==null)continue;
+    var n=(row.fallback_48h||{}).count||0,w=byCount?n:1;
+    if(w<=0)continue;
+    covered++;samples+=n;wsum+=w;vsum+=w*stat.median
+  }
+  if(!wsum)return null;
+  return {net:vsum/wsum*taxMul,covered:covered,space:space.length,samples:samples}
+}
+// Expected proceeds from one craft, over every slot it could produce.
+function craftExpected(t,taxMul){
+  var wsum=0,net=0,covered=0,space=0,samples=0,missing=0;
+  for(var s=0;s<SLOTS.length;s++){
+    var slot=SLOTS[s].code,w=CRAFT_SLOT_WEIGHT[slot]||1,v=craftSlotValue(slot,t,taxMul);
+    if(!v){missing++;continue}
+    wsum+=w;net+=w*v.net;covered+=v.covered;space+=v.space;samples+=v.samples
+  }
+  if(!wsum)return null;
+  return {net:net/wsum,covered:covered,space:space,samples:samples,missingSlots:missing}
+}
+
+function craftBook(code){
+  var c=((craftState.books||{}).commodities||{})[code];
+  return c&&c.order_book?c.order_book:null
+}
+// Buying lifts the cheapest sell orders first, so 162 scraps cost a walk down the book,
+// not the best ask 162 times over. A book too thin to fill the craft prices the rest at
+// its deepest visible order, which makes the figure a floor rather than a guess.
+function craftWalk(code,qty){
+  var ob=craftBook(code);if(!ob)return null;
+  if(craftState.src==='ask'){
+    return ob.best_ask==null?null:{unit:Number(ob.best_ask),cost:Number(ob.best_ask)*qty,thin:false}
+  }
+  var list=(ob.sell_orders||[]).slice().sort(function(x,y){return Number(x.price)-Number(y.price)});
+  var need=qty,cost=0,last=null;
+  for(var i=0;i<list.length&&need>0;i++){
+    var take=Math.min(need,Number(list[i].quantity)||0);
+    if(take<=0)continue;
+    cost+=take*Number(list[i].price);need-=take;last=Number(list[i].price)
+  }
+  if(last===null)return null;
+  if(need>0)return {unit:(cost+need*last)/qty,cost:cost+need*last,thin:true};
+  return {unit:cost/qty,cost:cost,thin:false}
+}
+function craftInput(code,qty,field){
+  if(craftState.src==='own'){
+    var v=extractNumber($(field).value);
+    return v===null?null:{unit:Number(v),cost:Number(v)*qty,thin:false}
+  }
+  return craftWalk(code,qty)
+}
+function craftSigned(v,dp){
+  var n=Number(v);
+  return (n>=0?'+':'−')+Math.abs(n).toFixed(dp==null?3:dp)
+}
+
+// coreCalc runs on every keystroke, so redraw only when something this card reads
+// has actually moved.
+function paintCraft(){
+  if(!$('craftBox'))return;
+  var sig=[state.tier,$('tax').value,craftState.src,craftState.odds,
+    craftState.src==='own'?$('craftScrap').value+'/'+$('craftSteel').value:'',
+    craftState.summary?'s':'',craftState.books?'b':'',craftState.loading?'L':'',
+    craftState.error||''].join('|');
+  if(sig===craftState.sig)return;
+  craftState.sig=sig;
+  var rowsEl=$('craftRows'),footEl=$('craftFoot'),noteEl=$('craftNote');
+  var setNote=function(){
+    noteEl.textContent=craftState.src==='own'?'Your figures.'
+      :craftState.src==='ask'?'Best seller on each book, ignoring how little of it there is.'
+      :'Cheapest sell orders lifted in order until the craft is filled.'
+  };
+  setNote();
+  if(craftState.error||(!craftState.loading&&!craftState.summary)){
+    $('craftVerdict').textContent='—';
+    $('craftDetail').textContent=craftState.error||'Collector data unavailable.';
+    rowsEl.innerHTML='';footEl.textContent='';return
+  }
+  if(!craftState.summary||!craftState.books){
+    $('craftVerdict').textContent='—';
+    $('craftDetail').textContent='Reading the collector’s order books and sale history…';
+    rowsEl.innerHTML='';footEl.textContent='';return
+  }
+
+  var taxPct=Number($('tax').value);
+  if(!isFinite(taxPct)||taxPct<0)taxPct=0;
+  var taxMul=1-taxPct/100;
+  var rows='<div class="craft-row head"><span>Tier</span><span>Cost</span><span>Sells for</span><span>Profit</span><span>Break even</span></div>';
+  var mine=null,thin=false,anySteel=null,anyScrap=null;
+
+  for(var t=1;t<=6;t++){
+    var scrapQty=SCRAP_YIELDS[t-1],steelQty=CRAFT_STEEL[t-1];
+    var sc=craftInput('scraps',scrapQty,'craftScrap'),st=craftInput('steel',steelQty,'craftSteel');
+    var exp=craftExpected(t,taxMul);
+    var hit=t===state.tier?' hit':'';
+    if(!sc||!st||!exp){
+      rows+='<div class="craft-row'+hit+'"><span>'+esc(RARITIES[t-1].name)+
+        '</span><span>—</span><span>—</span><span>—</span><span>—</span></div>';
+      continue
+    }
+    if(t===1){anyScrap=sc;anySteel=st}
+    if(sc.thin||st.thin)thin=true;
+    var cost=sc.cost+st.cost,profit=exp.net-cost,pct=cost>0?profit/cost*100:0;
+    var beScrap=(exp.net-st.cost)/scrapQty;
+    var beSteel=steelQty>0?(exp.net-sc.cost)/steelQty:null;
+    var cls=profit>=0?'up':'down';
+    rows+='<div class="craft-row'+hit+'" title="'+scrapQty+' scraps + '+steelQty+' steel">'+
+      '<span>'+esc(RARITIES[t-1].name)+'</span>'+
+      '<span>'+cost.toFixed(2)+'</span>'+
+      '<span>'+exp.net.toFixed(2)+'</span>'+
+      '<span class="'+cls+'">'+craftSigned(pct,1)+'%</span>'+
+      '<span>'+(beScrap>0?beScrap.toFixed(4):'—')+'</span></div>';
+    if(t===state.tier){
+      mine={t:t,scrapQty:scrapQty,steelQty:steelQty,sc:sc,st:st,exp:exp,
+            cost:cost,profit:profit,pct:pct,beScrap:beScrap,beSteel:beSteel}
+    }
+  }
+  rowsEl.innerHTML=rows;
+
+  if(!mine){
+    $('craftVerdict').textContent='—';
+    $('craftDetail').textContent='No usable sale history for '+RARITIES[state.tier-1].name+' yet.';
+    footEl.textContent='';return
+  }
+  $('craftLead').textContent='Craft one '+RARITIES[mine.t-1].name+' piece and resell it';
+  $('craftVerdict').textContent=craftSigned(mine.profit,3);
+  $('craftVerdict').className='flip-figure '+(mine.profit>=0?'up':'down');
+  var head=craftSigned(mine.pct,2)+'% per craft. '+mine.scrapQty+' scraps + '+mine.steelQty+
+    ' steel cost '+mine.cost.toFixed(3)+' at '+mine.sc.unit.toFixed(5)+' and '+mine.st.unit.toFixed(4)+
+    '; the average piece sells for '+mine.exp.net.toFixed(3)+' after '+taxPct+'% tax.';
+  // A break-even at or below zero means no input price rescues the tier: the piece is
+  // worth less than the other input costs on its own.
+  var head2=mine.beScrap<=0
+    ?' Free scraps would still lose money at this tier.'
+    :' Break even at '+mine.beScrap.toFixed(5)+' scraps ('+
+      (mine.sc.unit>0?craftSigned((mine.beScrap/mine.sc.unit-1)*100,2)+'% from what you would pay now':'—')+')'+
+      (mine.beSteel!==null&&mine.beSteel>0?' or '+mine.beSteel.toFixed(4)+' steel':'')+'.';
+  $('craftDetail').textContent=head+head2;
+
+  var cov=mine.exp.space?Math.round(mine.exp.covered/mine.exp.space*100):0;
+  var foot=mine.exp.samples.toLocaleString()+' sales across '+mine.exp.covered+' of '+
+    mine.exp.space+' possible rolls ('+cov+'%). Slots weighted 2:1:1:1:1:1 in the weapon’s favour; '+
+    (craftState.odds==='observed'?'weapon rolls weighted by how often each one trades'
+      :'every roll given even odds')+'.';
+  if(mine.exp.missingSlots)foot+=' '+mine.exp.missingSlots+' slot(s) have no data and are assumed to price like the rest.';
+  if(thin)foot+=' One order book could not fill the whole craft, so the cost shown is a floor.';
+  if(cov<100)foot+=' Untraded rolls are assumed to price like the ones that did trade.';
+  footEl.textContent=foot
+}
+
+function setCraftSource(src){
+  craftState.src=src;
+  try{localStorage.setItem('warera-calc-craftsrc',src)}catch(e){}
+  document.querySelectorAll('#craftSrcBtns [data-craftsrc]').forEach(function(b){
+    b.setAttribute('aria-pressed',b.getAttribute('data-craftsrc')===src?'true':'false')
+  });
+  $('craftScrap').readOnly=src!=='own';$('craftSteel').readOnly=src!=='own';
+  if(src!=='own'){
+    var sc=craftWalk('scraps',1),st=craftWalk('steel',1);
+    if(sc)$('craftScrap').value=sc.unit.toFixed(5);
+    if(st)$('craftSteel').value=st.unit.toFixed(4)
+  }
+  paintCraft()
+}
+function setCraftOdds(odds){
+  craftState.odds=odds;
+  try{localStorage.setItem('warera-calc-craftodds',odds)}catch(e){}
+  document.querySelectorAll('#craftOddsBtns [data-craftodds]').forEach(function(b){
+    b.setAttribute('aria-pressed',b.getAttribute('data-craftodds')===odds?'true':'false')
+  });
+  paintCraft()
+}
+function paintDataStamp(){
+  var idx=collector.index;
+  if(!$('dataStamp'))return;
+  if(!idx){$('dataStamp').textContent='Collector prices not loaded yet.';return}
+  var age=dataAgeText(idx.generated_at);
+  $('dataStamp').textContent='Prices collected '+(age||'at an unknown time')+
+    (idx.status&&idx.status!=='ok'?' · collector reported '+idx.status:'')+
+    '. Published every 10 minutes.'
+}
+// The collector republishes on a 10-minute cadence, so a manual refresh has to bypass
+// both the in-memory copies and the browser cache to be worth pressing.
+function refreshCollector(){
+  var btn=$('refreshData');
+  if(btn.disabled)return;
+  btn.disabled=true;btn.textContent='Refreshing…';
+  var code=state.itemCode||(state.slot?itemCode():null);
+  collector.shards={};collector.pending={};
+  craftState.sig=null;
+  var jobs=[loadIndex(true),loadSummary(true),loadBooks(true)];
+  if(code)jobs.push(loadShard(code,true));
+  var settle=function(pr){return pr.then(function(){return null},function(e){return e})};
+  Promise.all(jobs.map(settle)).then(function(res){
+    var failed=res.filter(Boolean).length;
+    craftState.summary=collector.summary||craftState.summary;
+    craftState.books=collector.books||craftState.books;
+    craftState.error=craftState.summary&&craftState.books?null
+      :!craftState.books?'The collector is not publishing commodity order books yet, so input costs cannot be priced.'
+      :'Collector prices are not reachable right now.';
+    scrapMarket.bid=null;scrapMarket.ask=null;loadScrapPrice();
+    setCraftSource(craftState.src);
+    paintDataStamp();
+    if(failed)$('dataStamp').textContent=failed+' of '+jobs.length+' price files could not be refreshed.';
+    btn.disabled=false;btn.textContent='Refresh prices'
+  })
+}
+function loadCraftData(bust){
+  if(craftState.loading)return;
+  craftState.loading=true;craftState.error=null;
+  var settle=function(pr){return pr.then(function(v){return v},function(){return null})};
+  Promise.all([settle(loadSummary(bust)),settle(loadBooks(bust)),settle(loadIndex(bust))]).then(function(res){
+    craftState.summary=res[0]||craftState.summary;
+    craftState.books=res[1]||craftState.books;
+    craftState.loading=false;
+    craftState.error=craftState.summary&&craftState.books?null
+      :!craftState.summary&&!craftState.books?'Collector prices are not reachable right now.'
+      :!craftState.books?'The collector is not publishing commodity order books yet, so input costs cannot be priced.'
+      :'The collector is not publishing sale statistics right now.';
+    setCraftSource(craftState.src);paintDataStamp()
+  });
+  paintCraft()
+}
+
 function copyCore(){
   var value=state.listFigure?'DO NOT LIST - DISMANTLE THIS FOR SCRAPS':state.coreFigure;
   if(!value)return;
@@ -3476,153 +3787,51 @@ function fetchJSON(url,opts,ms){
   opts=opts||{};opts.signal=ac.signal;
   return fetch(url,opts).then(function(r){clearTimeout(timer);return checkResponse(r)},function(e){clearTimeout(timer);throw e})
 }
-function retryableMarketError(e){
-  if(!e)return false;
-  if(e.name==='AbortError')return true;
-  var m=String(e.message||e);
-  return /HTTP\s+(408|425|429|500|502|503|504)\b/.test(m)||/network|failed to fetch/i.test(m)
+// One in-memory copy of each collector file per session. The published files change at
+// most every 10 minutes, so a short TTL keeps repeat lookups instant without going stale.
+var collector={shards:{},pending:{}};
+function collectorAge(entry){return entry&&entry._at?Date.now()-entry._at:Infinity}
+function collectorFetch(path,bust){
+  return fetchJSON(DATA_BASE+'/'+path+(bust?('?t='+Date.now()):''),
+    {headers:{'Accept':'application/json'},cache:bust?'reload':'default'},FETCH_TIMEOUT)
 }
-var TX_PAGE_MEMO={};
-function txPageKey(code,cursor,limit){
-  return [String(code||''),String(cursor||''),String(limit||PAGE_SIZE)].join('|')
+function collectorFile(name,path,bust){
+  if(!bust&&collectorAge(collector[name])<DATA_TTL)return Promise.resolve(collector[name]);
+  return collectorFetch(path,bust).then(function(json){
+    json._at=Date.now();collector[name]=json;return json
+  })
 }
-function sharedTransactionPage(code,cursor,limit,key,timeout){
-  var k=txPageKey(code,cursor,limit);
-  if(TX_PAGE_MEMO[k])return TX_PAGE_MEMO[k];
-  var input={limit:limit||PAGE_SIZE,itemCode:code};
-  if(cursor)input.cursor=cursor;
-  var url=API+'/transaction.getPaginatedTransactions?input='+encodeURIComponent(JSON.stringify(input));
-  var p=fetchJSON(url,{headers:{'Accept':'application/json','X-API-Key':key}},timeout)
-    .then(function(json){
-      // Keep successful page in memory for this browser session.
-      TX_PAGE_MEMO[k]=Promise.resolve(json);
-      return json
-    })
-    .catch(function(e){
-      delete TX_PAGE_MEMO[k];
-      throw e
-    });
-  TX_PAGE_MEMO[k]=p;
-  return p
+function loadIndex(bust){return collectorFile('index','index.json',bust)}
+function loadSummary(bust){return collectorFile('summary','summary.json',bust)}
+function loadBooks(bust){return collectorFile('books','commodities.json',bust)}
+function loadShard(code,bust){
+  var hit=collector.shards[code];
+  if(!bust&&collectorAge(hit)<DATA_TTL)return Promise.resolve(hit);
+  if(collector.pending[code]&&!bust)return collector.pending[code];
+  var p=collectorFetch('prices/'+encodeURIComponent(code)+'.json',bust).then(function(json){
+    json._at=Date.now();json._sales=shardSales(json);
+    collector.shards[code]=json;delete collector.pending[code];return json
+  },function(err){delete collector.pending[code];throw err});
+  collector.pending[code]=p;return p
 }
-
-var PREFETCH_CONCURRENCY=3;
-
-function cacheFirstPage(code,json){
-  try{
-    var p=unwrapPage(json),sales=p.items.filter(isSale);
-    if(!sales.length)return;
-
-    var existing=readCache(code);
-    // A valid cache that is already at least as deep as this first page wins.
-    if(existing&&Array.isArray(existing.items)&&existing.items.length){
-      var exCov=Number(existing.coverageHours||0);
-      var ro=oldestTime(p.items);
-      var newCov=ro===null?0:Math.min(MAX_HISTORY_HOURS,Math.max(0,(Date.now()-ro)/3600000));
-      if(exCov>=newCov)return
-    }
-
-    var seen={},items=[];
-    sales.forEach(function(it){
-      var c=compactTx(it);
-      if(c._id&&seen[c._id])return;
-      if(c._id)seen[c._id]=1;
-      items.push(c)
-    });
-    var oldest=oldestTime(p.items);
-    writeCache(code,{
-      fetchedAt:Date.now(),
-      items:items,
-      coverageHours:oldest===null?0:Math.min(MAX_HISTORY_HOURS,Math.max(0,(Date.now()-oldest)/3600000)),
-      nextCursor:p.nextCursor||null,
-      oldestRaw:oldest
-    })
-  }catch(e){}
+// A collector sale row is [unit_price, sold_at_epoch_seconds, time_to_sell_seconds,
+// roll_index] against the file's own rolls array. Expanding it into the shape the pricing
+// model already consumes means nothing downstream of here had to change.
+function shardSales(shard){
+  var rolls=shard.rolls||[];
+  return (shard.sales||[]).map(function(row,i){
+    var sold=row[1]*1000,roll=rolls[row[3]]||{};
+    return {_id:shard.item_code+':'+i,transactionType:'itemMarket',money:row[0],
+      createdAt:new Date(sold).toISOString(),
+      offerCreatedAt:row[2]==null?null:new Date(sold-row[2]*1000).toISOString(),
+      item:{skills:roll.skills||{},stats:roll.stats}}
+  })
 }
-
-function warmFirstPage(code,key,generation){
-  if(generation!==state.prefetchGeneration)return Promise.resolve(false);
-  var cached=readCache(code);
-  if(cached&&Array.isArray(cached.items)&&cached.items.length)return Promise.resolve(true);
-
-  // Use the shared page pool. If Trends asks for the same page while this is
-  // running it attaches to the same promise rather than generating a duplicate request.
-  return sharedTransactionPage(code,null,100,key,MARKET_FETCH_TIMEOUTS[1])
-    .then(function(json){
-      if(generation!==state.prefetchGeneration)return false;
-      cacheFirstPage(code,json);
-      state.prefetchDone[code]=Date.now();
-      return true
-    })
-    .catch(function(){return false})
-}
-
-function runTierPrefetch(t,generation){
-  var key=apiKey();
-  if(!key||generation!==state.prefetchGeneration)return;
-
-  var codes=tierItemCodes(t);
-  if(state.slot){
-    var chosen=itemCodeForSlot(state.slot,t),idx=codes.indexOf(chosen);
-    if(idx>0){codes.splice(idx,1);codes.unshift(chosen)}
-  }
-
-  // Only queue codes without a usable local cache.
-  state.prefetchQueue=codes.filter(function(code){
-    var c=readCache(code);
-    return !(c&&Array.isArray(c.items)&&c.items.length)
-  });
-  state.prefetchActive=0;
-  state.prefetchTier=t;
-
-  function pump(){
-    if(generation!==state.prefetchGeneration)return;
-    while(state.prefetchActive<PREFETCH_CONCURRENCY&&state.prefetchQueue.length){
-      var code=state.prefetchQueue.shift();
-      state.prefetchActive++;
-      warmFirstPage(code,key,generation).finally(function(){
-        state.prefetchActive=Math.max(0,state.prefetchActive-1);
-        pump()
-      })
-    }
-  }
-  pump()
-}
-
-function scheduleTierPrefetch(delay){
-  clearTimeout(state.prefetchTimer);
-  if(!hasResolvedRarity()||!apiKey())return;
-
-  var t=Number(state.tier),generation=++state.prefetchGeneration;
-  state.prefetchTimer=setTimeout(function(){
-    if(generation!==state.prefetchGeneration||Number(state.tier)!==t||!hasResolvedRarity())return;
-    runTierPrefetch(t,generation)
-  },Math.max(0,Number(delay==null?450:delay)))
-}
-
-function prioritiseSelectedPrefetch(){
-  if(!hasResolvedRarity()||!state.slot||!apiKey())return;
-  // Restart the queue with the selected item first. In-flight requests are not
-  // duplicated because sharedTransactionPage deduplicates identical pages.
-  scheduleTierPrefetch(0)
-}
-function fetchMarketJSON(code,cursor,key,pageNo){
-  var attempt=0;
-  function run(){
-    var timeout=MARKET_FETCH_TIMEOUTS[Math.min(attempt,MARKET_FETCH_TIMEOUTS.length-1)];
-    return sharedTransactionPage(code,cursor,PAGE_SIZE,key,timeout).catch(function(e){
-      if(attempt+1<MARKET_FETCH_TIMEOUTS.length&&retryableMarketError(e)){
-        attempt++;
-        var finalTry=attempt===MARKET_FETCH_TIMEOUTS.length-1;
-        setSalesStatus(finalTry
-          ?'Gateway cold · warming transaction cache automatically…'
-          :'Gateway slow · retrying page '+pageNo+' ('+(attempt+1)+'/'+MARKET_FETCH_TIMEOUTS.length+')…');
-        return new Promise(function(resolve){setTimeout(resolve,finalTry?500:350)}).then(run)
-      }
-      throw e
-    })
-  }
-  return run()
+function dataAgeText(stamp){
+  var t=stamp?new Date(stamp).getTime():NaN;
+  if(!Number.isFinite(t))return '';
+  var mins=Math.max(0,Math.round((Date.now()-t)/60000));
+  return mins<1?'just now':(mins===1?'1 min ago':mins+' min ago')
 }
 function unwrapPage(json){
   var d=json;if(d&&d.result)d=(d.result.data!==undefined)?d.result.data:d.result;
@@ -3653,31 +3862,6 @@ function recencyWeight(age){
   if(age===null)return .4;if(age<=3)return 1.12;if(age<=6)return 1;if(age<=12)return .88;
   if(age<=24)return .72;if(age<=48)return .52;if(age<=72)return .38;if(age<=120)return .27;return .20
 }
-function validMarketCache(c){
-  return !!(c&&Array.isArray(c.items)&&c.fetchedAt&&Date.now()-c.fetchedAt<=CACHE_TTL)
-}
-function readCache(code){
-  try{
-    var best=null,bestKey=null,raw=localStorage.getItem(CACHE_PREFIX+code);
-    if(raw){
-      var direct=JSON.parse(raw);
-      if(validMarketCache(direct)){best=direct;bestKey=CACHE_PREFIX+code}
-    }
-    for(var i=0;i<localStorage.length;i++){
-      var k=localStorage.key(i)||'';
-      if(k===bestKey||!/^etc-market-cache-v\d+-/.test(k)||!k.endsWith(code))continue;
-      try{
-        var candidate=JSON.parse(localStorage.getItem(k)||'null');
-        if(validMarketCache(candidate)&&(!best||Number(candidate.fetchedAt)>Number(best.fetchedAt))){best=candidate;bestKey=k}
-      }catch(ignore){}
-    }
-    if(best&&bestKey!==CACHE_PREFIX+code){
-      try{localStorage.setItem(CACHE_PREFIX+code,JSON.stringify(best))}catch(ignore2){}
-    }
-    return best
-  }catch(e){return null}
-}
-function writeCache(code,c){try{localStorage.setItem(CACHE_PREFIX+code,JSON.stringify(c))}catch(e){}}
 function initialTargetHours(){
   if(state.slot==='weapon')return [4,4,6,8,12,18][state.tier-1];
   return [4,4,6,8,12,24][state.tier-1]
@@ -3926,77 +4110,30 @@ function evidenceEnoughForFast(items,coverage,target){
   }catch(e){return false}
 }
 
-function getMarketTransactions(code,deep,forceCoverage){
-  var key=apiKey();if(!key)return Promise.reject(new Error('APIKEY'));
-  var target=deep?deepTargetHours():initialTargetHours(),cached=readCache(code);
-  if(cached){
-    var cc=Number(cached.coverageHours||0),timeEnough=cc>=target;
-    var evidenceEnough=deep
-      ?evidenceEnoughForDeep(cached.items,cc,target)
-      :(!forceCoverage&&evidenceEnoughForFast(cached.items,cc,target));
-    if(timeEnough||evidenceEnough){
-      return Promise.resolve({items:cached.items,meta:{pages:0,downloaded:0,marketRows:cached.items.length,coverageHours:cc,durationMs:0,persistentCache:true,partial:false,nextCursor:cached.nextCursor||null,targetHours:target,deep:deep,evidenceStop:!!evidenceEnough}})
-    }
-    if(deep&&!cached.nextCursor&&timeEnough){
-      return Promise.resolve({items:cached.items,meta:{pages:0,downloaded:0,marketRows:cached.items.length,coverageHours:cc,durationMs:0,persistentCache:true,partial:true,nextCursor:null,targetHours:target,deep:deep,evidenceStop:false}})
-    }
-  }
-
-  var all=cached&&Array.isArray(cached.items)?cached.items.slice():[],cursor=cached?cached.nextCursor:null;
-  var oldestRaw=cached&&cached.oldestRaw?Number(cached.oldestRaw):null,pages=0,downloaded=0,start=performance.now(),limit=maxPages(deep);
-  if(cached&&!cursor&&Number(cached.coverageHours||0)<target){all=[];oldestRaw=null}
-  function coverage(){return oldestRaw===null?0:Math.min(MAX_HISTORY_HOURS,Math.max(0,(Date.now()-oldestRaw)/3600000))}
-  function enough(){
-    if(deep)return evidenceEnoughForDeep(all,coverage(),target);
-    return !forceCoverage&&evidenceEnoughForFast(all,coverage(),target)
-  }
-  function done(partial,evidenceStop){
-    var c={fetchedAt:Date.now(),items:all.map(compactTx),coverageHours:coverage(),nextCursor:cursor||null,oldestRaw:oldestRaw};
-    writeCache(code,c);
-    return {items:c.items,meta:{pages:pages,downloaded:downloaded,marketRows:c.items.length,coverageHours:c.coverageHours,durationMs:Math.round(performance.now()-start),persistentCache:false,partial:!!partial,nextCursor:c.nextCursor,targetHours:target,deep:deep,evidenceStop:!!evidenceStop}}
-  }
-  function page(){
-    var cov=coverage();
-    if(enough())return Promise.resolve(done(false,true));
-    if(cov>=target)return Promise.resolve(done(false,false));
-    if(!cursor&&pages>0)return Promise.resolve(done(true,false));
-    if(pages>=limit)return Promise.resolve(done(true,false));
-    pages++;setSalesStatus((deep?'Deep':'Fast')+' scan · page '+pages+' · '+cov.toFixed(1)+'h covered…');
-    var requestCursor=cursor||null;
-    return fetchMarketJSON(code,requestCursor,key,pages).then(function(json){
-      var p=unwrapPage(json);downloaded+=p.items.length;
-      if(!p.items.length){cursor=null;return done(true,false)}
-      var ro=oldestTime(p.items);if(ro!==null&&(oldestRaw===null||ro<oldestRaw))oldestRaw=ro;
-      p.items.filter(isSale).forEach(function(it){
-        if(state.rawTransactions.length<30)state.rawTransactions.push(it);
-        if(saleAge(it)<=MAX_HISTORY_HOURS+.05)all.push(compactTx(it))
-      });
-      cursor=p.nextCursor;
-
-      // Save progress page-by-page. A later timeout must never throw away a
-      // page that already succeeded, and Raw/Trends can immediately reuse it.
-      writeCache(code,{
-        fetchedAt:Date.now(),
-        items:all.map(compactTx),
-        coverageHours:coverage(),
-        nextCursor:cursor||null,
-        oldestRaw:oldestRaw
-      });
-      if(enough())return done(false,true);
-      if(coverage()>=target)return done(false,false);
-      if(!cursor||pages>=limit)return done(true,false);
-      return page()
-    }).catch(function(e){
-      if(all.length){
-        setSalesStatus('Gateway slow · using '+all.length+' cached/fetched sales so far.','error');
-        return done(true,false)
-      }
-      throw e
-    })
-  }
-  return page()
+function prefetchSelected(){
+  if(!hasResolvedRarity()||!state.slot)return;
+  var code=itemCode();
+  if(code)loadShard(code).catch(function(){})
 }
-
+function getMarketTransactions(code,deep,forceCoverage){
+  var start=performance.now();
+  var target=Math.min(MAX_HISTORY_HOURS,deep?deepTargetHours():initialTargetHours());
+  return loadShard(code).then(function(shard){
+    var all=shard._sales||[],cut=Date.now()-target*3600000;
+    var items=all.filter(function(it){return new Date(it.createdAt).getTime()>=cut});
+    // A sparse category can have nothing inside the fast window. Showing the whole retained
+    // week beats showing nothing, so widen and let coverageHours report what was used.
+    var widened=items.length<MIN_WINDOW_ROWS&&all.length>items.length;
+    if(widened)items=all.slice();
+    var oldest=oldestTime(items);
+    var coverage=oldest===null?0:Math.min(MAX_HISTORY_HOURS,Math.max(0,(Date.now()-oldest)/3600000));
+    return {items:items,meta:{pages:1,downloaded:all.length,marketRows:items.length,
+      coverageHours:coverage,durationMs:Math.round(performance.now()-start),
+      persistentCache:collectorAge(shard)>50,partial:false,nextCursor:null,
+      targetHours:target,deep:!!deep,evidenceStop:false,widened:widened,
+      collectedAt:shard.generated_at,coverageStart:shard.coverage_start}}
+  })
+}
 
 function renderLegacySales(){
   var out=$('legacySales');if(!out)return;
@@ -4186,7 +4323,7 @@ function renderModel(m,meta){
 
   var deeper=m.confidence!=='High'&&!!meta.nextCursor&&Number(meta.coverageHours||0)<deepTargetHours();
   $('deepBtn').hidden=!deeper;
-  if(deeper)$('deepBtn').textContent=(meta.deep?'Continue deeper':'Check deeper')+' · up to '+deepTargetHours()+'h';
+  if(deeper)$('deepBtn').textContent=meta.deep?'Back to recent window':'Widen to '+deepTargetHours()+'h';
 
   var info='<strong>'+esc(itemName())+' · '+esc(describeRoll())+'</strong><br>';
   if(m.higher){
@@ -4314,7 +4451,7 @@ function scheduleAutoAnalyse(){
   // Mobile analysis is selection-driven: it waits until every required roll is
   // explicitly selected (weapons need both damage and crit) plus the live floor price.
   // Listing age is optional and only unlocks stale-market/downward-repricing checks.
-  if(isDesktop()||!state.salesOpen||!canAnalyse()||!apiKey()||state.marketLoading)return;
+  if(isDesktop()||!state.salesOpen||!canAnalyse()||state.marketLoading)return;
   var sig=currentAnalyseSignature();
   if(sig===state.lastAnalyseSig&&state.model)return;
   clearTimeout(state.autoAnalyseTimer);
@@ -4327,7 +4464,7 @@ function scheduleAutoAnalyse(){
 }
 
 function refineFastHistoryInBackground(code,sig){
-  if(state.backgroundMarketLoading||!code||!sig||!apiKey())return;
+  if(state.backgroundMarketLoading||!code||!sig)return;
   state.backgroundMarketLoading=true;
 
   getMarketTransactions(code,false,true).then(function(res){
@@ -4361,25 +4498,24 @@ function analyse(deep){
     if(!isDesktop())toggleSales(true);
     state.marketLoading=false;setSalesStatus('Choose the piece/roll and enter the current floor price.','error');return
   }
-  if(!apiKey()){
-    state.marketLoading=false;$('settingsPanel').hidden=false;$('apiKey').focus();setSalesStatus('Add your API key in Settings.','error');return
-  }
   state.deep=!!deep;state.itemCode=itemCode();$('analyseBtn').disabled=true;$('deepBtn').disabled=true;
-  setSalesStatus((deep?'Extending':'Starting')+' history…');
+  setSalesStatus(deep?'Loading the full retained week…':'Loading collected prices…');
   getMarketTransactions(state.itemCode,!!deep).then(function(res){
     var maxAge=Math.min(MAX_HISTORY_HOURS,Math.max(res.meta.targetHours,Number(res.meta.coverageHours||0)));
     var sales=res.items.filter(isSale).filter(function(it){return saleAge(it)<=maxAge+.05});
     state.lastMarketSales=sales.slice();renderLegacySales();
     renderModel(buildModel(sales,res.meta),res.meta);
     state.lastAnalyseSig=currentAnalyseSignature();
-    setSalesStatus((deep?'Deep':'Fast')+' scan ready · '+Number(res.meta.coverageHours||0).toFixed(1)+'h'
-      +(res.meta.evidenceStop?' · evidence sufficient':'')+' · '+res.meta.durationMs+' ms'+(res.meta.persistentCache?' · cache':'')+'.',res.meta.partial?'error':'ok');
+    setSalesStatus((deep?'Full week':'Recent')+' window · '+res.meta.marketRows+' sales over '
+      +Number(res.meta.coverageHours||0).toFixed(1)+'h'
+      +(res.meta.widened?' (widened: sparse)':'')
+      +' · collected '+dataAgeText(res.meta.collectedAt)+'.','ok');
     if(!deep&&res.meta.evidenceStop&&Number(res.meta.coverageHours||0)<Number(res.meta.targetHours||0)&&res.meta.nextCursor){
       refineAfter={code:state.itemCode,sig:state.lastAnalyseSig}
     }
   }).catch(function(e){
     var why=e&&e.name==='AbortError'?'Gateway timeout':(e&&e.message?e.message:'unknown error');
-    setSalesStatus('Lookup failed after automatic warm-up · '+why+' · tap here to retry.','error');
+    setSalesStatus('Could not load collected prices · '+why+' · tap here to retry.','error');
     $('salesStatus').dataset.retry='1'
   }).finally(function(){
     state.marketLoading=false;
@@ -4387,55 +4523,16 @@ function analyse(deep){
     if(refineAfter)setTimeout(function(){refineFastHistoryInBackground(refineAfter.code,refineAfter.sig)},0)
   })
 }
-function mergeRawIntoMarketCache(code,rawSales,nextCursor,oldestRawSeen){
-  try{
-    var existing=readCache(code),items=existing&&Array.isArray(existing.items)?existing.items.slice():[];
-    var seen={};
-    items.forEach(function(it){if(it&&it._id)seen[it._id]=1});
-    (rawSales||[]).forEach(function(it){
-      if(!isSale(it))return;
-      var c=compactTx(it);
-      if(c._id&&seen[c._id])return;
-      if(c._id)seen[c._id]=1;
-      items.push(c)
-    });
-    items.sort(function(a,b){
-      return new Date(b.createdAt||0).getTime()-new Date(a.createdAt||0).getTime()
-    });
-    var oldest=Number.isFinite(Number(oldestRawSeen))?Number(oldestRawSeen):(existing&&existing.oldestRaw?Number(existing.oldestRaw):null);
-    items.forEach(function(it){
-      var t=it&&it.createdAt?new Date(it.createdAt).getTime():NaN;
-      if(Number.isFinite(t)&&(oldest===null||t<oldest))oldest=t
-    });
-    writeCache(code,{
-      fetchedAt:Date.now(),
-      items:items,
-      coverageHours:oldest===null?0:Math.min(MAX_HISTORY_HOURS,Math.max(0,(Date.now()-oldest)/3600000)),
-      nextCursor:nextCursor||((existing&&existing.nextCursor)||null),
-      oldestRaw:oldest
-    })
-  }catch(e){}
-}
-
 function fetchFreshRawSample(){
   syncInputs();
   if(!state.itemCode||!state.slot){
-    $('rawInspector').textContent='Choose the equipment piece and its roll first.';
-    return
+    $('rawInspector').textContent='Choose the piece and roll first.';return
   }
-  var key=String($('apiKey').value||'').trim();
-  if(!key){
-    $('rawInspector').textContent='Enter your War Era API key in Settings first.';
-    return
-  }
-
   $('fetchRawBtn').disabled=true;
   $('copyRawBtn').hidden=true;
-  $('rawInspector').textContent='Fetching fresh raw transactions…';
+  $('rawInspector').textContent='Loading collected sales\u2026';
   state.rawTransactions=[];
   state.rawChosen=null;
-
-  var cursor=null,pageNo=0,maxRawPages=4,allRaw=[],bestExact=null,oldestRawSeen=null,lastNextCursor=null;
 
   function scoreCandidate(it){
     if(!isSale(it))return Infinity;
@@ -4447,64 +4544,33 @@ function fetchFreshRawSample(){
     return 9999
   }
 
-  function next(){
-    pageNo++;
-    var requestCursor=cursor||null;
-    $('rawInspector').textContent='Fetching fresh raw transactions… page '+pageNo+'/'+maxRawPages;
-    return sharedTransactionPage(state.itemCode,requestCursor,100,key,MARKET_FETCH_TIMEOUTS[1])
-      .then(function(json){
-        var p=unwrapPage(json);
-        var sales=p.items.filter(isSale);
-        var ro=oldestTime(p.items);
-        if(ro!==null&&(oldestRawSeen===null||ro<oldestRawSeen))oldestRawSeen=ro;
-        lastNextCursor=p.nextCursor||null;
-        Array.prototype.push.apply(allRaw,sales);
-
-        for(var i=0;i<sales.length;i++){
-          try{
-            if(exactMatch(sales[i])){bestExact=sales[i];break}
-          }catch(e){}
-        }
-        if(bestExact||!p.nextCursor||pageNo>=maxRawPages)return;
-        cursor=p.nextCursor;
-        return next()
-      })
-  }
-
-  next().then(function(){
-    mergeRawIntoMarketCache(state.itemCode,allRaw,lastNextCursor,oldestRawSeen);
-
-    // If Raw Data was opened while the Market card was stuck, immediately let
-    // Trends consume the same successful transaction pages. No second manual step.
-    if(canAnalyse()&&!state.marketLoading&&(!state.model||$('salesStatus').dataset.retry==='1')){
-      state.lastAnalyseSig='';
-      setTimeout(function(){analyse(false)},0)
+  loadShard(state.itemCode).then(function(shard){
+    var sales=(shard._sales||[]).filter(isSale);
+    state.rawTransactions=sales.slice(0,30);
+    if(!sales.length){
+      $('rawInspector').textContent='No completed sales for '+itemName()+' in the collected window.';
+      return
     }
-
-    var chosen=bestExact;
-    if(!chosen&&allRaw.length){
-      var best=Infinity;
-      allRaw.forEach(function(it){
-        var s=scoreCandidate(it);
-        if(s<best){best=s;chosen=it}
-      })
-    }
-    if(chosen){
-      state.rawTransactions=[chosen];
-      state.rawChosen=chosen;
-      renderRawInspector();
-      var prefix=bestExact?'Exact-roll raw transaction found. ':'No exact roll found in '+pageNo+' page'+(pageNo===1?'':'s')+'; showing nearest sale. ';
-      $('rawInspector').textContent=prefix+'\n\n'+$('rawInspector').textContent
-    }else{
-      $('rawInspector').textContent='No itemMarket transactions found in the fresh sample.'
-    }
+    var chosen=null,best=Infinity,exact=false;
+    sales.forEach(function(it){
+      var sc=scoreCandidate(it);
+      if(sc<best){best=sc;chosen=it}
+    });
+    exact=best===-1;
+    state.rawChosen=chosen;
+    renderRawInspector();
+    var matches=sales.filter(function(it){try{return exactMatch(it)}catch(e){return false}}).length;
+    var prefix=exact
+      ?matches+' sale'+(matches===1?'':'s')+' at this exact roll in the collected window. '
+      :'No sale at this exact roll; showing the nearest roll. ';
+    $('rawInspector').textContent=prefix+'Collected '+dataAgeText(shard.generated_at)+
+      ' from '+sales.length+' retained sales.\n\n'+$('rawInspector').textContent
   }).catch(function(err){
-    $('rawInspector').textContent='Raw sample fetch failed: '+(err&&err.message?err.message:String(err))
+    $('rawInspector').textContent='Could not load collected sales: '+(err&&err.message?err.message:String(err))
   }).finally(function(){
     $('fetchRawBtn').disabled=false
   })
 }
-
 
 var ANALYTICS_CACHE_PREFIX='etc-analytics-v60-';
 var ANALYTICS_TTL=6*60*60*1000;
@@ -4703,51 +4769,26 @@ function renderAnalytics(){
   $('anSellTime').textContent=durations.length?niceDuration(qnum(durations,.5)):'—';
   $('trendCaption').textContent=exact.length+' exact trade'+(exact.length===1?'':'s')+' loaded';
   renderPriceTrend(exact);renderSellScatter(exact);renderStatCurve();setChartTab(state.chartTab||'price');
-  $('analyticsStatus').textContent=state.analytics.items.length+' completed '+itemName()+' sales loaded across '+state.analytics.pages+' Gateway page'+(state.analytics.pages===1?'':'s')+'. Charts use only real transactions.';
-  $('moreTrendsBtn').hidden=!state.analytics.cursor||state.analytics.pages>=ANALYTICS_MAX_PAGES
+  $('analyticsStatus').textContent=state.analytics.items.length+' completed '+itemName()+
+    ' sales from the collector, updated '+dataAgeText(state.analytics.collectedAt)+
+    '. Charts use only real transactions.';
+  $('moreTrendsBtn').hidden=true
 }
 function loadAnalytics(reset){
   syncInputs();
   if(!state.itemCode||!state.slot){$('analyticsStatus').textContent='Choose an item and roll first.';return}
-  var key=apiKey();if(!key){$('analyticsStatus').textContent='Enter your War Era API key in Settings first.';return}
   if(state.analytics.loading)return;
   var code=state.itemCode;
-
-  if(reset||state.analytics.code!==code){
-    var c=analyticsRead(code);
-    state.analytics={code:code,items:c?c.items:[],cursor:c?c.cursor:null,pages:c?c.pages:0,loading:false};
-    if(c&&c.items.length)renderAnalytics()
-  }else if(state.analytics.items.length){
-    renderAnalytics()
-  }
-  if(state.analytics.pages>=ANALYTICS_MAX_PAGES||(!state.analytics.cursor&&state.analytics.pages>0)){
-    renderAnalytics();return
-  }
-
   state.analytics.loading=true;
   $('loadTrendsBtn').disabled=true;$('moreTrendsBtn').disabled=true;
-  var pagesThis=0;
-
-  function next(){
-    if(pagesThis>=ANALYTICS_BATCH_PAGES||state.analytics.pages>=ANALYTICS_MAX_PAGES||(!state.analytics.cursor&&state.analytics.pages>0&&pagesThis>0))return Promise.resolve();
-    var input={limit:100,itemCode:code};
-    if(state.analytics.cursor)input.cursor=state.analytics.cursor;
-    $('analyticsStatus').textContent='Loading charts from real transactions… page '+(state.analytics.pages+1);
-    var url=API+'/transaction.getPaginatedTransactions?input='+encodeURIComponent(JSON.stringify(input));
-    return fetchJSON(url,{headers:{'Accept':'application/json','X-API-Key':key}},FETCH_TIMEOUT).then(function(json){
-      var p=unwrapPage(json),sales=p.items.filter(isSale).map(compactTx);
-      state.analytics.items=dedupeAnalytics(state.analytics.items.concat(sales));
-      state.analytics.cursor=p.nextCursor||null;
-      state.analytics.pages++;pagesThis++;
-      if(!p.nextCursor)return;
-      return next()
-    })
-  }
-
-  next().then(function(){
-    analyticsWrite(code);renderAnalytics()
+  $('analyticsStatus').textContent='Loading collected sales\u2026';
+  loadShard(code,!!reset).then(function(shard){
+    var sales=(shard._sales||[]).filter(isSale).map(compactTx);
+    state.analytics={code:code,items:sales,cursor:null,pages:1,loading:true,
+      collectedAt:shard.generated_at};
+    renderAnalytics()
   }).catch(function(err){
-    $('analyticsStatus').textContent='Trend history fetch failed: '+(err&&err.message?err.message:String(err))
+    $('analyticsStatus').textContent='Could not load collected sales: '+(err&&err.message?err.message:String(err))
   }).finally(function(){
     state.analytics.loading=false;$('loadTrendsBtn').disabled=false;$('moreTrendsBtn').disabled=false
   })
@@ -4838,10 +4879,10 @@ function debug(meta,m){
     'higher-stat cheaper flag: '+(state.higherCheaper?'YES':'no'),
     'scan: '+(meta.deep?'DEEP':'fast'),'target coverage: '+meta.targetHours+'h',
     'hours covered: '+Number(meta.coverageHours||0).toFixed(2),
-    'pages fetched this run: '+meta.pages,'raw rows downloaded this run: '+meta.downloaded,
-    'itemMarket rows cached: '+meta.marketRows,'persistent cache: '+(meta.persistentCache?'YES':'no'),
-    'rarity prefetch: '+(state.prefetchTier===state.tier?'active/ready':'not active')+' · concurrency '+PREFETCH_CONCURRENCY,
-    'partial: '+(meta.partial?'YES':'no'),'stopped on evidence: '+(meta.evidenceStop?'YES':'no'),
+    'retained rows in file: '+meta.downloaded,'rows used in window: '+meta.marketRows,
+    'window widened for sparse data: '+(meta.widened?'YES':'no'),
+    'collector generated: '+(meta.collectedAt||'—')+' ('+dataAgeText(meta.collectedAt)+')',
+    'served from memory: '+(meta.persistentCache?'YES':'no'),
     'confidence: '+m.confidence+' '+m.confidenceScore+'/100',
     'velocity: '+m.velocity.toFixed(2)+'/h','floor exposure: '+(m.exposure!==null&&m.exposure!==undefined&&Number.isFinite(Number(m.exposure))?Number(m.exposure).toFixed(2):'not supplied'),
     'floor signal: '+m.signal.label,'historical target: '+fmt(m.histTarget),
@@ -5020,7 +5061,7 @@ $('slotGrid').addEventListener('click',function(e){
   var b=e.target.closest('[data-slot]');if(!b)return;
   state.slot=b.getAttribute('data-slot');state.rolls={};state.higherCheaper=false;$('higherCheaper').checked=false;
   resetAnalysis();buildSlots();buildRolls();
-  prioritiseSelectedPrefetch()
+  prefetchSelected()
 });
 function activateRollControl(b){
   if(!b)return;
@@ -5120,6 +5161,17 @@ $('ageChips').addEventListener('click',function(e){
   syncInputs();resetAnalysis();
   $('ageHelp').textContent='Optional. Add age only when you want ETC to test stale-market repricing.';
   $('ageHelp').style.color='var(--dim)'
+});
+$('refreshData').addEventListener('click',refreshCollector);
+setInterval(paintDataStamp,30000);
+$('craftSrcBtns').addEventListener('click',function(e){
+  var b=e.target.closest('[data-craftsrc]');if(b)setCraftSource(b.getAttribute('data-craftsrc'))
+});
+$('craftOddsBtns').addEventListener('click',function(e){
+  var b=e.target.closest('[data-craftodds]');if(b)setCraftOdds(b.getAttribute('data-craftodds'))
+});
+['craftScrap','craftSteel'].forEach(function(id){
+  $(id).addEventListener('input',function(){if(craftState.src==='own')paintCraft()})
 });
 $('tax').addEventListener('input',function(){
   try{localStorage.setItem('warera-calc-tax',$('tax').value)}catch(e){}
@@ -5257,16 +5309,14 @@ $('swatches').addEventListener('click',function(e){var b=e.target.closest('[data
 $('settingsBtn').addEventListener('click',function(){
   try{if(document.activeElement&&document.activeElement.blur)document.activeElement.blur()}catch(e){}
   $('settingsPanel').hidden=false;
-  $('apiKey').value=apiKey();
   document.body.classList.add('settings-open');
   $('settingsPanel').scrollTop=0;
   $('settingsContent').scrollTop=0
 });
 function closeSettings(){
-  try{localStorage.setItem('warera-api-key',$('apiKey').value.trim())}catch(e){}
   $('settingsPanel').hidden=true;
   document.body.classList.remove('settings-open');
-  if(hasResolvedRarity())scheduleTierPrefetch(0)
+  if(hasResolvedRarity())prefetchSelected()
 }
 $('settingsClose').addEventListener('click',closeSettings);
 $('settingsPanel').addEventListener('click',function(e){if(e.target===$('settingsPanel'))closeSettings()});
@@ -5305,7 +5355,6 @@ document.addEventListener('keydown',function(e){
 buildRarity();buildSlots();buildRolls();buildKeypad();buildQueuePad();renderRecent();updateSalesTabLabel();setViewLock(false);updateTaxChip();setChartTab('price');
 try{
   var h=localStorage.getItem('warera-calc-hand')||localStorage.getItem('etc-hand')||'right';setHand(h);
-  var k=apiKey();if(k)$('apiKey').value=k;
   var t=localStorage.getItem('warera-calc-tax');if(t)$('tax').value=t;updateTaxChip();
   var beat=localStorage.getItem('warera-calc-beat');if(beat==='0')$('beatMode').checked=false;
   var q=localStorage.getItem('warera-calc-quick');if(q==='0')$('quickInput').checked=false;
@@ -5321,7 +5370,9 @@ loadLocalProfile().then(function(){
   loadProfile();
 });
 syncInputs();refreshMarketOpts();setWorkMode(isDesktop()?'sales':'price');
-setScrapSource(scrapSource());loadScrapPrice();coreCalc(true);
+setScrapSource(scrapSource());loadScrapPrice();
+setCraftOdds(craftState.odds);setCraftSource(craftState.src);loadCraftData();
+coreCalc(true);
 if(window.matchMedia){try{
   window.matchMedia('(min-width:821px)').addEventListener('change',function(){
     if(!isPhone()&&state.viewLocked)setViewLock(false);
