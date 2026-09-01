@@ -606,6 +606,41 @@ kbd{
 }
 .craft-fields input[readonly]{opacity:.7}
 .craft-foot{margin:9px 0 0;font-size:11.5px;color:var(--dim);line-height:1.45}
+.sim-reel{
+  position:relative;height:78px;margin:12px 0 10px;overflow:hidden;min-width:0;max-width:100%;
+  border:1px solid rgba(var(--brass-rgb),.22);border-radius:8px;background:var(--ground)
+}
+/* Taken out of flow on purpose: 52 tiles in normal flow contribute their full intrinsic
+   width to the page, and overflow:hidden clips the paint without undoing that. */
+.sim-strip{
+  position:absolute;left:0;top:0;display:flex;gap:6px;padding:7px;will-change:transform
+}
+.sim-tile{
+  flex:0 0 58px;height:58px;border-radius:7px;border:1px solid var(--tier,var(--line));
+  background:var(--panel);position:relative;overflow:hidden
+}
+.sim-tile i{
+  display:block;width:100%;height:100%;background-image:url('items.png');
+  background-size:600% 600%;background-repeat:no-repeat
+}
+/* The marker the strip settles under, same idea as the game's own panel. */
+.sim-reel::after{
+  content:"";position:absolute;left:50%;top:4px;bottom:4px;width:2px;margin-left:-1px;
+  background:var(--brass);box-shadow:0 0 8px rgba(var(--brass-rgb),.7);pointer-events:none
+}
+.sim-btns{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:9px}
+.sim-result{margin:8px 0 0;font-size:13px;color:var(--ink);line-height:1.5}
+.sim-result .tier{font-weight:700}
+.sim-tally{display:grid;gap:3px;margin-top:9px}
+.sim-row{
+  display:grid;grid-template-columns:1.2fr .6fr .8fr;gap:9px;padding:3px 7px;border-radius:5px;
+  font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--dim)
+}
+.sim-row span+span{text-align:right}
+.sim-row.head{font-family:"Saira Condensed",sans-serif;font-size:10.5px;letter-spacing:.1em;
+  text-transform:uppercase;opacity:.75}
+.sim-row.got{background:rgba(var(--brass-rgb),.07);color:var(--ink)}
+@media (prefers-reduced-motion:reduce){.sim-strip{transition:none!important}}
 .datastrip{
   display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
   margin:0 0 14px;padding:9px 13px;border:1px solid var(--line);
@@ -661,6 +696,14 @@ kbd{
 }
 /* Rarity is inferred from entered market price unless user pins it. */
 .rarity-label.auto::after{content:" · from price";font-size:9px;color:var(--dim)}
+/* The rarity this price could also be. Visible enough to notice and tap, clearly not the
+   one in use, so it reads as an alternative rather than a second selection. */
+.rarity-btn.maybe{
+  opacity:.85;filter:none;border-style:dashed;border-color:var(--tier,var(--brass))
+}
+.rarity-note{
+  flex:1 1 100%;margin:6px 0 0;font-size:11.5px;color:var(--dim);line-height:1.4
+}
 .rarity-label.pinned::after{content:" · pinned";font-size:9px;color:var(--brass)}
 
 
@@ -2411,6 +2454,7 @@ h1 .title-word{white-space:nowrap}
 
       <div class="rarity" id="rarityPanel" role="group" aria-label="Item rarity">
         <span class="rarity-label auto" id="rarityLabel">Rarity</span>
+        <p class="rarity-note" id="rarityNote" hidden></p>
         <div class="rarity-btns" id="rarityBtns">
           <button type="button" class="rarity-btn" data-tier="1" aria-pressed="false" style="--tier:#9AA0A6" title="Basic">
             <span class="badge" style="background-position-x:0%"></span>
@@ -2795,6 +2839,21 @@ h1 .title-word{white-space:nowrap}
           </div>
           <p class="scrap-tabnote" id="caseNote"></p>
         </div>
+
+        <div class="scrap-src">
+          <span class="scrap-src-label">Try your luck</span>
+          <div class="sim-btns" id="simBtns">
+            <button type="button" class="soundbtn" data-sim="1">Open 1</button>
+            <button type="button" class="soundbtn" data-sim="10">10</button>
+            <button type="button" class="soundbtn" data-sim="100">100</button>
+            <button type="button" class="soundbtn" data-sim="1000">1000</button>
+            <button type="button" class="soundbtn" data-sim="count">Use the number above</button>
+          </div>
+          <div class="sim-reel" id="simReel" hidden><div class="sim-strip" id="simStrip"></div></div>
+          <p class="sim-result" id="simResult"></p>
+          <div class="sim-tally" id="simTally"></div>
+          <p class="scrap-tabnote" id="simNote">Rolls the real odds against collected prices. It settles on the same answer as the card above, eventually.</p>
+        </div>
       </section>
 
       <div class="datastrip">
@@ -2835,14 +2894,15 @@ var FETCH_TIMEOUT=12000,DATA_TTL=5*60*1000,MIN_WINDOW_ROWS=5;
 var MAX_HISTORY_HOURS=168;
 var WEAPON_CRIT_WEIGHT=4.15;
 
+var TIER_OF_RARITY={common:1,uncommon:2,rare:3,epic:4,legendary:5,mythic:6};
 var RARITIES=[
   {name:'Basic',colour:'#9AA0A6'},{name:'Reinforced',colour:'#5BB85B'},
   {name:'Advanced',colour:'#4A90D9'},{name:'Elite',colour:'#9B6FC6'},
   {name:'Legendary',colour:'#D4B106'},{name:'Mythic',colour:'#C0503B'}
 ];
 var SLOTS=[
-  {code:'helmet',name:'Helmet'},{code:'chest',name:'Chest'},{code:'boots',name:'Boots'},
-  {code:'gloves',name:'Gloves'},{code:'pants',name:'Pants'},{code:'weapon',name:'Weapon'}
+  {code:'weapon',name:'Weapon'},{code:'helmet',name:'Helmet'},{code:'chest',name:'Chest'},
+  {code:'boots',name:'Boots'},{code:'gloves',name:'Gloves'},{code:'pants',name:'Pants'}
 ];
 var SHEET_COLS=['weapon','boots','helmet','gloves','chest','pants'];
 var WEAPON_CODES=['knife','gun','rifle','sniper','tank','jet'];
@@ -3330,11 +3390,70 @@ function coreDisplayed(){
   state.lastPrice=clean;return clean
 }
 
+// Fallback only. The game has moved these before and a hardcoded table is how the old
+// ones went quietly wrong, so the collector's observed range per tier is preferred.
 var RARITY_BANDS=[2.485,8.069,27.346,92.080,268.430,Infinity];
+var rarityRangeCache={stamp:null,ranges:null};
+function rarityRanges(){
+  var sum=craftState.summary;
+  if(!sum||!sum.categories)return null;
+  if(rarityRangeCache.stamp===sum.generated_at)return rarityRangeCache.ranges;
+  var byTier={},code;
+  for(code in sum.categories){
+    if(!Object.prototype.hasOwnProperty.call(sum.categories,code))continue;
+    var cat=sum.categories[code],t=RARITIES.map(function(r){return r.name.toLowerCase()}).indexOf('');
+    t=TIER_OF_RARITY[cat.rarity];
+    if(!t)continue;
+    var rolls=cat.rolls||{},key;
+    for(key in rolls){
+      if(!Object.prototype.hasOwnProperty.call(rolls,key))continue;
+      var st=rolls[key].fallback_48h||rolls[key].selected;
+      if(!st||st.min==null||st.max==null)continue;
+      var cur=byTier[t]||(byTier[t]={min:Infinity,max:0});
+      if(st.min<cur.min)cur.min=st.min;
+      if(st.max>cur.max)cur.max=st.max
+    }
+  }
+  var out=[],ok=0;
+  for(var i=1;i<=6;i++){
+    var r=byTier[i];
+    if(r&&isFinite(r.min)&&r.max>0){out.push(r);ok++}else out.push(null)
+  }
+  rarityRangeCache={stamp:sum.generated_at,ranges:ok>=4?out:null};
+  return rarityRangeCache.ranges
+}
+// Every tier whose observed range contains this price. More than one is a real ambiguity,
+// not something to resolve by picking the more popular tier and hoping.
+function tiersForPrice(v){
+  v=Number(v);
+  if(!Number.isFinite(v)||v<=0)return [];
+  var ranges=rarityRanges();
+  if(!ranges){
+    for(var i=0;i<RARITY_BANDS.length;i++)if(v<RARITY_BANDS[i])return [i+1];
+    return [6]
+  }
+  var hits=[],j;
+  for(j=0;j<6;j++){
+    var r=ranges[j];
+    if(r&&v>=r.min&&v<=r.max)hits.push(j+1)
+  }
+  if(hits.length)return hits;
+  // Between two bands nothing has traded in: take the nearest edge rather than nothing.
+  var best=null,bestGap=Infinity;
+  for(j=0;j<6;j++){
+    var q=ranges[j];if(!q)continue;
+    var gap=v<q.min?q.min-v:v-q.max;
+    if(gap<bestGap){bestGap=gap;best=j+1}
+  }
+  return best?[best]:[]
+}
+// Inventory is worked through by rarity, highest first, so where a price is legal for two
+// the higher one is the likelier thing to be holding. The other stays on screen rather than
+// being decided away.
 function tierFromDisplayedPrice(v){
-  v=Number(v);if(!Number.isFinite(v)||v<=0)return state.tier||1;
-  for(var i=0;i<RARITY_BANDS.length;i++)if(v<RARITY_BANDS[i])return i+1;
-  return 6
+  var hits=tiersForPrice(v);
+  if(!hits.length)return state.tier||1;
+  return hits[hits.length-1]
 }
 function syncTierFromPrice(v){
   var n=Number(v);
@@ -3342,7 +3461,7 @@ function syncTierFromPrice(v){
     var samePrice=Number.isFinite(n)&&Number.isFinite(Number(state.pinnedAtPrice))
       &&Math.abs(n-Number(state.pinnedAtPrice))<0.0005;
     if(samePrice){
-      state.tier=state.pinnedTier;
+      state.tier=state.pinnedTier;state.rarityHits=null;paintRarityMaybes();
       $('rarityLabel').classList.remove('auto');$('rarityLabel').classList.add('pinned');
       updateCompactRarity();
       return
@@ -3351,14 +3470,33 @@ function syncTierFromPrice(v){
     // Changing Price to target returns rarity inference to automatic.
     state.pinnedTier=null;state.pinnedAtPrice=null;
   }
+  var hits=tiersForPrice(v);
+  state.rarityHits=hits.length>1?hits:null;
   var t=tierFromDisplayedPrice(v);
   if(t!==state.tier){
     state.tier=t;state.rolls={};state.slot=state.slot||null;
     buildRarity();buildSlots();if(state.slot)buildRolls()
   }else updateCompactRarity();
+  paintRarityMaybes();
   $('rarityLabel').classList.add('auto');$('rarityLabel').classList.remove('pinned')
 }
 
+// Marks the alternatives without rebuilding the row: the buttons are live targets, and
+// replacing them under a finger loses the tap.
+function paintRarityMaybes(){
+  var hits=state.rarityHits,note=$('rarityNote');
+  Array.prototype.forEach.call($('rarityBtns').children,function(el){
+    var t=Number(el.getAttribute('data-tier'));
+    el.classList.toggle('maybe',!!hits&&hits.indexOf(t)>=0&&t!==state.tier)
+  });
+  if(!note)return;
+  var others=(hits||[]).filter(function(t){return t!==state.tier});
+  if(!others.length){note.hidden=true;return}
+  note.textContent='This price is also legal for '+
+    others.map(function(t){return RARITIES[t-1].name}).join(' and ')+
+    ' \u2014 tap it if that is what you are holding.';
+  note.hidden=false
+}
 function displayedTargetFromShown(shown,beating){
   var n=Number(shown);
   if(!Number.isFinite(n)||n<=0)return null;
@@ -3574,28 +3712,36 @@ function craftSlotValue(slot,t,taxMul){
     if(k!==null)seen[k]=rolls[key]
   }
   var space=craftRollSpace(slot,t),byCount=slot==='weapon'&&craftState.odds==='observed';
-  var wsum=0,vsum=0,covered=0,samples=0;
+  var dis=craftDismantle(t);
+  var wsum=0,vsum=0,covered=0,samples=0,broken=0;
   for(var i=0;i<space.length;i++){
     var row=seen[space[i]];if(!row)continue;
     var stat=row.selected||row.fallback_48h;
     if(!stat||stat.median==null)continue;
     var n=(row.fallback_48h||{}).count||0,w=byCount?n:1;
     if(w<=0)continue;
-    covered++;samples+=n;wsum+=w;vsum+=w*stat.median
+    // A roll that lists for less than its own scrap is worth breaking, and enough of them
+    // are that valuing every piece at its sale price understates what a case is worth.
+    var sale=stat.median*taxMul,best=Math.max(sale,dis);
+    if(dis>sale)broken+=w;
+    covered++;samples+=n;wsum+=w;vsum+=w*best
   }
   if(!wsum)return null;
-  return {net:vsum/wsum*taxMul,covered:covered,space:space.length,samples:samples}
+  return {net:vsum/wsum,covered:covered,space:space.length,samples:samples,
+          broken:broken,weight:wsum}
 }
 // Expected proceeds from one craft, over every slot it could produce.
 function craftExpected(t,taxMul){
-  var wsum=0,net=0,covered=0,space=0,samples=0,missing=0;
+  var wsum=0,net=0,covered=0,space=0,samples=0,missing=0,broken=0,rollw=0;
   for(var s=0;s<SLOTS.length;s++){
     var slot=SLOTS[s].code,w=CRAFT_SLOT_WEIGHT[slot]||1,v=craftSlotValue(slot,t,taxMul);
     if(!v){missing++;continue}
-    wsum+=w;net+=w*v.net;covered+=v.covered;space+=v.space;samples+=v.samples
+    wsum+=w;net+=w*v.net;covered+=v.covered;space+=v.space;samples+=v.samples;
+    broken+=w*v.broken;rollw+=w*v.weight
   }
   if(!wsum)return null;
-  return {net:net/wsum,covered:covered,space:space,samples:samples,missingSlots:missing}
+  return {net:net/wsum,covered:covered,space:space,samples:samples,missingSlots:missing,
+          brokenShare:rollw>0?broken/rollw:0}
 }
 
 // The Gateway is only ever read with the key the person using this page supplied, and
@@ -3639,6 +3785,10 @@ function loadGatewayBooks(force){
     else craftState.liveError=(err&&err.message?err.message:'request failed');
     craftState.sig=null;craftState.caseSig=null;paintCraft();paintCase()
   })
+}
+function craftDismantle(t){
+  var ob=craftBook('scraps'),bid=ob&&ob.best_bid;
+  return bid==null?0:SCRAP_YIELDS[t-1]*Number(bid)
 }
 function craftBook(code){
   if(craftState.src==='live'&&craftState.live&&craftState.live[code])return craftState.live[code];
@@ -3783,7 +3933,10 @@ function paintCraft(){
   $('craftDetail').textContent=head+head2;
 
   var cov=mine.exp.space?Math.round(mine.exp.covered/mine.exp.space*100):0;
-  var foot=mine.exp.samples.toLocaleString()+' sales across '+mine.exp.covered+' of '+
+  var brokePct=Math.round((mine.exp.brokenShare||0)*100);
+  var foot=(brokePct?brokePct+'% of this tier\u2019s rolls are worth more dismantled than listed and are '+
+    'valued that way. ':'')+
+    mine.exp.samples.toLocaleString()+' sales across '+mine.exp.covered+' of '+
     mine.exp.space+' possible rolls ('+cov+'%). Slots weighted 2:1:1:1:1:1 in the weapon’s favour; '+
     (craftState.odds==='observed'?'weapon rolls weighted by how often each one trades'
       :'every roll given even odds')+'.';
@@ -3799,6 +3952,137 @@ function paintCraft(){
 // A case is the same bet as a craft with the tier left to chance, so it reuses the per-tier
 // expected value the craft card already computes and weights it by the stated odds instead
 // of by a recipe.
+/* ---- Case opening simulator ---------------------------------------------------
+   Draws from the same odds and the same collected prices the card above values a case
+   with, so a long enough run lands on the same number. That is the point of it: the EV
+   is an average nobody experiences, and watching 62% of your cases come back worth less
+   than you paid is the part a percentage does not convey. */
+function simPick(weights){
+  var total=0,i;
+  for(i=0;i<weights.length;i++)total+=weights[i];
+  var r=Math.random()*total;
+  for(i=0;i<weights.length;i++){r-=weights[i];if(r<=0)return i}
+  return weights.length-1
+}
+// Every roll of a slot at a tier with a collected price, and how often each one trades.
+function craftRollTable(slot,t){
+  var cat=((craftState.summary||{}).categories||{})[itemCodeForSlot(slot,t)];
+  if(!cat)return null;
+  var rolls=cat.rolls||{},seen={},key;
+  for(key in rolls){
+    if(!Object.prototype.hasOwnProperty.call(rolls,key))continue;
+    var k=craftRollKey(slot,(rolls[key].exact_roll||{}).skills);
+    if(k!==null)seen[k]=rolls[key]
+  }
+  var space=craftRollSpace(slot,t),byCount=slot==='weapon'&&craftState.odds==='observed',out=[];
+  for(var i=0;i<space.length;i++){
+    var row=seen[space[i]];if(!row)continue;
+    var stat=row.selected||row.fallback_48h;
+    if(!stat||stat.median==null)continue;
+    var n=(row.fallback_48h||{}).count||0,w=byCount?n:1;
+    if(w<=0)continue;
+    out.push({key:space[i],median:stat.median,w:w,skills:(row.exact_roll||{}).skills||{}})
+  }
+  return {rows:out,space:space.length}
+}
+function simRollLabel(slot,skills){
+  var bits=[];
+  for(var k in skills){if(Object.prototype.hasOwnProperty.call(skills,k))bits.push(k+' '+skills[k])}
+  return bits.join(', ')
+}
+function simOpenOne(taxMul){
+  var t=simPick(CASE_TIER_ODDS)+1;
+  var slotCodes=SLOTS.map(function(s){return s.code});
+  var slot=slotCodes[simPick(slotCodes.map(function(c){return CRAFT_SLOT_WEIGHT[c]||0}))];
+  var table=craftRollTable(slot,t);
+  if(!table||!table.rows.length)return {tier:t,slot:slot,net:0,label:'no collected sales',unpriced:true};
+  var pick=table.rows[simPick(table.rows.map(function(r){return r.w}))];
+  // Same choice the card values a piece at, or the simulator would drift away from it.
+  var sale=pick.median*taxMul,dis=craftDismantle(t);
+  return {tier:t,slot:slot,net:Math.max(sale,dis),sale:sale,dis:dis,broke:dis>sale,
+          label:simRollLabel(slot,pick.skills),unpriced:false}
+}
+function simTile(tier,slot){
+  return '<div class="sim-tile" style="--tier:'+RARITIES[tier-1].colour+'">'+
+    '<i style="background-position:'+(sheetColumn(slot)*20)+'% '+((tier-1)/5*100)+'%"></i></div>'
+}
+var simBusy=false;
+function simRun(n){
+  if(simBusy)return;
+  if(!craftState.summary){$('simResult').textContent='Collector prices are not loaded yet.';return}
+  var taxPct=Number($('tax').value);
+  if(!isFinite(taxPct)||taxPct<0)taxPct=0;
+  var taxMul=1-taxPct/100;
+  var cost=craftWalk('case1',n);
+  var results=[],i;
+  for(i=0;i<n;i++)results.push(simOpenOne(taxMul));
+  var got=results.reduce(function(a,r){return a+r.net},0);
+  var tally=[0,0,0,0,0,0],unpriced=0;
+  results.forEach(function(r){tally[r.tier-1]++;if(r.unpriced)unpriced++});
+
+  var finish=function(){
+    simBusy=false;
+    var spend=cost?cost.cost:null;
+    var line=n===1
+      ? 'You opened a <span class="tier" style="color:'+RARITIES[results[0].tier-1].colour+'">'+
+        esc(RARITIES[results[0].tier-1].name)+' '+esc(slotName(results[0].slot))+'</span>'+
+        (results[0].label?' ('+esc(results[0].label)+')':'')+
+        (results[0].broke
+          ? '. Break it: '+results[0].net.toFixed(3)+' in scraps beats the '+
+            results[0].sale.toFixed(3)+' it would list for.'
+          : ', worth '+results[0].net.toFixed(3)+' listed.')
+      : 'Opened '+n+' cases for '+(spend==null?'?':craftMoney(spend))+
+        ' and pulled '+craftMoney(got)+' of equipment.';
+    if(spend!=null){
+      var pl=got-spend;
+      line+=' <span class="'+(pl>=0?'up':'down')+'">'+craftSigned(pl,3)+
+        ' ('+craftSigned(spend>0?pl/spend*100:0,2)+'%)</span>';
+      if(n>1)line+=' &middot; expected '+craftSigned(caseEdge*n,3)+' over '+n+'.'
+    }
+    $('simResult').innerHTML=line;
+    var rows='<div class="sim-row head"><span>Tier</span><span>Got</span><span>Expected</span></div>';
+    for(var t=1;t<=6;t++){
+      rows+='<div class="sim-row'+(tally[t-1]?' got':'')+'"><span>'+esc(RARITIES[t-1].name)+
+        '</span><span>'+tally[t-1]+'</span><span>'+(CASE_TIER_ODDS[t-1]*n).toFixed(2)+'</span></div>'
+    }
+    $('simTally').innerHTML=rows;
+    $('simNote').textContent=unpriced
+      ? unpriced+' of '+n+' had no collected sales for that exact roll and counted as zero, so this run reads low.'
+      : 'Rolls the real odds against collected prices. It settles on the same answer as the card above, eventually.'
+  };
+
+  // One case gets the reel; a hundred would just be a hundred reels.
+  var reel=$('simReel'),strip=$('simStrip');
+  var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  if(n!==1||reduce){reel.hidden=true;strip.style.transition='none';finish();return}
+
+  simBusy=true;
+  $('simResult').textContent='';$('simTally').innerHTML='';
+  var WIN=42,TOTAL=52,tiles='';
+  for(i=0;i<TOTAL;i++){
+    if(i===WIN)tiles+=simTile(results[0].tier,results[0].slot);
+    else tiles+=simTile(simPick(CASE_TIER_ODDS)+1,SLOTS[Math.floor(Math.random()*SLOTS.length)].code)
+  }
+  strip.innerHTML=tiles;
+  reel.hidden=false;
+  strip.style.transition='none';
+  strip.style.transform='translateX(0)';
+  // Land a little off centre so it does not look mechanically identical every time.
+  var step=64,jitter=(Math.random()-0.5)*34;
+  var target=WIN*step+step/2-reel.clientWidth/2+jitter;
+  requestAnimationFrame(function(){
+    requestAnimationFrame(function(){
+      strip.style.transition='transform 3.1s cubic-bezier(.11,.75,.13,1)';
+      strip.style.transform='translateX('+(-target)+'px)';
+      setTimeout(finish,3200)
+    })
+  })
+}
+function slotName(code){
+  var s=SLOTS.filter(function(x){return x.code===code})[0];
+  return s?s.name:code
+}
+var caseEdge=0;
 function paintCase(){
   if(!$('caseBox'))return;
   var n=Math.floor(Number($('caseCount').value));
@@ -3824,9 +4108,17 @@ function paintCase(){
     if(!exp){missing++;parts.push(null);continue}
     covered+=exp.covered;space+=exp.space;samples+=exp.samples;
     var add=odds*exp.net;gross+=add;
-    parts.push({net:exp.net,odds:odds,add:add})
+    parts.push({net:exp.net,odds:odds,add:add,broken:exp.brokenShare||0})
   }
-  var rows='<div class="craft-row head"><span>Tier</span><span>Odds</span><span>Worth</span><span>Adds</span><span>Share</span></div>';
+  // A 6% edge on a bet whose spread is nearly twice its own mean takes a long time to
+  // show up. Saying how long is the difference between an average and a plan.
+  var variance=0;
+  for(var v=1;v<=6;v++){
+    var pv=parts[v-1];
+    if(pv)variance+=pv.odds*Math.pow(pv.net-gross,2)
+  }
+  var sd=Math.sqrt(variance);
+  var rows='<div class="craft-row head"><span>Tier</span><span>Odds</span><span>Worth</span><span>Break</span><span>Adds</span></div>';
   for(var t2=1;t2<=6;t2++){
     var pr=parts[t2-1],hit=t2===state.tier?' hit':'';
     if(!pr){
@@ -3838,12 +4130,13 @@ function paintCase(){
       '<span>'+esc(RARITIES[t2-1].name)+'</span>'+
       '<span>'+(pr.odds*100).toFixed(2)+'%</span>'+
       '<span>'+craftMoney(pr.net)+'</span>'+
-      '<span>'+pr.add.toFixed(4)+'</span>'+
-      '<span>'+(gross>0?(pr.add/gross*100).toFixed(1):'\u2014')+'%</span></div>'
+      '<span>'+Math.round(pr.broken*100)+'%</span>'+
+      '<span>'+pr.add.toFixed(4)+'</span></div>'
   }
   rowsEl.innerHTML=rows;
 
   var total=gross*n,profit=total-cost.cost,pct=cost.cost>0?profit/cost.cost*100:0,many=n>1;
+  caseEdge=gross-cost.unit;
   $('caseLead').textContent=many?'Buy '+n+' Case I, open them, sell what comes out'
                                 :'Buy a Case I, open it, sell what comes out';
   $('caseVerdict').textContent=craftSigned(profit,3);
@@ -3859,9 +4152,20 @@ function paintCase(){
   var cov=space?Math.round(covered/space*100):0;
   var foot='Odds are the game\u2019s own: weapon 30% / equipment 70%, and the tier rates shown. '+
     'Piece values are collected sale medians across '+samples.toLocaleString()+' sales covering '+
-    covered+' of '+space+' possible rolls ('+cov+'%).';
+    covered+' of '+space+' possible rolls ('+cov+'%). Break is how often a roll of that tier '+
+    'is worth more dismantled than listed, and each piece is valued at whichever is higher - '+
+    'so this assumes you check every piece rather than listing all of them.';
   if(missing)foot+=' '+missing+' tier(s) have no sale data and are treated as worthless, so this is a floor.';
   if(cost.thin)foot+=' The case order book could not fill the whole purchase, so the cost shown is a floor.';
+  var edge=gross-cost.unit;
+  if(sd>0&&edge>0){
+    var need=Math.pow(2*sd/edge,2);
+    foot+=' One case swings '+sd.toFixed(2)+' either way against an edge of '+edge.toFixed(3)+
+      ', so it takes roughly '+Math.round(need/100)*100+' cases before the profit reliably '+
+      'beats the swing. Below that a losing run is normal, not evidence the edge is wrong.'
+  }else if(sd>0){
+    foot+=' One case swings '+sd.toFixed(2)+' either way, so single results say nothing about the average.'
+  }
   foot+=' Selling what you open moves these prices, and the more you open at once the more it moves them.';
   footEl.textContent=foot;
   noteEl.textContent=craftState.src==='ask'?'Best seller on the case book.'
@@ -5501,6 +5805,12 @@ $('craftOddsBtns').addEventListener('click',function(e){
 });
 $('craftCount').addEventListener('input',paintCraft);
 $('caseCount').addEventListener('input',paintCase);
+$('simBtns').addEventListener('click',function(e){
+  var b=e.target.closest('[data-sim]');if(!b)return;
+  var raw=b.getAttribute('data-sim');
+  var n=raw==='count'?Math.floor(Number($('caseCount').value)):Number(raw);
+  simRun(isFinite(n)&&n>0?Math.min(n,9999):1)
+});
 // Refresh the live books alongside the collector's own cadence, but only while they are
 // the selected source.
 setInterval(function(){
