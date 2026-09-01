@@ -3810,14 +3810,14 @@ function paintDataStamp(){
   var age=dataAgeText(idx.generated_at);
   $('dataStamp').textContent='Prices collected '+(age||'at an unknown time')+
     (idx.status&&idx.status!=='ok'?' · collector reported '+idx.status:'')+
-    '. Published every 10 minutes.'
+    '. Published every '+Math.round(COLLECTOR_CADENCE_MS/60000)+' minutes.'
 }
 // The collector republishes on a 10-minute cadence, so a manual refresh has to bypass
 // both the in-memory copies and the browser cache to be worth pressing.
 // The collector publishes on a fixed cadence, so the page can meet it rather than making
 // anyone ask. This pulls what was last published; it cannot make the collector go and
 // collect, which would need a GitHub token in a public page.
-var COLLECTOR_CADENCE_MS=10*60*1000,autoRefreshTimer=null,refreshInFlight=false;
+var COLLECTOR_CADENCE_MS=15*60*1000,autoRefreshTimer=null,refreshInFlight=false;
 function refreshCollector(){
   if(refreshInFlight)return;
   refreshInFlight=true;
