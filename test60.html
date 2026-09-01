@@ -629,17 +629,37 @@ kbd{
   background:var(--brass);box-shadow:0 0 8px rgba(var(--brass-rgb),.7);pointer-events:none
 }
 .sim-btns{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:9px}
-.sim-result{margin:8px 0 0;font-size:13px;color:var(--ink);line-height:1.5}
+/* These read as labels at the old weight. They are the only thing on the card you press. */
+.sim-btns .soundbtn{
+  border-color:rgba(var(--brass-rgb),.55);background:var(--panel);color:var(--brass);
+  padding:7px 14px;font-size:12px
+}
+.sim-btns .soundbtn:hover{border-color:var(--brass);background:var(--panel-2)}
+.sim-headline{
+  margin:10px 0 2px;font-family:"IBM Plex Mono",monospace;font-weight:600;
+  font-size:28px;line-height:1.15;color:var(--ink)
+}
+.sim-headline.up{color:var(--verdigris)}
+.sim-headline.down{color:var(--rust)}
+.sim-result{margin:0;font-size:12.5px;color:var(--dim);line-height:1.5}
 .sim-result .tier{font-weight:700}
-.sim-tally{display:grid;gap:3px;margin-top:9px}
+.sim-tally{display:grid;gap:3px;margin-top:11px}
 .sim-row{
-  display:grid;grid-template-columns:1.2fr .6fr .8fr;gap:9px;padding:3px 7px;border-radius:5px;
-  font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--dim)
+  display:grid;grid-template-columns:1.15fr .55fr .7fr .6fr;gap:9px;padding:3px 7px;
+  border-radius:5px;font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--dim)
 }
 .sim-row span+span{text-align:right}
 .sim-row.head{font-family:"Saira Condensed",sans-serif;font-size:10.5px;letter-spacing:.1em;
   text-transform:uppercase;opacity:.75}
 .sim-row.got{background:rgba(var(--brass-rgb),.07);color:var(--ink)}
+.sim-row .over{color:var(--verdigris)}
+.sim-row .under{color:var(--rust)}
+/* The variance caveat was sentence four of six and is the one that changes behaviour. */
+.case-swing{
+  margin:9px 0 0;padding:8px 10px;border-radius:7px;
+  border:1px solid rgba(var(--brass-rgb),.28);background:rgba(var(--brass-rgb),.05);
+  font-size:11.5px;color:var(--ink);line-height:1.45
+}
 @media (prefers-reduced-motion:reduce){.sim-strip{transition:none!important}}
 .datastrip{
   display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
@@ -2832,6 +2852,7 @@ h1 .title-word{white-space:nowrap}
         <p class="flip-figure" id="caseVerdict">—</p>
         <p class="flip-detail" id="caseDetail">Reading case prices…</p>
         <div class="craft-rows" id="caseRows"></div>
+        <p class="case-swing" id="caseSwing" hidden></p>
         <p class="craft-foot" id="caseFoot"></p>
         <div class="scrap-src">
           <div class="craft-fields">
@@ -2850,6 +2871,7 @@ h1 .title-word{white-space:nowrap}
             <button type="button" class="soundbtn" data-sim="count">Use the number above</button>
           </div>
           <div class="sim-reel" id="simReel" hidden><div class="sim-strip" id="simStrip"></div></div>
+          <p class="sim-headline" id="simHeadline" hidden></p>
           <p class="sim-result" id="simResult"></p>
           <div class="sim-tally" id="simTally"></div>
           <p class="scrap-tabnote" id="simNote">Rolls the real odds against collected prices. It settles on the same answer as the card above, eventually.</p>
@@ -4033,17 +4055,24 @@ function simRun(n){
           : ', worth '+results[0].net.toFixed(3)+' listed.')
       : 'Opened '+n+' cases for '+(spend==null?'?':craftMoney(spend))+
         ' and pulled '+craftMoney(got)+' of equipment.';
+    if(spend!=null&&n>1)line+=' Expected '+craftSigned(caseEdge*n,3)+' over '+n+'.';
+    var head=$('simHeadline');
     if(spend!=null){
-      var pl=got-spend;
-      line+=' <span class="'+(pl>=0?'up':'down')+'">'+craftSigned(pl,3)+
-        ' ('+craftSigned(spend>0?pl/spend*100:0,2)+'%)</span>';
-      if(n>1)line+=' &middot; expected '+craftSigned(caseEdge*n,3)+' over '+n+'.'
-    }
+      var pl0=got-spend;
+      head.textContent=craftSigned(pl0,3)+'  '+craftSigned(spend>0?pl0/spend*100:0,2)+'%';
+      head.className='sim-headline '+(pl0>=0?'up':'down');
+      head.hidden=false
+    }else head.hidden=true;
     $('simResult').innerHTML=line;
-    var rows='<div class="sim-row head"><span>Tier</span><span>Got</span><span>Expected</span></div>';
+    // Counts alone do not show which way a run ran; the gap against expectation does.
+    var rows='<div class="sim-row head"><span>Tier</span><span>Got</span><span>Expected</span><span>Diff</span></div>';
     for(var t=1;t<=6;t++){
+      var exp=CASE_TIER_ODDS[t-1]*n,diff=tally[t-1]-exp;
+      var cls=Math.abs(diff)<0.005?'':(diff>0?'over':'under');
       rows+='<div class="sim-row'+(tally[t-1]?' got':'')+'"><span>'+esc(RARITIES[t-1].name)+
-        '</span><span>'+tally[t-1]+'</span><span>'+(CASE_TIER_ODDS[t-1]*n).toFixed(2)+'</span></div>'
+        '</span><span>'+tally[t-1]+'</span><span>'+exp.toFixed(2)+
+        '</span><span class="'+cls+'">'+(cls?craftSigned(diff,diff===Math.round(diff)?0:1):'0')+
+        '</span></div>'
     }
     $('simTally').innerHTML=rows;
     $('simNote').textContent=unpriced
@@ -4100,7 +4129,9 @@ function paintCase(){
     $('caseVerdict').textContent='\u2014';
     $('caseVerdict').className='flip-figure';
     $('caseDetail').textContent=craftState.summary?'No case price available.':'Reading case prices\u2026';
-    rowsEl.innerHTML='';footEl.textContent='';noteEl.textContent='';return
+    rowsEl.innerHTML='';footEl.textContent='';noteEl.textContent='';
+    if($('caseSwing'))$('caseSwing').hidden=true;
+    return
   }
   var taxMul=1-taxPct/100,gross=0,covered=0,space=0,samples=0,missing=0,parts=[];
   for(var t=1;t<=6;t++){
@@ -4150,21 +4181,28 @@ function paintCase(){
     craftSigned((gross/cost.unit-1)*100,2)+'% from what you would pay now).';
 
   var cov=space?Math.round(covered/space*100):0;
-  var foot='Odds are the game\u2019s own: weapon 30% / equipment 70%, and the tier rates shown. '+
-    'Piece values are collected sale medians across '+samples.toLocaleString()+' sales covering '+
-    covered+' of '+space+' possible rolls ('+cov+'%). Break is how often a roll of that tier '+
-    'is worth more dismantled than listed, and each piece is valued at whichever is higher - '+
-    'so this assumes you check every piece rather than listing all of them.';
+  // Nine lines of prose explaining four columns is a wall nobody reads. One line of
+  // provenance, one of what the reader has to do for the number to hold.
+  var foot='Odds: the game\u2019s own. Values: collected sale medians, '+
+    samples.toLocaleString()+' sales across '+covered+' of '+space+' rolls ('+cov+'%). '+
+    'Break: how often that tier is worth dismantling. '+
+    'Each piece counts at whichever is higher, so this assumes you check every piece.';
   if(missing)foot+=' '+missing+' tier(s) have no sale data and are treated as worthless, so this is a floor.';
   if(cost.thin)foot+=' The case order book could not fill the whole purchase, so the cost shown is a floor.';
   var edge=gross-cost.unit;
-  if(sd>0&&edge>0){
-    var need=Math.pow(2*sd/edge,2);
-    foot+=' One case swings '+sd.toFixed(2)+' either way against an edge of '+edge.toFixed(3)+
-      ', so it takes roughly '+Math.round(need/100)*100+' cases before the profit reliably '+
-      'beats the swing. Below that a losing run is normal, not evidence the edge is wrong.'
-  }else if(sd>0){
-    foot+=' One case swings '+sd.toFixed(2)+' either way, so single results say nothing about the average.'
+  var swingEl=$('caseSwing');
+  if(swingEl){
+    if(sd>0&&edge>0){
+      var need=Math.round(Math.pow(2*sd/edge,2)/100)*100;
+      swingEl.textContent='One case swings '+sd.toFixed(2)+' either way against an edge of '+
+        edge.toFixed(3)+' \u2014 about '+need.toLocaleString()+' cases before profit reliably '+
+        'beats the swing. Below that a losing run is normal, not evidence the edge is wrong.';
+      swingEl.hidden=false
+    }else if(sd>0){
+      swingEl.textContent='One case swings '+sd.toFixed(2)+' either way, so a single result says '+
+        'nothing about the average.';
+      swingEl.hidden=false
+    }else swingEl.hidden=true
   }
   foot+=' Selling what you open moves these prices, and the more you open at once the more it moves them.';
   footEl.textContent=foot;
