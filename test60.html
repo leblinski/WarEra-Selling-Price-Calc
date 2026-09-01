@@ -2782,6 +2782,21 @@ h1 .title-word{white-space:nowrap}
       </section>
 
 
+      <section class="flip" id="caseBox">
+        <p class="flip-label">Open a case?</p>
+        <p class="flip-lead" id="caseLead">Buy a Case I, open it, sell what comes out</p>
+        <p class="flip-figure" id="caseVerdict">—</p>
+        <p class="flip-detail" id="caseDetail">Reading case prices…</p>
+        <div class="craft-rows" id="caseRows"></div>
+        <p class="craft-foot" id="caseFoot"></p>
+        <div class="scrap-src">
+          <div class="craft-fields">
+            <label for="caseCount">Cases<input type="number" id="caseCount" value="1" min="1" max="9999" step="1" inputmode="numeric" autocomplete="off"></label>
+          </div>
+          <p class="scrap-tabnote" id="caseNote"></p>
+        </div>
+      </section>
+
       <div class="datastrip">
         <span class="datastrip-text" id="dataStamp">Loading collector prices…</span>
       </div>
@@ -3370,7 +3385,7 @@ function coreCalc(settled){
     prefetchSelected()
   }
   state.beat=beating;
-  paintCraft();
+  paintCraft();paintCase();
   $('priceLabel').textContent=beating?'Price to beat':'Price to target';
   if(!shown){
     state.coreFigure='';state.listFigure='';
@@ -3512,7 +3527,12 @@ function loadScrapPrice(){
    Armour rolls are flat across the tier's band; the weapon's measurably are not, so
    its rolls are weighted by what actually trades unless you ask for even odds.
    Every equipment price here is a completed sale from the collector, not an ask. */
-var CRAFT_SLOT_WEIGHT={weapon:2,helmet:1,chest:1,boots:1,gloves:1,pants:1};
+// The game states these outright in its OPEN CASE panel: weapon 30%, equipment 70% split
+// across five slots. An earlier 2:1:1:1:1:1 read off sale volumes was close but not right.
+var CRAFT_SLOT_WEIGHT={weapon:0.30,helmet:0.14,chest:0.14,boots:0.14,gloves:0.14,pants:0.14};
+// Tier odds, also stated by the game. A 3,955-case sample matched every tier to within a
+// few tenths of a percent, so they are taken as given rather than estimated.
+var CASE_TIER_ODDS=[0.62,0.30,0.071,0.0085,0.0004,0.0001];
 var CRAFT_STEEL=[1,2,4,8,16,32];
 var craftState={summary:null,books:null,error:null,loading:false,src:'book',odds:'observed',
                 live:null,liveAt:0,liveError:null,liveLoading:false};
@@ -3609,15 +3629,15 @@ function loadGatewayBooks(force){
   if(!apiKey()){craftState.live=null;craftState.liveError='No API key set.';return}
   if(!force&&craftState.live&&Date.now()-craftState.liveAt<GATEWAY_TTL)return;
   craftState.liveLoading=true;
-  Promise.all(['scraps','steel'].map(function(c){
+  Promise.all(['scraps','steel','case1'].map(function(c){
     return gatewayBook(c).then(function(b){return [c,b]},function(e){return [c,null,e]})
   })).then(function(res){
     craftState.liveLoading=false;
     var out={},ok=0,err=null;
     res.forEach(function(r){if(r[1]){out[r[0]]=r[1];ok++}else if(!err)err=r[2]});
-    if(ok===2){craftState.live=out;craftState.liveAt=Date.now();craftState.liveError=null}
+    if(ok===3){craftState.live=out;craftState.liveAt=Date.now();craftState.liveError=null}
     else craftState.liveError=(err&&err.message?err.message:'request failed');
-    craftState.sig=null;paintCraft()
+    craftState.sig=null;craftState.caseSig=null;paintCraft();paintCase()
   })
 }
 function craftBook(code){
@@ -3776,6 +3796,78 @@ function paintCraft(){
   footEl.textContent=foot
 }
 
+// A case is the same bet as a craft with the tier left to chance, so it reuses the per-tier
+// expected value the craft card already computes and weights it by the stated odds instead
+// of by a recipe.
+function paintCase(){
+  if(!$('caseBox'))return;
+  var n=Math.floor(Number($('caseCount').value));
+  n=isFinite(n)&&n>0?Math.min(n,9999):1;
+  var taxPct=Number($('tax').value);
+  if(!isFinite(taxPct)||taxPct<0)taxPct=0;
+  var sig=[n,taxPct,craftState.src,craftState.odds,craftState.liveAt,state.tier,
+           craftState.summary?'s':'',craftState.books?'b':''].join('|');
+  if(sig===craftState.caseSig)return;
+  craftState.caseSig=sig;
+
+  var rowsEl=$('caseRows'),footEl=$('caseFoot'),noteEl=$('caseNote');
+  var cost=craftState.books||craftState.live?craftWalk('case1',n):null;
+  if(!craftState.summary||!cost){
+    $('caseVerdict').textContent='\u2014';
+    $('caseVerdict').className='flip-figure';
+    $('caseDetail').textContent=craftState.summary?'No case price available.':'Reading case prices\u2026';
+    rowsEl.innerHTML='';footEl.textContent='';noteEl.textContent='';return
+  }
+  var taxMul=1-taxPct/100,gross=0,covered=0,space=0,samples=0,missing=0,parts=[];
+  for(var t=1;t<=6;t++){
+    var exp=craftExpected(t,taxMul),odds=CASE_TIER_ODDS[t-1];
+    if(!exp){missing++;parts.push(null);continue}
+    covered+=exp.covered;space+=exp.space;samples+=exp.samples;
+    var add=odds*exp.net;gross+=add;
+    parts.push({net:exp.net,odds:odds,add:add})
+  }
+  var rows='<div class="craft-row head"><span>Tier</span><span>Odds</span><span>Worth</span><span>Adds</span><span>Share</span></div>';
+  for(var t2=1;t2<=6;t2++){
+    var pr=parts[t2-1],hit=t2===state.tier?' hit':'';
+    if(!pr){
+      rows+='<div class="craft-row'+hit+'"><span>'+esc(RARITIES[t2-1].name)+
+        '</span><span>\u2014</span><span>\u2014</span><span>\u2014</span><span>\u2014</span></div>';
+      continue
+    }
+    rows+='<div class="craft-row'+hit+'">'+
+      '<span>'+esc(RARITIES[t2-1].name)+'</span>'+
+      '<span>'+(pr.odds*100).toFixed(2)+'%</span>'+
+      '<span>'+craftMoney(pr.net)+'</span>'+
+      '<span>'+pr.add.toFixed(4)+'</span>'+
+      '<span>'+(gross>0?(pr.add/gross*100).toFixed(1):'\u2014')+'%</span></div>'
+  }
+  rowsEl.innerHTML=rows;
+
+  var total=gross*n,profit=total-cost.cost,pct=cost.cost>0?profit/cost.cost*100:0,many=n>1;
+  $('caseLead').textContent=many?'Buy '+n+' Case I, open them, sell what comes out'
+                                :'Buy a Case I, open it, sell what comes out';
+  $('caseVerdict').textContent=craftSigned(profit,3);
+  $('caseVerdict').className='flip-figure '+(profit>=0?'up':'down');
+  $('caseDetail').textContent=craftSigned(pct,2)+'% '+(many?'over '+n+' cases':'per case')+'. '+
+    (many?n+' cases cost '+craftMoney(cost.cost)+' at an average '+cost.unit.toFixed(5)
+        :'A case costs '+cost.unit.toFixed(5))+
+    '; the average case holds '+gross.toFixed(4)+' after '+taxPct+'% tax'+
+    (many?', or '+craftSigned(profit/n,4)+' each':'')+
+    '. Break even at a case price of '+gross.toFixed(4)+' ('+
+    craftSigned((gross/cost.unit-1)*100,2)+'% from what you would pay now).';
+
+  var cov=space?Math.round(covered/space*100):0;
+  var foot='Odds are the game\u2019s own: weapon 30% / equipment 70%, and the tier rates shown. '+
+    'Piece values are collected sale medians across '+samples.toLocaleString()+' sales covering '+
+    covered+' of '+space+' possible rolls ('+cov+'%).';
+  if(missing)foot+=' '+missing+' tier(s) have no sale data and are treated as worthless, so this is a floor.';
+  if(cost.thin)foot+=' The case order book could not fill the whole purchase, so the cost shown is a floor.';
+  foot+=' Selling what you open moves these prices, and the more you open at once the more it moves them.';
+  footEl.textContent=foot;
+  noteEl.textContent=craftState.src==='ask'?'Best seller on the case book.'
+    :craftState.src==='live'&&craftState.live&&craftState.live.case1?'Live Gateway case book.'
+    :'Cheapest case sell orders lifted in order.'
+}
 function setCraftSource(src){
   craftState.src=src;
   if(src==='live')loadGatewayBooks();
@@ -3785,7 +3877,7 @@ function setCraftSource(src){
   });
   $('craftScrap').readOnly=src!=='own';$('craftSteel').readOnly=src!=='own';
   syncCraftInputs();
-  paintCraft()
+  paintCraft();paintCase()
 }
 function syncCraftInputs(){
   if(craftState.src==='own')return;
@@ -3885,7 +3977,7 @@ function loadCraftData(bust){
       :!craftState.summary&&!craftState.books?'Collector prices are not reachable right now.'
       :!craftState.books?'The collector is not publishing commodity order books yet, so input costs cannot be priced.'
       :'The collector is not publishing sale statistics right now.';
-    setCraftSource(craftState.src);paintDataStamp();scheduleAutoRefresh(!res[2])
+    setCraftSource(craftState.src);paintCase();paintDataStamp();scheduleAutoRefresh(!res[2])
   });
   paintCraft()
 }
@@ -5408,6 +5500,7 @@ $('craftOddsBtns').addEventListener('click',function(e){
   $(id).addEventListener('input',function(){if(craftState.src==='own')paintCraft()})
 });
 $('craftCount').addEventListener('input',paintCraft);
+$('caseCount').addEventListener('input',paintCase);
 // Refresh the live books alongside the collector's own cadence, but only while they are
 // the selected source.
 setInterval(function(){
