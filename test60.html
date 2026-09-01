@@ -606,6 +606,41 @@ kbd{
 }
 .craft-fields input[readonly]{opacity:.7}
 .craft-foot{margin:9px 0 0;font-size:11.5px;color:var(--dim);line-height:1.45}
+.sim-reel{
+  position:relative;height:78px;margin:12px 0 10px;overflow:hidden;min-width:0;max-width:100%;
+  border:1px solid rgba(var(--brass-rgb),.22);border-radius:8px;background:var(--ground)
+}
+/* Taken out of flow on purpose: 52 tiles in normal flow contribute their full intrinsic
+   width to the page, and overflow:hidden clips the paint without undoing that. */
+.sim-strip{
+  position:absolute;left:0;top:0;display:flex;gap:6px;padding:7px;will-change:transform
+}
+.sim-tile{
+  flex:0 0 58px;height:58px;border-radius:7px;border:1px solid var(--tier,var(--line));
+  background:var(--panel);position:relative;overflow:hidden
+}
+.sim-tile i{
+  display:block;width:100%;height:100%;background-image:url('items.png');
+  background-size:600% 600%;background-repeat:no-repeat
+}
+/* The marker the strip settles under, same idea as the game's own panel. */
+.sim-reel::after{
+  content:"";position:absolute;left:50%;top:4px;bottom:4px;width:2px;margin-left:-1px;
+  background:var(--brass);box-shadow:0 0 8px rgba(var(--brass-rgb),.7);pointer-events:none
+}
+.sim-btns{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:9px}
+.sim-result{margin:8px 0 0;font-size:13px;color:var(--ink);line-height:1.5}
+.sim-result .tier{font-weight:700}
+.sim-tally{display:grid;gap:3px;margin-top:9px}
+.sim-row{
+  display:grid;grid-template-columns:1.2fr .6fr .8fr;gap:9px;padding:3px 7px;border-radius:5px;
+  font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--dim)
+}
+.sim-row span+span{text-align:right}
+.sim-row.head{font-family:"Saira Condensed",sans-serif;font-size:10.5px;letter-spacing:.1em;
+  text-transform:uppercase;opacity:.75}
+.sim-row.got{background:rgba(var(--brass-rgb),.07);color:var(--ink)}
+@media (prefers-reduced-motion:reduce){.sim-strip{transition:none!important}}
 .datastrip{
   display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
   margin:0 0 14px;padding:9px 13px;border:1px solid var(--line);
@@ -2795,6 +2830,21 @@ h1 .title-word{white-space:nowrap}
           </div>
           <p class="scrap-tabnote" id="caseNote"></p>
         </div>
+
+        <div class="scrap-src">
+          <span class="scrap-src-label">Try your luck</span>
+          <div class="sim-btns" id="simBtns">
+            <button type="button" class="soundbtn" data-sim="1">Open 1</button>
+            <button type="button" class="soundbtn" data-sim="10">10</button>
+            <button type="button" class="soundbtn" data-sim="100">100</button>
+            <button type="button" class="soundbtn" data-sim="1000">1000</button>
+            <button type="button" class="soundbtn" data-sim="count">Use the number above</button>
+          </div>
+          <div class="sim-reel" id="simReel" hidden><div class="sim-strip" id="simStrip"></div></div>
+          <p class="sim-result" id="simResult"></p>
+          <div class="sim-tally" id="simTally"></div>
+          <p class="scrap-tabnote" id="simNote">Rolls the real odds against collected prices. It settles on the same answer as the card above, eventually.</p>
+        </div>
       </section>
 
       <div class="datastrip">
@@ -3799,6 +3849,131 @@ function paintCraft(){
 // A case is the same bet as a craft with the tier left to chance, so it reuses the per-tier
 // expected value the craft card already computes and weights it by the stated odds instead
 // of by a recipe.
+/* ---- Case opening simulator ---------------------------------------------------
+   Draws from the same odds and the same collected prices the card above values a case
+   with, so a long enough run lands on the same number. That is the point of it: the EV
+   is an average nobody experiences, and watching 62% of your cases come back worth less
+   than you paid is the part a percentage does not convey. */
+function simPick(weights){
+  var total=0,i;
+  for(i=0;i<weights.length;i++)total+=weights[i];
+  var r=Math.random()*total;
+  for(i=0;i<weights.length;i++){r-=weights[i];if(r<=0)return i}
+  return weights.length-1
+}
+// Every roll of a slot at a tier with a collected price, and how often each one trades.
+function craftRollTable(slot,t){
+  var cat=((craftState.summary||{}).categories||{})[itemCodeForSlot(slot,t)];
+  if(!cat)return null;
+  var rolls=cat.rolls||{},seen={},key;
+  for(key in rolls){
+    if(!Object.prototype.hasOwnProperty.call(rolls,key))continue;
+    var k=craftRollKey(slot,(rolls[key].exact_roll||{}).skills);
+    if(k!==null)seen[k]=rolls[key]
+  }
+  var space=craftRollSpace(slot,t),byCount=slot==='weapon'&&craftState.odds==='observed',out=[];
+  for(var i=0;i<space.length;i++){
+    var row=seen[space[i]];if(!row)continue;
+    var stat=row.selected||row.fallback_48h;
+    if(!stat||stat.median==null)continue;
+    var n=(row.fallback_48h||{}).count||0,w=byCount?n:1;
+    if(w<=0)continue;
+    out.push({key:space[i],median:stat.median,w:w,skills:(row.exact_roll||{}).skills||{}})
+  }
+  return {rows:out,space:space.length}
+}
+function simRollLabel(slot,skills){
+  var bits=[];
+  for(var k in skills){if(Object.prototype.hasOwnProperty.call(skills,k))bits.push(k+' '+skills[k])}
+  return bits.join(', ')
+}
+function simOpenOne(taxMul){
+  var t=simPick(CASE_TIER_ODDS)+1;
+  var slotCodes=SLOTS.map(function(s){return s.code});
+  var slot=slotCodes[simPick(slotCodes.map(function(c){return CRAFT_SLOT_WEIGHT[c]||0}))];
+  var table=craftRollTable(slot,t);
+  if(!table||!table.rows.length)return {tier:t,slot:slot,net:0,label:'no collected sales',unpriced:true};
+  var pick=table.rows[simPick(table.rows.map(function(r){return r.w}))];
+  return {tier:t,slot:slot,net:pick.median*taxMul,label:simRollLabel(slot,pick.skills),unpriced:false}
+}
+function simTile(tier,slot){
+  return '<div class="sim-tile" style="--tier:'+RARITIES[tier-1].colour+'">'+
+    '<i style="background-position:'+(sheetColumn(slot)*20)+'% '+((tier-1)/5*100)+'%"></i></div>'
+}
+var simBusy=false;
+function simRun(n){
+  if(simBusy)return;
+  if(!craftState.summary){$('simResult').textContent='Collector prices are not loaded yet.';return}
+  var taxPct=Number($('tax').value);
+  if(!isFinite(taxPct)||taxPct<0)taxPct=0;
+  var taxMul=1-taxPct/100;
+  var cost=craftWalk('case1',n);
+  var results=[],i;
+  for(i=0;i<n;i++)results.push(simOpenOne(taxMul));
+  var got=results.reduce(function(a,r){return a+r.net},0);
+  var tally=[0,0,0,0,0,0],unpriced=0;
+  results.forEach(function(r){tally[r.tier-1]++;if(r.unpriced)unpriced++});
+
+  var finish=function(){
+    simBusy=false;
+    var spend=cost?cost.cost:null;
+    var line=n===1
+      ? 'You opened a <span class="tier" style="color:'+RARITIES[results[0].tier-1].colour+'">'+
+        esc(RARITIES[results[0].tier-1].name)+' '+esc(slotName(results[0].slot))+'</span>'+
+        (results[0].label?' ('+esc(results[0].label)+')':'')+
+        ', worth '+results[0].net.toFixed(3)+' after tax.'
+      : 'Opened '+n+' cases for '+(spend==null?'?':craftMoney(spend))+
+        ' and pulled '+craftMoney(got)+' of equipment.';
+    if(spend!=null){
+      var pl=got-spend;
+      line+=' <span class="'+(pl>=0?'up':'down')+'">'+craftSigned(pl,3)+
+        ' ('+craftSigned(spend>0?pl/spend*100:0,2)+'%)</span>';
+      if(n>1)line+=' &middot; expected '+craftSigned(caseEdge*n,3)+' over '+n+'.'
+    }
+    $('simResult').innerHTML=line;
+    var rows='<div class="sim-row head"><span>Tier</span><span>Got</span><span>Expected</span></div>';
+    for(var t=1;t<=6;t++){
+      rows+='<div class="sim-row'+(tally[t-1]?' got':'')+'"><span>'+esc(RARITIES[t-1].name)+
+        '</span><span>'+tally[t-1]+'</span><span>'+(CASE_TIER_ODDS[t-1]*n).toFixed(2)+'</span></div>'
+    }
+    $('simTally').innerHTML=rows;
+    $('simNote').textContent=unpriced
+      ? unpriced+' of '+n+' had no collected sales for that exact roll and counted as zero, so this run reads low.'
+      : 'Rolls the real odds against collected prices. It settles on the same answer as the card above, eventually.'
+  };
+
+  // One case gets the reel; a hundred would just be a hundred reels.
+  var reel=$('simReel'),strip=$('simStrip');
+  var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  if(n!==1||reduce){reel.hidden=true;strip.style.transition='none';finish();return}
+
+  simBusy=true;
+  $('simResult').textContent='';$('simTally').innerHTML='';
+  var WIN=42,TOTAL=52,tiles='';
+  for(i=0;i<TOTAL;i++){
+    if(i===WIN)tiles+=simTile(results[0].tier,results[0].slot);
+    else tiles+=simTile(simPick(CASE_TIER_ODDS)+1,SLOTS[Math.floor(Math.random()*SLOTS.length)].code)
+  }
+  strip.innerHTML=tiles;
+  reel.hidden=false;
+  strip.style.transition='none';
+  strip.style.transform='translateX(0)';
+  // Land a little off centre so it does not look mechanically identical every time.
+  var step=64,jitter=(Math.random()-0.5)*34;
+  var target=WIN*step+step/2-reel.clientWidth/2+jitter;
+  requestAnimationFrame(function(){
+    requestAnimationFrame(function(){
+      strip.style.transition='transform 3.1s cubic-bezier(.11,.75,.13,1)';
+      strip.style.transform='translateX('+(-target)+'px)';
+      setTimeout(finish,3200)
+    })
+  })
+}
+function slotName(code){
+  var s=SLOTS.filter(function(x){return x.code===code})[0];
+  return s?s.name:code
+}
+var caseEdge=0;
 function paintCase(){
   if(!$('caseBox'))return;
   var n=Math.floor(Number($('caseCount').value));
@@ -3826,6 +4001,14 @@ function paintCase(){
     var add=odds*exp.net;gross+=add;
     parts.push({net:exp.net,odds:odds,add:add})
   }
+  // A 6% edge on a bet whose spread is nearly twice its own mean takes a long time to
+  // show up. Saying how long is the difference between an average and a plan.
+  var variance=0;
+  for(var v=1;v<=6;v++){
+    var pv=parts[v-1];
+    if(pv)variance+=pv.odds*Math.pow(pv.net-gross,2)
+  }
+  var sd=Math.sqrt(variance);
   var rows='<div class="craft-row head"><span>Tier</span><span>Odds</span><span>Worth</span><span>Adds</span><span>Share</span></div>';
   for(var t2=1;t2<=6;t2++){
     var pr=parts[t2-1],hit=t2===state.tier?' hit':'';
@@ -3844,6 +4027,7 @@ function paintCase(){
   rowsEl.innerHTML=rows;
 
   var total=gross*n,profit=total-cost.cost,pct=cost.cost>0?profit/cost.cost*100:0,many=n>1;
+  caseEdge=gross-cost.unit;
   $('caseLead').textContent=many?'Buy '+n+' Case I, open them, sell what comes out'
                                 :'Buy a Case I, open it, sell what comes out';
   $('caseVerdict').textContent=craftSigned(profit,3);
@@ -3862,6 +4046,15 @@ function paintCase(){
     covered+' of '+space+' possible rolls ('+cov+'%).';
   if(missing)foot+=' '+missing+' tier(s) have no sale data and are treated as worthless, so this is a floor.';
   if(cost.thin)foot+=' The case order book could not fill the whole purchase, so the cost shown is a floor.';
+  var edge=gross-cost.unit;
+  if(sd>0&&edge>0){
+    var need=Math.pow(2*sd/edge,2);
+    foot+=' One case swings '+sd.toFixed(2)+' either way against an edge of '+edge.toFixed(3)+
+      ', so it takes roughly '+Math.round(need/100)*100+' cases before the profit reliably '+
+      'beats the swing. Below that a losing run is normal, not evidence the edge is wrong.'
+  }else if(sd>0){
+    foot+=' One case swings '+sd.toFixed(2)+' either way, so single results say nothing about the average.'
+  }
   foot+=' Selling what you open moves these prices, and the more you open at once the more it moves them.';
   footEl.textContent=foot;
   noteEl.textContent=craftState.src==='ask'?'Best seller on the case book.'
@@ -5501,6 +5694,12 @@ $('craftOddsBtns').addEventListener('click',function(e){
 });
 $('craftCount').addEventListener('input',paintCraft);
 $('caseCount').addEventListener('input',paintCase);
+$('simBtns').addEventListener('click',function(e){
+  var b=e.target.closest('[data-sim]');if(!b)return;
+  var raw=b.getAttribute('data-sim');
+  var n=raw==='count'?Math.floor(Number($('caseCount').value)):Number(raw);
+  simRun(isFinite(n)&&n>0?Math.min(n,9999):1)
+});
 // Refresh the live books alongside the collector's own cadence, but only while they are
 // the selected source.
 setInterval(function(){
