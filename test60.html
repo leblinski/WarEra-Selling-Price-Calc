@@ -3929,6 +3929,69 @@ function collectorFile(name,path,bust){
 function loadIndex(bust){return collectorFile('index','index.json',bust)}
 function loadSummary(bust){return collectorFile('summary','summary.json',bust)}
 function loadBooks(bust){return collectorFile('books','commodities.json',bust)}
+// Equipment has no order book, so the only read on the current floor is what has just
+// sold. The collector publishes depth - a week of history and the roll statistics - but
+// its copy is as old as its last run. One item-filtered Gateway call closes that gap: the
+// collector needs the shared stream because it tracks all 36 categories, but a browser is
+// pricing exactly one, and filtering costs a single request instead of paging.
+var LIVE_TTL=60000,live={};
+function liveEntry(code){var e=live[code];return e&&Date.now()-e.at<LIVE_TTL?e:null}
+function liveSales(code){
+  var e=live[code];return e&&e.rows?e.rows:[]
+}
+// Returned rows are shaped exactly like the collector's so nothing downstream can tell
+// them apart, and merging stays a concatenation rather than a special case.
+function liveRow(raw){
+  var money=Number(raw&&raw.money),when=raw&&raw.createdAt;
+  if(!Number.isFinite(money)||money<=0||!when)return null;
+  var item=raw.item||{};
+  return {_id:'live:'+(raw._id||when+':'+money),transactionType:raw.transactionType||'itemMarket',
+    money:money,createdAt:new Date(when).toISOString(),
+    offerCreatedAt:raw.offerCreatedAt||null,
+    item:{skills:item.skills||{},stats:item.stats}}
+}
+function fetchLiveSales(code){
+  if(!apiKey()||!code)return Promise.resolve(null);
+  var hit=liveEntry(code);
+  if(hit)return Promise.resolve(hit);
+  if(live[code]&&live[code].pending)return live[code].pending;
+  var started=performance.now();
+  var input=encodeURIComponent(JSON.stringify({limit:100,itemCode:code}));
+  var p=fetchJSON(GATEWAY_BASE+'/transaction.getPaginatedTransactions?input='+input,
+      {headers:{'Accept':'application/json','X-API-Key':apiKey()}},FETCH_TIMEOUT)
+    .then(function(json){
+      var rows=unwrapPage(json).items.map(liveRow).filter(Boolean);
+      var e={rows:rows,at:Date.now(),ms:Math.round(performance.now()-started),error:null};
+      live[code]=e;return e
+    },function(err){
+      live[code]={rows:[],at:Date.now(),ms:Math.round(performance.now()-started),
+                  error:err&&err.message?err.message:'request failed'};
+      return live[code]
+    });
+  live[code]={rows:(live[code]||{}).rows||[],at:0,pending:p};
+  return p
+}
+// The published rows carry no transaction id - it was dropped to keep the files small - so
+// identity here is the sale itself: price, second, and roll. Two genuinely distinct sales
+// colliding on all three would be indistinguishable anyway.
+function saleKey(it){
+  var sk=(it.item&&it.item.skills)||{};
+  return [Number(it.money),Math.round(new Date(it.createdAt).getTime()/1000),
+          Object.keys(sk).sort().map(function(k){return k+':'+sk[k]}).join(',')].join('|')
+}
+function mergeSales(base,extra){
+  if(!extra||!extra.length)return {rows:base,added:0};
+  var seen={},out=[],i;
+  for(i=0;i<base.length;i++){seen[saleKey(base[i])]=1;out.push(base[i])}
+  var added=0;
+  for(i=0;i<extra.length;i++){
+    var k=saleKey(extra[i]);
+    if(seen[k])continue;
+    seen[k]=1;out.push(extra[i]);added++
+  }
+  out.sort(function(a,b){return new Date(b.createdAt)-new Date(a.createdAt)});
+  return {rows:out,added:added}
+}
 function loadShard(code,bust){
   var hit=collector.shards[code];
   if(!bust&&collectorAge(hit)<DATA_TTL)return Promise.resolve(hit);
@@ -4238,13 +4301,19 @@ function evidenceEnoughForFast(items,coverage,target){
 function prefetchSelected(){
   if(!hasResolvedRarity()||!state.slot)return;
   var code=itemCode();
-  if(code)loadShard(code).catch(function(){})
+  if(!code)return;
+  loadShard(code).catch(function(){});
+  fetchLiveSales(code)
 }
 function getMarketTransactions(code,deep,forceCoverage){
   var start=performance.now();
   var target=Math.min(MAX_HISTORY_HOURS,deep?deepTargetHours():initialTargetHours());
+  // The collector answers instantly from memory; the live tail is whatever has arrived by
+  // now. Waiting on the Gateway would trade a fast answer for a fresher one, so this takes
+  // what is ready and the caller refreshes when the rest lands.
   return loadShard(code).then(function(shard){
-    var all=shard._sales||[],cut=Date.now()-target*3600000;
+    var merged=mergeSales(shard._sales||[],liveSales(code)),entry=live[code]||{};
+    var all=merged.rows,cut=Date.now()-target*3600000;
     var items=all.filter(function(it){return new Date(it.createdAt).getTime()>=cut});
     // A sparse category can have nothing inside the fast window. Showing the whole retained
     // week beats showing nothing, so widen and let coverageHours report what was used.
@@ -4256,7 +4325,9 @@ function getMarketTransactions(code,deep,forceCoverage){
       coverageHours:coverage,durationMs:Math.round(performance.now()-start),
       persistentCache:collectorAge(shard)>50,partial:false,nextCursor:null,
       targetHours:target,deep:!!deep,evidenceStop:false,widened:widened,
-      collectedAt:shard.generated_at,coverageStart:shard.coverage_start}}
+      collectedAt:shard.generated_at,coverageStart:shard.coverage_start,
+      liveAdded:merged.added,liveMs:entry.ms||null,liveError:entry.error||null,
+      liveKey:!!apiKey()}}
   })
 }
 
@@ -4600,7 +4671,9 @@ function refineFastHistoryInBackground(code,sig){
     renderModel(buildModel(sales,res.meta),res.meta);
     state.lastAnalyseSig=sig;
     setSalesStatus('Market refined · '+Number(res.meta.coverageHours||0).toFixed(1)+'h · '+res.meta.durationMs+' ms'
-      +(res.meta.persistentCache?' · cache':'')+'.',res.meta.partial?'error':'ok')
+      +(res.meta.persistentCache?' · cache':'')
+      +(res.meta.liveAdded?' · +'+res.meta.liveAdded+' live ('+res.meta.liveMs+' ms)':'')
+      +'.',res.meta.partial?'error':'ok')
   }).catch(function(){
     // Keep the already-rendered evidence-fast answer. Background refinement
     // failure should never turn a usable result back into an error.
@@ -4634,9 +4707,22 @@ function analyse(deep){
     setSalesStatus((deep?'Full week':'Recent')+' window · '+res.meta.marketRows+' sales over '
       +Number(res.meta.coverageHours||0).toFixed(1)+'h'
       +(res.meta.widened?' (widened: sparse)':'')
-      +' · collected '+dataAgeText(res.meta.collectedAt)+'.','ok');
+      +' · collected '+dataAgeText(res.meta.collectedAt)
+      +(res.meta.liveAdded?' · +'+res.meta.liveAdded+' live ('+res.meta.liveMs+' ms)':'')
+      +(res.meta.liveError?' · live sales unavailable':'')
+      +'.','ok');
     if(!deep&&res.meta.evidenceStop&&Number(res.meta.coverageHours||0)<Number(res.meta.targetHours||0)&&res.meta.nextCursor){
       refineAfter={code:state.itemCode,sig:state.lastAnalyseSig}
+    }
+    // The collector answered before the Gateway did. Fold the live tail in when it lands,
+    // but only if the answer on screen is still the one it would change.
+    if(res.meta.liveKey&&!res.meta.liveAdded&&!res.meta.liveError){
+      var liveSig=state.lastAnalyseSig,liveCode=state.itemCode;
+      fetchLiveSales(liveCode).then(function(e){
+        if(!e||!e.rows||!e.rows.length)return;
+        if(currentAnalyseSignature()!==liveSig||itemCode()!==liveCode)return;
+        refineFastHistoryInBackground(liveCode,liveSig)
+      })
     }
   }).catch(function(e){
     var why=e&&e.name==='AbortError'?'Gateway timeout':(e&&e.message?e.message:'unknown error');
@@ -5018,6 +5104,8 @@ function debug(meta,m){
       'better cheap pattern: '+m.pressure.count+' @ '+(m.pressure.price===null?'—':fmt(m.pressure.price)),
       'better pressure active: '+(m.pressureActive?'YES':'no'))
   }
+  lines.push('live sales merged: '+(meta.liveAdded||0)+(meta.liveMs?' in '+meta.liveMs+' ms':'')
+    +(meta.liveError?' (error: '+meta.liveError+')':meta.liveKey?'':' (no API key)'));
   lines.push('duration: '+meta.durationMs+' ms');$('debug').textContent=lines.join('\n')
 }
 
