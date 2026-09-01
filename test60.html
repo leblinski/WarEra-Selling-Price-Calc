@@ -663,24 +663,33 @@ kbd{
 @media (prefers-reduced-motion:reduce){.sim-strip{transition:none!important}}
 /* Three places instead of one column. Pricing an item is the thing done every time, so it
    is what opens; craft and case analysis are consulted, not scrolled past. */
-.tabbar{
-  display:flex;gap:4px;margin:0 0 14px;padding:4px;border-radius:10px;
-  background:var(--panel);border:1px solid var(--line)
-}
+.tabbar{display:flex;gap:7px;margin:0 0 14px}
 .tabbtn{
-  flex:1 1 0;min-width:0;padding:9px 6px;border:0;border-radius:7px;background:transparent;
-  color:var(--dim);cursor:pointer;font-family:"Saira Condensed",sans-serif;font-weight:600;
+  flex:1 1 auto;min-width:0;padding:10px 4px;border-radius:9px;cursor:pointer;
+  border:1px solid var(--line);background:var(--panel);color:var(--dim);
+  font-family:"Saira Condensed",sans-serif;font-weight:600;
   font-size:12.5px;letter-spacing:.09em;text-transform:uppercase;
-  display:flex;align-items:center;justify-content:center;gap:6px
+  display:flex;align-items:center;justify-content:center;gap:5px;
+  transition:border-color .12s,background .12s,color .12s
 }
-.tabbtn b{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:11px;letter-spacing:0}
-.tabbtn[aria-selected=true]{background:var(--panel-2);color:var(--brass);box-shadow:0 1px 0 rgba(0,0,0,.25)}
+@media (max-width:400px){
+  .tabbtn{font-size:11.5px;letter-spacing:.05em}
+  .tabbtn b{font-size:10.5px}
+  .tabbtn .tabdot{width:6px;height:6px}
+}
+.tabbtn b{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:11px;letter-spacing:0;color:var(--dim)}
+.tabbtn:hover:not([aria-selected=true]){border-color:rgba(var(--brass-rgb),.45);color:var(--ink)}
+.tabbtn[aria-selected=true]{
+  border-color:var(--brass);background:rgba(var(--brass-rgb),.14);color:var(--brass);
+  box-shadow:0 0 0 1px rgba(var(--brass-rgb),.35),0 2px 8px rgba(0,0,0,.3)
+}
 .tabbtn[aria-selected=true] b{color:var(--verdigris)}
 .tabbtn .tabdot{
   width:7px;height:7px;border-radius:50%;background:var(--verdigris);flex:0 0 auto;display:none
 }
 .tabbtn[data-flag=up] .tabdot{display:block}
 .tabbtn[data-flag=down] .tabdot{display:block;background:var(--rust)}
+@media (prefers-reduced-motion:reduce){.tabbtn{transition:none}}
 .tabpane[hidden]{display:none}
 .datastrip{
   display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
