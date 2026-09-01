@@ -661,6 +661,27 @@ kbd{
   font-size:11.5px;color:var(--ink);line-height:1.45
 }
 @media (prefers-reduced-motion:reduce){.sim-strip{transition:none!important}}
+/* Three places instead of one column. Pricing an item is the thing done every time, so it
+   is what opens; craft and case analysis are consulted, not scrolled past. */
+.tabbar{
+  display:flex;gap:4px;margin:0 0 14px;padding:4px;border-radius:10px;
+  background:var(--panel);border:1px solid var(--line)
+}
+.tabbtn{
+  flex:1 1 0;min-width:0;padding:9px 6px;border:0;border-radius:7px;background:transparent;
+  color:var(--dim);cursor:pointer;font-family:"Saira Condensed",sans-serif;font-weight:600;
+  font-size:12.5px;letter-spacing:.09em;text-transform:uppercase;
+  display:flex;align-items:center;justify-content:center;gap:6px
+}
+.tabbtn b{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:11px;letter-spacing:0}
+.tabbtn[aria-selected=true]{background:var(--panel-2);color:var(--brass);box-shadow:0 1px 0 rgba(0,0,0,.25)}
+.tabbtn[aria-selected=true] b{color:var(--verdigris)}
+.tabbtn .tabdot{
+  width:7px;height:7px;border-radius:50%;background:var(--verdigris);flex:0 0 auto;display:none
+}
+.tabbtn[data-flag=up] .tabdot{display:block}
+.tabbtn[data-flag=down] .tabdot{display:block;background:var(--rust)}
+.tabpane[hidden]{display:none}
 .datastrip{
   display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
   margin:0 0 14px;padding:9px 13px;border:1px solid var(--line);
@@ -2442,6 +2463,13 @@ h1 .title-word{white-space:nowrap}
 
   <div class="layout">
     <main>
+      <div class="tabbar" role="tablist" id="tabBar">
+        <button type="button" class="tabbtn" role="tab" data-tab="price" aria-selected="true">Price</button>
+        <button type="button" class="tabbtn" role="tab" data-tab="craft" aria-selected="false">Craft <span class="tabdot"></span><b id="tabCraftVal"></b></button>
+        <button type="button" class="tabbtn" role="tab" data-tab="cases" aria-selected="false">Cases <span class="tabdot"></span><b id="tabCaseVal"></b></button>
+      </div>
+
+      <div class="tabpane" id="paneprice">
       <section class="pinzone" id="pinZone">
       <div class="fields">
         <div>
@@ -2813,6 +2841,9 @@ h1 .title-word{white-space:nowrap}
       </div>
 
       <p class="warn" id="warn" hidden></p>
+      </div>
+
+      <div class="tabpane" id="panecraft" hidden>
 
       <section class="flip" id="craftBox">
         <p class="flip-label">Craft it instead?</p>
@@ -2846,6 +2877,9 @@ h1 .title-word{white-space:nowrap}
       </section>
 
 
+      </div>
+
+      <div class="tabpane" id="panecases" hidden>
       <section class="flip" id="caseBox">
         <p class="flip-label">Open a case?</p>
         <p class="flip-lead" id="caseLead">Buy a Case I, open it, sell what comes out</p>
@@ -2877,6 +2911,8 @@ h1 .title-word{white-space:nowrap}
           <p class="scrap-tabnote" id="simNote">Rolls the real odds against collected prices. It settles on the same answer as the card above, eventually.</p>
         </div>
       </section>
+
+      </div>
 
       <div class="datastrip">
         <span class="datastrip-text" id="dataStamp">Loading collector prices…</span>
@@ -3922,7 +3958,8 @@ function paintCraft(){
       '<span>'+(beScrap>0?beScrap.toFixed(4):'—')+'</span></div>';
     if(t===state.tier){
       mine={t:t,scrapQty:scrapQty,steelQty:steelQty,sc:sc,st:st,exp:exp,gross:gross,
-            cost:cost,profit:profit,pct:pct,beScrap:beScrap,beSteel:beSteel}
+            cost:cost,profit:profit,pct:pct,beScrap:beScrap,beSteel:beSteel};
+      craftTabPct=pct;paintTabBadges()
     }
   }
   rowsEl.innerHTML=rows;
@@ -4168,6 +4205,7 @@ function paintCase(){
 
   var total=gross*n,profit=total-cost.cost,pct=cost.cost>0?profit/cost.cost*100:0,many=n>1;
   caseEdge=gross-cost.unit;
+  caseTabPct=pct;paintTabBadges();
   $('caseLead').textContent=many?'Buy '+n+' Case I, open them, sell what comes out'
                                 :'Buy a Case I, open it, sell what comes out';
   $('caseVerdict').textContent=craftSigned(profit,3);
@@ -4237,6 +4275,41 @@ function setCraftOdds(odds){
 }
 // A refresh confirmation holds the line briefly so the periodic repaint cannot wipe it.
 var dataStampHold=0;
+/* ---- Tabs ------------------------------------------------------------------
+   The craft and case cards were half the page and sat in the way of the thing done every
+   time. They keep their answers on the tab itself, so moving them out of the scroll path
+   does not mean losing sight of whether either is currently worth doing. */
+var TABS=['price','craft','cases'];
+function currentTab(){
+  try{var t=localStorage.getItem('warera-calc-tab');return TABS.indexOf(t)>=0?t:'price'}
+  catch(e){return 'price'}
+}
+function setTab(name,fromUser){
+  if(TABS.indexOf(name)<0)name='price';
+  try{localStorage.setItem('warera-calc-tab',name)}catch(e){}
+  TABS.forEach(function(t){
+    var pane=$('pane'+t);if(pane)pane.hidden=t!==name
+  });
+  Array.prototype.forEach.call($('tabBar').children,function(b){
+    b.setAttribute('aria-selected',b.getAttribute('data-tab')===name?'true':'false')
+  });
+  if(fromUser)window.scrollTo(0,0)
+}
+// A tab you are not looking at still has an answer, and the edge is the whole reason to
+// open it, so it rides on the tab rather than waiting to be found.
+function paintTabBadges(){
+  var bar=$('tabBar');if(!bar)return;
+  var set=function(tab,val,pct){
+    var btn=bar.querySelector('[data-tab="'+tab+'"]');if(!btn)return;
+    var out=btn.querySelector('b');
+    if(val==null||!isFinite(pct)){out.textContent='';btn.removeAttribute('data-flag');return}
+    out.textContent=craftSigned(pct,1)+'%';
+    btn.setAttribute('data-flag',pct>=0?'up':'down')
+  };
+  set('craft',craftTabPct,craftTabPct);
+  set('cases',caseTabPct,caseTabPct)
+}
+var craftTabPct=null,caseTabPct=null;
 function paintDataStamp(){
   var idx=collector.index;
   if(!$('dataStamp'))return;
@@ -5843,6 +5916,9 @@ $('craftOddsBtns').addEventListener('click',function(e){
 });
 $('craftCount').addEventListener('input',paintCraft);
 $('caseCount').addEventListener('input',paintCase);
+$('tabBar').addEventListener('click',function(e){
+  var b=e.target.closest('[data-tab]');if(b)setTab(b.getAttribute('data-tab'),true)
+});
 $('simBtns').addEventListener('click',function(e){
   var b=e.target.closest('[data-sim]');if(!b)return;
   var raw=b.getAttribute('data-sim');
@@ -6065,6 +6141,7 @@ loadLocalProfile().then(function(){
   loadProfile();
 });
 syncInputs();refreshMarketOpts();setWorkMode(isDesktop()?'sales':'price');
+setTab(currentTab());
 setScrapSource(scrapSource());loadScrapPrice();
 setCraftOdds(craftState.odds);setCraftSource(craftState.src);loadCraftData();
 coreCalc(true);
