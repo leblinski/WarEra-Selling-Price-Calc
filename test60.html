@@ -3624,28 +3624,36 @@ function craftSlotValue(slot,t,taxMul){
     if(k!==null)seen[k]=rolls[key]
   }
   var space=craftRollSpace(slot,t),byCount=slot==='weapon'&&craftState.odds==='observed';
-  var wsum=0,vsum=0,covered=0,samples=0;
+  var dis=craftDismantle(t);
+  var wsum=0,vsum=0,covered=0,samples=0,broken=0;
   for(var i=0;i<space.length;i++){
     var row=seen[space[i]];if(!row)continue;
     var stat=row.selected||row.fallback_48h;
     if(!stat||stat.median==null)continue;
     var n=(row.fallback_48h||{}).count||0,w=byCount?n:1;
     if(w<=0)continue;
-    covered++;samples+=n;wsum+=w;vsum+=w*stat.median
+    // A roll that lists for less than its own scrap is worth breaking, and enough of them
+    // are that valuing every piece at its sale price understates what a case is worth.
+    var sale=stat.median*taxMul,best=Math.max(sale,dis);
+    if(dis>sale)broken+=w;
+    covered++;samples+=n;wsum+=w;vsum+=w*best
   }
   if(!wsum)return null;
-  return {net:vsum/wsum*taxMul,covered:covered,space:space.length,samples:samples}
+  return {net:vsum/wsum,covered:covered,space:space.length,samples:samples,
+          broken:broken,weight:wsum}
 }
 // Expected proceeds from one craft, over every slot it could produce.
 function craftExpected(t,taxMul){
-  var wsum=0,net=0,covered=0,space=0,samples=0,missing=0;
+  var wsum=0,net=0,covered=0,space=0,samples=0,missing=0,broken=0,rollw=0;
   for(var s=0;s<SLOTS.length;s++){
     var slot=SLOTS[s].code,w=CRAFT_SLOT_WEIGHT[slot]||1,v=craftSlotValue(slot,t,taxMul);
     if(!v){missing++;continue}
-    wsum+=w;net+=w*v.net;covered+=v.covered;space+=v.space;samples+=v.samples
+    wsum+=w;net+=w*v.net;covered+=v.covered;space+=v.space;samples+=v.samples;
+    broken+=w*v.broken;rollw+=w*v.weight
   }
   if(!wsum)return null;
-  return {net:net/wsum,covered:covered,space:space,samples:samples,missingSlots:missing}
+  return {net:net/wsum,covered:covered,space:space,samples:samples,missingSlots:missing,
+          brokenShare:rollw>0?broken/rollw:0}
 }
 
 // The Gateway is only ever read with the key the person using this page supplied, and
@@ -3689,6 +3697,10 @@ function loadGatewayBooks(force){
     else craftState.liveError=(err&&err.message?err.message:'request failed');
     craftState.sig=null;craftState.caseSig=null;paintCraft();paintCase()
   })
+}
+function craftDismantle(t){
+  var ob=craftBook('scraps'),bid=ob&&ob.best_bid;
+  return bid==null?0:SCRAP_YIELDS[t-1]*Number(bid)
 }
 function craftBook(code){
   if(craftState.src==='live'&&craftState.live&&craftState.live[code])return craftState.live[code];
@@ -3833,7 +3845,10 @@ function paintCraft(){
   $('craftDetail').textContent=head+head2;
 
   var cov=mine.exp.space?Math.round(mine.exp.covered/mine.exp.space*100):0;
-  var foot=mine.exp.samples.toLocaleString()+' sales across '+mine.exp.covered+' of '+
+  var brokePct=Math.round((mine.exp.brokenShare||0)*100);
+  var foot=(brokePct?brokePct+'% of this tier\u2019s rolls are worth more dismantled than listed and are '+
+    'valued that way. ':'')+
+    mine.exp.samples.toLocaleString()+' sales across '+mine.exp.covered+' of '+
     mine.exp.space+' possible rolls ('+cov+'%). Slots weighted 2:1:1:1:1:1 in the weapon’s favour; '+
     (craftState.odds==='observed'?'weapon rolls weighted by how often each one trades'
       :'every roll given even odds')+'.';
@@ -3999,7 +4014,7 @@ function paintCase(){
     if(!exp){missing++;parts.push(null);continue}
     covered+=exp.covered;space+=exp.space;samples+=exp.samples;
     var add=odds*exp.net;gross+=add;
-    parts.push({net:exp.net,odds:odds,add:add})
+    parts.push({net:exp.net,odds:odds,add:add,broken:exp.brokenShare||0})
   }
   // A 6% edge on a bet whose spread is nearly twice its own mean takes a long time to
   // show up. Saying how long is the difference between an average and a plan.
@@ -4009,7 +4024,7 @@ function paintCase(){
     if(pv)variance+=pv.odds*Math.pow(pv.net-gross,2)
   }
   var sd=Math.sqrt(variance);
-  var rows='<div class="craft-row head"><span>Tier</span><span>Odds</span><span>Worth</span><span>Adds</span><span>Share</span></div>';
+  var rows='<div class="craft-row head"><span>Tier</span><span>Odds</span><span>Worth</span><span>Break</span><span>Adds</span></div>';
   for(var t2=1;t2<=6;t2++){
     var pr=parts[t2-1],hit=t2===state.tier?' hit':'';
     if(!pr){
@@ -4021,8 +4036,8 @@ function paintCase(){
       '<span>'+esc(RARITIES[t2-1].name)+'</span>'+
       '<span>'+(pr.odds*100).toFixed(2)+'%</span>'+
       '<span>'+craftMoney(pr.net)+'</span>'+
-      '<span>'+pr.add.toFixed(4)+'</span>'+
-      '<span>'+(gross>0?(pr.add/gross*100).toFixed(1):'\u2014')+'%</span></div>'
+      '<span>'+Math.round(pr.broken*100)+'%</span>'+
+      '<span>'+pr.add.toFixed(4)+'</span></div>'
   }
   rowsEl.innerHTML=rows;
 
@@ -4043,7 +4058,9 @@ function paintCase(){
   var cov=space?Math.round(covered/space*100):0;
   var foot='Odds are the game\u2019s own: weapon 30% / equipment 70%, and the tier rates shown. '+
     'Piece values are collected sale medians across '+samples.toLocaleString()+' sales covering '+
-    covered+' of '+space+' possible rolls ('+cov+'%).';
+    covered+' of '+space+' possible rolls ('+cov+'%). Break is how often a roll of that tier '+
+    'is worth more dismantled than listed, and each piece is valued at whichever is higher - '+
+    'so this assumes you check every piece rather than listing all of them.';
   if(missing)foot+=' '+missing+' tier(s) have no sale data and are treated as worthless, so this is a floor.';
   if(cost.thin)foot+=' The case order book could not fill the whole purchase, so the cost shown is a floor.';
   var edge=gross-cost.unit;
