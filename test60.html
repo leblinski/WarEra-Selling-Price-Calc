@@ -3909,7 +3909,10 @@ function simOpenOne(taxMul){
   var table=craftRollTable(slot,t);
   if(!table||!table.rows.length)return {tier:t,slot:slot,net:0,label:'no collected sales',unpriced:true};
   var pick=table.rows[simPick(table.rows.map(function(r){return r.w}))];
-  return {tier:t,slot:slot,net:pick.median*taxMul,label:simRollLabel(slot,pick.skills),unpriced:false}
+  // Same choice the card values a piece at, or the simulator would drift away from it.
+  var sale=pick.median*taxMul,dis=craftDismantle(t);
+  return {tier:t,slot:slot,net:Math.max(sale,dis),sale:sale,dis:dis,broke:dis>sale,
+          label:simRollLabel(slot,pick.skills),unpriced:false}
 }
 function simTile(tier,slot){
   return '<div class="sim-tile" style="--tier:'+RARITIES[tier-1].colour+'">'+
@@ -3936,7 +3939,10 @@ function simRun(n){
       ? 'You opened a <span class="tier" style="color:'+RARITIES[results[0].tier-1].colour+'">'+
         esc(RARITIES[results[0].tier-1].name)+' '+esc(slotName(results[0].slot))+'</span>'+
         (results[0].label?' ('+esc(results[0].label)+')':'')+
-        ', worth '+results[0].net.toFixed(3)+' after tax.'
+        (results[0].broke
+          ? '. Break it: '+results[0].net.toFixed(3)+' in scraps beats the '+
+            results[0].sale.toFixed(3)+' it would list for.'
+          : ', worth '+results[0].net.toFixed(3)+' listed.')
       : 'Opened '+n+' cases for '+(spend==null?'?':craftMoney(spend))+
         ' and pulled '+craftMoney(got)+' of equipment.';
     if(spend!=null){
