@@ -696,6 +696,12 @@ kbd{
 }
 /* Rarity is inferred from entered market price unless user pins it. */
 .rarity-label.auto::after{content:" · from price";font-size:9px;color:var(--dim)}
+.rarity-ask{
+  flex:1 1 100%;margin:7px 0 0;padding:8px 10px;border-radius:8px;
+  border:1px solid var(--verdigris);background:rgba(var(--brass-rgb),.05)
+}
+.rarity-ask p{margin:0 0 7px;font-size:12px;color:var(--ink);line-height:1.4}
+.rarity-ask-btns{display:flex;gap:6px;flex-wrap:wrap}
 .rarity-label.pinned::after{content:" · pinned";font-size:9px;color:var(--brass)}
 
 
@@ -2446,6 +2452,10 @@ h1 .title-word{white-space:nowrap}
 
       <div class="rarity" id="rarityPanel" role="group" aria-label="Item rarity">
         <span class="rarity-label auto" id="rarityLabel">Rarity</span>
+        <div class="rarity-ask" id="rarityAsk" hidden>
+          <p id="rarityAskText"></p>
+          <div class="rarity-ask-btns" id="rarityAskBtns"></div>
+        </div>
         <div class="rarity-btns" id="rarityBtns">
           <button type="button" class="rarity-btn" data-tier="1" aria-pressed="false" style="--tier:#9AA0A6" title="Basic">
             <span class="badge" style="background-position-x:0%"></span>
@@ -2885,6 +2895,7 @@ var FETCH_TIMEOUT=12000,DATA_TTL=5*60*1000,MIN_WINDOW_ROWS=5;
 var MAX_HISTORY_HOURS=168;
 var WEAPON_CRIT_WEIGHT=4.15;
 
+var TIER_OF_RARITY={common:1,uncommon:2,rare:3,epic:4,legendary:5,mythic:6};
 var RARITIES=[
   {name:'Basic',colour:'#9AA0A6'},{name:'Reinforced',colour:'#5BB85B'},
   {name:'Advanced',colour:'#4A90D9'},{name:'Elite',colour:'#9B6FC6'},
@@ -3380,11 +3391,68 @@ function coreDisplayed(){
   state.lastPrice=clean;return clean
 }
 
+// Fallback only. The game has moved these before and a hardcoded table is how the old
+// ones went quietly wrong, so the collector's observed range per tier is preferred.
 var RARITY_BANDS=[2.485,8.069,27.346,92.080,268.430,Infinity];
+var rarityRangeCache={stamp:null,ranges:null};
+function rarityRanges(){
+  var sum=craftState.summary;
+  if(!sum||!sum.categories)return null;
+  if(rarityRangeCache.stamp===sum.generated_at)return rarityRangeCache.ranges;
+  var byTier={},code;
+  for(code in sum.categories){
+    if(!Object.prototype.hasOwnProperty.call(sum.categories,code))continue;
+    var cat=sum.categories[code],t=RARITIES.map(function(r){return r.name.toLowerCase()}).indexOf('');
+    t=TIER_OF_RARITY[cat.rarity];
+    if(!t)continue;
+    var rolls=cat.rolls||{},key;
+    for(key in rolls){
+      if(!Object.prototype.hasOwnProperty.call(rolls,key))continue;
+      var st=rolls[key].fallback_48h||rolls[key].selected;
+      if(!st||st.min==null||st.max==null)continue;
+      var cur=byTier[t]||(byTier[t]={min:Infinity,max:0});
+      if(st.min<cur.min)cur.min=st.min;
+      if(st.max>cur.max)cur.max=st.max
+    }
+  }
+  var out=[],ok=0;
+  for(var i=1;i<=6;i++){
+    var r=byTier[i];
+    if(r&&isFinite(r.min)&&r.max>0){out.push(r);ok++}else out.push(null)
+  }
+  rarityRangeCache={stamp:sum.generated_at,ranges:ok>=4?out:null};
+  return rarityRangeCache.ranges
+}
+// Every tier whose observed range contains this price. More than one is a real ambiguity,
+// not something to resolve by picking the more popular tier and hoping.
+function tiersForPrice(v){
+  v=Number(v);
+  if(!Number.isFinite(v)||v<=0)return [];
+  var ranges=rarityRanges();
+  if(!ranges){
+    for(var i=0;i<RARITY_BANDS.length;i++)if(v<RARITY_BANDS[i])return [i+1];
+    return [6]
+  }
+  var hits=[],j;
+  for(j=0;j<6;j++){
+    var r=ranges[j];
+    if(r&&v>=r.min&&v<=r.max)hits.push(j+1)
+  }
+  if(hits.length)return hits;
+  // Between two bands nothing has traded in: take the nearest edge rather than nothing.
+  var best=null,bestGap=Infinity;
+  for(j=0;j<6;j++){
+    var q=ranges[j];if(!q)continue;
+    var gap=v<q.min?q.min-v:v-q.max;
+    if(gap<bestGap){bestGap=gap;best=j+1}
+  }
+  return best?[best]:[]
+}
 function tierFromDisplayedPrice(v){
-  v=Number(v);if(!Number.isFinite(v)||v<=0)return state.tier||1;
-  for(var i=0;i<RARITY_BANDS.length;i++)if(v<RARITY_BANDS[i])return i+1;
-  return 6
+  var hits=tiersForPrice(v);
+  if(!hits.length)return state.tier||1;
+  if(hits.length===1)return hits[0];
+  return hits.indexOf(state.tier)>=0?state.tier:hits[0]
 }
 function syncTierFromPrice(v){
   var n=Number(v);
@@ -3401,7 +3469,12 @@ function syncTierFromPrice(v){
     // Changing Price to target returns rarity inference to automatic.
     state.pinnedTier=null;state.pinnedAtPrice=null;
   }
-  var t=tierFromDisplayedPrice(v);
+  var hits=tiersForPrice(v);
+  // Where the bands overlap the price genuinely does not say which tier this is, and the
+  // person holding the item does. Guessing would be a confident wrong answer, and every
+  // number after this one - rolls, dismantle floor, the whole model - depends on it.
+  paintRarityAsk(hits.length>1?hits:null,n);
+  var t=hits.length>1?(hits.indexOf(state.tier)>=0?state.tier:hits[0]):tierFromDisplayedPrice(v);
   if(t!==state.tier){
     state.tier=t;state.rolls={};state.slot=state.slot||null;
     buildRarity();buildSlots();if(state.slot)buildRolls()
@@ -3409,6 +3482,27 @@ function syncTierFromPrice(v){
   $('rarityLabel').classList.add('auto');$('rarityLabel').classList.remove('pinned')
 }
 
+function paintRarityAsk(hits,price){
+  var box=$('rarityAsk');if(!box)return;
+  if(!hits||hits.length<2){box.hidden=true;box.setAttribute('data-hits','');$('rarityAskBtns').innerHTML='';return}
+  $('rarityAskText').textContent=Number(price).toFixed(3)+
+    ' is a legal price for more than one rarity, so it cannot be read off the price. Which is it?';
+  // Answering this blurs the price field, which recalculates, which lands back here. If
+  // that rebuilt the buttons the pressed one would be destroyed between press and release
+  // and the answer would be swallowed, so the nodes only change when the choices do.
+  var key=hits.join(',');
+  if(box.getAttribute('data-hits')!==key){
+    box.setAttribute('data-hits',key);
+    $('rarityAskBtns').innerHTML=hits.map(function(t){
+      return '<button type="button" class="soundbtn" data-askrarity="'+t+'">'+
+        esc(RARITIES[t-1].name)+'</button>'
+    }).join('')
+  }
+  Array.prototype.forEach.call($('rarityAskBtns').children,function(el){
+    el.setAttribute('aria-pressed',Number(el.getAttribute('data-askrarity'))===state.tier?'true':'false')
+  });
+  box.hidden=false
+}
 function displayedTargetFromShown(shown,beating){
   var n=Number(shown);
   if(!Number.isFinite(n)||n<=0)return null;
@@ -5577,6 +5671,16 @@ function commitAndMaybeCopy(fromPaste){
 }
 
 /* events */
+$('rarityAskBtns').addEventListener('click',function(e){
+  var b=e.target.closest('[data-askrarity]');if(!b)return;
+  var t=Number(b.getAttribute('data-askrarity'));
+  state.pinnedTier=t;state.pinnedAtPrice=Number(coreDisplayed()||0)||null;
+  state.tier=t;state.rolls={};
+  buildRarity();buildSlots();if(state.slot)buildRolls();
+  $('rarityAsk').hidden=true;
+  $('rarityLabel').classList.remove('auto');$('rarityLabel').classList.add('pinned');
+  updateCompactRarity();coreCalc(true)
+});
 $('rarityBtns').addEventListener('click',function(e){
   var b=e.target.closest('[data-tier]');if(!b)return;
   var t=Number(b.getAttribute('data-tier'));
