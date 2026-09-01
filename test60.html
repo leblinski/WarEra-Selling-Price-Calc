@@ -132,7 +132,8 @@ input:focus{outline:none;border-color:var(--brass);box-shadow:0 0 0 3px rgba(var
 .rarity-btns{display:flex;gap:5px;flex:1 1 auto;min-width:0}
 .rarity-btn{
   border:1px solid transparent;border-radius:9px;background:transparent;
-  padding:2px;cursor:pointer;flex:1 1 0;min-width:0;opacity:.45;filter:saturate(.55)
+  padding:2px;cursor:pointer;flex:1 1 0;min-width:0;max-width:60px;
+  opacity:.45;filter:saturate(.55)
 }
 .rarity-btn .badge{
   display:block;width:100%;aspect-ratio:1/1;background-image:url('badges.png');
@@ -2331,9 +2332,9 @@ h1 .title-word{white-space:nowrap}
       this browser only, sent to the Gateway alone, and never to the collector or anywhere
       else.</p>
       <p class="settings-head">Calculator mode</p>
-      <label class="checkrow" style="margin:0 0 14px">
+      <label class="settings-toggle on" id="beatWrap">
         <input type="checkbox" id="beatMode" checked>
-        <span><strong>Beat their price</strong><br>Undercut the displayed market price by the smallest amount that still wins. Switch off to convert a displayed price without undercutting.</span>
+        <span><strong>Beat their price</strong><span>Undercut the displayed market price by the smallest amount that still wins. Switch off to convert a displayed price without undercutting.</span></span>
       </label>
       <label class="settings-toggle on" id="quickWrap">
         <input type="checkbox" id="quickInput" checked>
@@ -3245,7 +3246,7 @@ function updateTaxChip(){
 }
 
 function syncSettings(){
-  [['quickInput','quickWrap'],['autoCopy','autoWrap'],['sound','soundWrap']].forEach(function(x){
+  [['beatMode','beatWrap'],['quickInput','quickWrap'],['autoCopy','autoWrap'],['sound','soundWrap']].forEach(function(x){
     $(x[1]).classList.toggle('on',$(x[0]).checked)
   })
 }
@@ -5584,10 +5585,20 @@ $('histList').addEventListener('click',function(e){
   var x=readRecent()[Number(b.getAttribute('data-recent'))];if(x)copyTextSafe(x.price)
 });
 
-window.addEventListener('blur',function(){coreCalc(true)});
-window.addEventListener('focus',armInput);
+var awayAt=0;
+function markAway(){if(!awayAt)awayAt=Date.now()}
+// A real trip to another app or tab lasts longer than the momentary blur a native control
+// causes, so the gap is what separates coming back from never having left.
+function returnedFromAway(){
+  var gone=awayAt?Date.now()-awayAt:0;
+  awayAt=0;
+  return gone>700
+}
+window.addEventListener('blur',function(){markAway();coreCalc(true)});
+window.addEventListener('focus',function(){if(returnedFromAway())armInput()});
 document.addEventListener('visibilitychange',function(){
-  if(document.hidden)coreCalc(true);else armInput()
+  if(document.hidden){markAway();coreCalc(true)}
+  else if(returnedFromAway())armInput()
 });
 
 document.addEventListener('keydown',function(e){
