@@ -3522,6 +3522,11 @@ function tierFromDisplayedPrice(v){
   if(!hits.length)return state.tier||1;
   return hits[hits.length-1]
 }
+// Until a price has been typed or a rarity pinned, the rarity showing is only the default
+// one, not a fact about anything held. Numbers that depend on it are not answers yet.
+function tierKnown(){
+  return state.pinnedTier!=null||!!extractNumber($('price').value)
+}
 function syncTierFromPrice(v){
   var n=Number(v);
   if(state.pinnedTier){
@@ -3904,7 +3909,7 @@ function craftSigned(v,dp){
 // has actually moved.
 function paintCraft(){
   if(!$('craftBox'))return;
-  var sig=[state.tier,$('tax').value,craftState.src,craftState.odds,$('craftCount').value,
+  var sig=[state.tier,tierKnown()?'k':'',$('tax').value,craftState.src,craftState.odds,$('craftCount').value,
     craftState.liveAt,craftState.liveLoading?'L':'',craftState.liveError||'',
     craftState.src==='own'?$('craftScrap').value+'/'+$('craftSteel').value:'',
     craftState.summary?'s':'',craftState.books?'b':'',craftState.loading?'L':'',
@@ -3927,11 +3932,13 @@ function paintCraft(){
   if(craftState.error||(!craftState.loading&&!craftState.summary)){
     $('craftVerdict').textContent='—';
     $('craftDetail').textContent=craftState.error||'Collector data unavailable.';
+    craftTabPct=null;paintTabBadges();
     rowsEl.innerHTML='';footEl.textContent='';return
   }
   if(!craftState.summary||!craftState.books){
     $('craftVerdict').textContent='—';
     $('craftDetail').textContent='Reading the collector’s order books and sale history…';
+    craftTabPct=null;paintTabBadges();
     rowsEl.innerHTML='';footEl.textContent='';return
   }
 
@@ -3939,13 +3946,13 @@ function paintCraft(){
   if(!isFinite(taxPct)||taxPct<0)taxPct=0;
   var taxMul=1-taxPct/100,batch=craftCount();
   var rows='<div class="craft-row head"><span>Tier</span><span>Cost</span><span>Sells for</span><span>Profit</span><span>Break even</span></div>';
-  var mine=null,thin=false,anySteel=null,anyScrap=null;
+  var mine=null,thin=false,anySteel=null,anyScrap=null,known=tierKnown();
 
   for(var t=1;t<=6;t++){
     var scrapQty=SCRAP_YIELDS[t-1]*batch,steelQty=CRAFT_STEEL[t-1]*batch;
     var sc=craftInput('scraps',scrapQty,'craftScrap'),st=craftInput('steel',steelQty,'craftSteel');
     var exp=craftExpected(t,taxMul);
-    var hit=t===state.tier?' hit':'';
+    var hit=known&&t===state.tier?' hit':'';
     if(!sc||!st||!exp){
       rows+='<div class="craft-row'+hit+'"><span>'+esc(RARITIES[t-1].name)+
         '</span><span>—</span><span>—</span><span>—</span><span>—</span></div>';
@@ -3965,7 +3972,7 @@ function paintCraft(){
       '<span>'+craftMoney(gross)+'</span>'+
       '<span class="'+cls+'">'+craftSigned(pct,1)+'%</span>'+
       '<span>'+(beScrap>0?beScrap.toFixed(4):'—')+'</span></div>';
-    if(t===state.tier){
+    if(known&&t===state.tier){
       mine={t:t,scrapQty:scrapQty,steelQty:steelQty,sc:sc,st:st,exp:exp,gross:gross,
             cost:cost,profit:profit,pct:pct,beScrap:beScrap,beSteel:beSteel};
       craftTabPct=pct;paintTabBadges()
@@ -3974,8 +3981,14 @@ function paintCraft(){
   rowsEl.innerHTML=rows;
 
   if(!mine){
+    craftTabPct=null;paintTabBadges();
+    $('craftLead').textContent=known
+      ?'Buy the inputs, craft one piece at random, sell it'
+      :'Which rarity would you craft?';
     $('craftVerdict').textContent='—';
-    $('craftDetail').textContent='No usable sale history for '+RARITIES[state.tier-1].name+' yet.';
+    $('craftDetail').textContent=known
+      ?'No usable sale history for '+RARITIES[state.tier-1].name+' yet.'
+      :'Enter a price to beat, or tap a rarity, and this will price a batch of that rarity. The table below holds for every rarity either way.';
     footEl.textContent='';return
   }
   var many=batch>1;
