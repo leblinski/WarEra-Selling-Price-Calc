@@ -696,12 +696,14 @@ kbd{
 }
 /* Rarity is inferred from entered market price unless user pins it. */
 .rarity-label.auto::after{content:" · from price";font-size:9px;color:var(--dim)}
-.rarity-ask{
-  flex:1 1 100%;margin:7px 0 0;padding:8px 10px;border-radius:8px;
-  border:1px solid var(--verdigris);background:rgba(var(--brass-rgb),.05)
+/* The rarity this price could also be. Visible enough to notice and tap, clearly not the
+   one in use, so it reads as an alternative rather than a second selection. */
+.rarity-btn.maybe{
+  opacity:.85;filter:none;border-style:dashed;border-color:var(--tier,var(--brass))
 }
-.rarity-ask p{margin:0 0 7px;font-size:12px;color:var(--ink);line-height:1.4}
-.rarity-ask-btns{display:flex;gap:6px;flex-wrap:wrap}
+.rarity-note{
+  flex:1 1 100%;margin:6px 0 0;font-size:11.5px;color:var(--dim);line-height:1.4
+}
 .rarity-label.pinned::after{content:" · pinned";font-size:9px;color:var(--brass)}
 
 
@@ -2452,10 +2454,7 @@ h1 .title-word{white-space:nowrap}
 
       <div class="rarity" id="rarityPanel" role="group" aria-label="Item rarity">
         <span class="rarity-label auto" id="rarityLabel">Rarity</span>
-        <div class="rarity-ask" id="rarityAsk" hidden>
-          <p id="rarityAskText"></p>
-          <div class="rarity-ask-btns" id="rarityAskBtns"></div>
-        </div>
+        <p class="rarity-note" id="rarityNote" hidden></p>
         <div class="rarity-btns" id="rarityBtns">
           <button type="button" class="rarity-btn" data-tier="1" aria-pressed="false" style="--tier:#9AA0A6" title="Basic">
             <span class="badge" style="background-position-x:0%"></span>
@@ -3448,11 +3447,13 @@ function tiersForPrice(v){
   }
   return best?[best]:[]
 }
+// Inventory is worked through by rarity, highest first, so where a price is legal for two
+// the higher one is the likelier thing to be holding. The other stays on screen rather than
+// being decided away.
 function tierFromDisplayedPrice(v){
   var hits=tiersForPrice(v);
   if(!hits.length)return state.tier||1;
-  if(hits.length===1)return hits[0];
-  return hits.indexOf(state.tier)>=0?state.tier:hits[0]
+  return hits[hits.length-1]
 }
 function syncTierFromPrice(v){
   var n=Number(v);
@@ -3460,7 +3461,7 @@ function syncTierFromPrice(v){
     var samePrice=Number.isFinite(n)&&Number.isFinite(Number(state.pinnedAtPrice))
       &&Math.abs(n-Number(state.pinnedAtPrice))<0.0005;
     if(samePrice){
-      state.tier=state.pinnedTier;
+      state.tier=state.pinnedTier;state.rarityHits=null;paintRarityMaybes();
       $('rarityLabel').classList.remove('auto');$('rarityLabel').classList.add('pinned');
       updateCompactRarity();
       return
@@ -3470,38 +3471,31 @@ function syncTierFromPrice(v){
     state.pinnedTier=null;state.pinnedAtPrice=null;
   }
   var hits=tiersForPrice(v);
-  // Where the bands overlap the price genuinely does not say which tier this is, and the
-  // person holding the item does. Guessing would be a confident wrong answer, and every
-  // number after this one - rolls, dismantle floor, the whole model - depends on it.
-  paintRarityAsk(hits.length>1?hits:null,n);
-  var t=hits.length>1?(hits.indexOf(state.tier)>=0?state.tier:hits[0]):tierFromDisplayedPrice(v);
+  state.rarityHits=hits.length>1?hits:null;
+  var t=tierFromDisplayedPrice(v);
   if(t!==state.tier){
     state.tier=t;state.rolls={};state.slot=state.slot||null;
     buildRarity();buildSlots();if(state.slot)buildRolls()
   }else updateCompactRarity();
+  paintRarityMaybes();
   $('rarityLabel').classList.add('auto');$('rarityLabel').classList.remove('pinned')
 }
 
-function paintRarityAsk(hits,price){
-  var box=$('rarityAsk');if(!box)return;
-  if(!hits||hits.length<2){box.hidden=true;box.setAttribute('data-hits','');$('rarityAskBtns').innerHTML='';return}
-  $('rarityAskText').textContent=Number(price).toFixed(3)+
-    ' is a legal price for more than one rarity, so it cannot be read off the price. Which is it?';
-  // Answering this blurs the price field, which recalculates, which lands back here. If
-  // that rebuilt the buttons the pressed one would be destroyed between press and release
-  // and the answer would be swallowed, so the nodes only change when the choices do.
-  var key=hits.join(',');
-  if(box.getAttribute('data-hits')!==key){
-    box.setAttribute('data-hits',key);
-    $('rarityAskBtns').innerHTML=hits.map(function(t){
-      return '<button type="button" class="soundbtn" data-askrarity="'+t+'">'+
-        esc(RARITIES[t-1].name)+'</button>'
-    }).join('')
-  }
-  Array.prototype.forEach.call($('rarityAskBtns').children,function(el){
-    el.setAttribute('aria-pressed',Number(el.getAttribute('data-askrarity'))===state.tier?'true':'false')
+// Marks the alternatives without rebuilding the row: the buttons are live targets, and
+// replacing them under a finger loses the tap.
+function paintRarityMaybes(){
+  var hits=state.rarityHits,note=$('rarityNote');
+  Array.prototype.forEach.call($('rarityBtns').children,function(el){
+    var t=Number(el.getAttribute('data-tier'));
+    el.classList.toggle('maybe',!!hits&&hits.indexOf(t)>=0&&t!==state.tier)
   });
-  box.hidden=false
+  if(!note)return;
+  var others=(hits||[]).filter(function(t){return t!==state.tier});
+  if(!others.length){note.hidden=true;return}
+  note.textContent='This price is also legal for '+
+    others.map(function(t){return RARITIES[t-1].name}).join(' and ')+
+    ' \u2014 tap it if that is what you are holding.';
+  note.hidden=false
 }
 function displayedTargetFromShown(shown,beating){
   var n=Number(shown);
@@ -5671,16 +5665,6 @@ function commitAndMaybeCopy(fromPaste){
 }
 
 /* events */
-$('rarityAskBtns').addEventListener('click',function(e){
-  var b=e.target.closest('[data-askrarity]');if(!b)return;
-  var t=Number(b.getAttribute('data-askrarity'));
-  state.pinnedTier=t;state.pinnedAtPrice=Number(coreDisplayed()||0)||null;
-  state.tier=t;state.rolls={};
-  buildRarity();buildSlots();if(state.slot)buildRolls();
-  $('rarityAsk').hidden=true;
-  $('rarityLabel').classList.remove('auto');$('rarityLabel').classList.add('pinned');
-  updateCompactRarity();coreCalc(true)
-});
 $('rarityBtns').addEventListener('click',function(e){
   var b=e.target.closest('[data-tier]');if(!b)return;
   var t=Number(b.getAttribute('data-tier'));
