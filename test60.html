@@ -4314,6 +4314,15 @@ function getMarketTransactions(code,deep,forceCoverage){
   return loadShard(code).then(function(shard){
     var merged=mergeSales(shard._sales||[],liveSales(code)),entry=live[code]||{};
     var all=merged.rows,cut=Date.now()-target*3600000;
+    // The collector covers up to its own generated_at; the live call returns a fixed number
+    // of the most recent sales, which on a busy item can span less time than the collector
+    // is stale. When the two do not meet there is a window neither source saw, and a window
+    // of missing sales is exactly the kind of hole that looks like thin trading.
+    var liveRows=liveSales(code),collectedMs=new Date(shard.generated_at).getTime();
+    var oldestLive=liveRows.length?oldestTime(liveRows):null,gapHours=null;
+    if(oldestLive!==null&&Number.isFinite(collectedMs)&&oldestLive>collectedMs){
+      gapHours=(oldestLive-collectedMs)/3600000
+    }
     var items=all.filter(function(it){return new Date(it.createdAt).getTime()>=cut});
     // A sparse category can have nothing inside the fast window. Showing the whole retained
     // week beats showing nothing, so widen and let coverageHours report what was used.
@@ -4327,7 +4336,7 @@ function getMarketTransactions(code,deep,forceCoverage){
       targetHours:target,deep:!!deep,evidenceStop:false,widened:widened,
       collectedAt:shard.generated_at,coverageStart:shard.coverage_start,
       liveAdded:merged.added,liveMs:entry.ms||null,liveError:entry.error||null,
-      liveKey:!!apiKey()}}
+      liveKey:!!apiKey(),liveRows:liveRows.length,liveGapHours:gapHours}}
   })
 }
 
@@ -4673,6 +4682,7 @@ function refineFastHistoryInBackground(code,sig){
     setSalesStatus('Market refined · '+Number(res.meta.coverageHours||0).toFixed(1)+'h · '+res.meta.durationMs+' ms'
       +(res.meta.persistentCache?' · cache':'')
       +(res.meta.liveAdded?' · +'+res.meta.liveAdded+' live ('+res.meta.liveMs+' ms)':'')
+      +(res.meta.liveGapHours>0.05?' · '+res.meta.liveGapHours.toFixed(1)+'h gap between sources':'')
       +'.',res.meta.partial?'error':'ok')
   }).catch(function(){
     // Keep the already-rendered evidence-fast answer. Background refinement
@@ -4710,6 +4720,7 @@ function analyse(deep){
       +' · collected '+dataAgeText(res.meta.collectedAt)
       +(res.meta.liveAdded?' · +'+res.meta.liveAdded+' live ('+res.meta.liveMs+' ms)':'')
       +(res.meta.liveError?' · live sales unavailable':'')
+      +(res.meta.liveGapHours>0.05?' · '+res.meta.liveGapHours.toFixed(1)+'h gap between sources':'')
       +'.','ok');
     if(!deep&&res.meta.evidenceStop&&Number(res.meta.coverageHours||0)<Number(res.meta.targetHours||0)&&res.meta.nextCursor){
       refineAfter={code:state.itemCode,sig:state.lastAnalyseSig}
@@ -5104,6 +5115,9 @@ function debug(meta,m){
       'better cheap pattern: '+m.pressure.count+' @ '+(m.pressure.price===null?'—':fmt(m.pressure.price)),
       'better pressure active: '+(m.pressureActive?'YES':'no'))
   }
+  lines.push('live rows returned: '+(meta.liveRows==null?'—':meta.liveRows)
+    +' · gap between sources: '+(meta.liveGapHours==null?'none'
+      :meta.liveGapHours.toFixed(2)+'h uncovered'));
   lines.push('live sales merged: '+(meta.liveAdded||0)+(meta.liveMs?' in '+meta.liveMs+' ms':'')
     +(meta.liveError?' (error: '+meta.liveError+')':meta.liveKey?'':' (no API key)'));
   lines.push('duration: '+meta.durationMs+' ms');$('debug').textContent=lines.join('\n')
