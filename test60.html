@@ -2504,16 +2504,16 @@ h1 .title-word{white-space:nowrap}
         <span class="rarity-label auto" id="rarityLabel">Rarity</span>
         <p class="rarity-note" id="rarityNote" hidden></p>
         <div class="rarity-btns" id="rarityBtns">
-          <button type="button" class="rarity-btn" data-tier="1" aria-pressed="false" style="--tier:#9AA0A6" title="Basic">
+          <button type="button" class="rarity-btn" data-tier="1" aria-pressed="false" style="--tier:#9AA0A6" title="Common">
             <span class="badge" style="background-position-x:0%"></span>
           </button>
-          <button type="button" class="rarity-btn" data-tier="2" aria-pressed="true" style="--tier:#5BB85B" title="Reinforced">
+          <button type="button" class="rarity-btn" data-tier="2" aria-pressed="true" style="--tier:#5BB85B" title="Uncommon">
             <span class="badge" style="background-position-x:20%"></span>
           </button>
-          <button type="button" class="rarity-btn" data-tier="3" aria-pressed="false" style="--tier:#4A90D9" title="Advanced">
+          <button type="button" class="rarity-btn" data-tier="3" aria-pressed="false" style="--tier:#4A90D9" title="Rare">
             <span class="badge" style="background-position-x:40%"></span>
           </button>
-          <button type="button" class="rarity-btn" data-tier="4" aria-pressed="false" style="--tier:#9B6FC6" title="Elite">
+          <button type="button" class="rarity-btn" data-tier="4" aria-pressed="false" style="--tier:#9B6FC6" title="Epic">
             <span class="badge" style="background-position-x:60%"></span>
           </button>
           <button type="button" class="rarity-btn" data-tier="5" aria-pressed="false" style="--tier:#D4B106" title="Legendary">
@@ -2954,8 +2954,8 @@ var WEAPON_CRIT_WEIGHT=4.15;
 
 var TIER_OF_RARITY={common:1,uncommon:2,rare:3,epic:4,legendary:5,mythic:6};
 var RARITIES=[
-  {name:'Basic',colour:'#9AA0A6'},{name:'Reinforced',colour:'#5BB85B'},
-  {name:'Advanced',colour:'#4A90D9'},{name:'Elite',colour:'#9B6FC6'},
+  {name:'Common',colour:'#9AA0A6'},{name:'Uncommon',colour:'#5BB85B'},
+  {name:'Rare',colour:'#4A90D9'},{name:'Epic',colour:'#9B6FC6'},
   {name:'Legendary',colour:'#D4B106'},{name:'Mythic',colour:'#C0503B'}
 ];
 var SLOTS=[
@@ -4684,7 +4684,7 @@ function downwardRepriceGate(confidenceScore,exposure){
     confident:confident,
     allowed:rare&&veryStale&&confident,
     reason:!rare
-      ?'Basic–Elite: stay at the live floor'
+      ?'Common–Epic: stay at the live floor'
       :(!ageKnown
         ?'Floor age was not supplied; lower repricing stays advisory'
         :(!veryStale
