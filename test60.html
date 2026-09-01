@@ -3934,7 +3934,10 @@ function loadBooks(bust){return collectorFile('books','commodities.json',bust)}
 // its copy is as old as its last run. One item-filtered Gateway call closes that gap: the
 // collector needs the shared stream because it tracks all 36 categories, but a browser is
 // pricing exactly one, and filtering costs a single request instead of paging.
-var LIVE_TTL=60000,live={};
+// One request that reaches further back beats two that each cost seconds. The Gateway may
+// cap or reject a larger page, so the first rejection pins this to the size that worked and
+// the session stops asking for more.
+var LIVE_TTL=60000,live={},LIVE_LIMIT=200,LIVE_FALLBACK=100,liveLimitCapped=false;
 function liveEntry(code){var e=live[code];return e&&Date.now()-e.at<LIVE_TTL?e:null}
 function liveSales(code){
   var e=live[code];return e&&e.rows?e.rows:[]
@@ -3956,12 +3959,22 @@ function fetchLiveSales(code){
   if(hit)return Promise.resolve(hit);
   if(live[code]&&live[code].pending)return live[code].pending;
   var started=performance.now();
-  var input=encodeURIComponent(JSON.stringify({limit:100,itemCode:code}));
-  var p=fetchJSON(GATEWAY_BASE+'/transaction.getPaginatedTransactions?input='+input,
+  var ask=function(limit){
+    var input=encodeURIComponent(JSON.stringify({limit:limit,itemCode:code}));
+    return fetchJSON(GATEWAY_BASE+'/transaction.getPaginatedTransactions?input='+input,
       {headers:{'Accept':'application/json','X-API-Key':apiKey()}},FETCH_TIMEOUT)
+  };
+  var wanted=liveLimitCapped?LIVE_FALLBACK:LIVE_LIMIT;
+  var p=ask(wanted).catch(function(err){
+      // A rejected page size is not a failed lookup; drop to the size the collector uses.
+      if(wanted===LIVE_FALLBACK)throw err;
+      liveLimitCapped=true;
+      return ask(LIVE_FALLBACK)
+    })
     .then(function(json){
       var rows=unwrapPage(json).items.map(liveRow).filter(Boolean);
-      var e={rows:rows,at:Date.now(),ms:Math.round(performance.now()-started),error:null};
+      var e={rows:rows,at:Date.now(),ms:Math.round(performance.now()-started),
+             error:null,asked:liveLimitCapped?LIVE_FALLBACK:wanted};
       live[code]=e;return e
     },function(err){
       live[code]={rows:[],at:Date.now(),ms:Math.round(performance.now()-started),
@@ -4336,7 +4349,8 @@ function getMarketTransactions(code,deep,forceCoverage){
       targetHours:target,deep:!!deep,evidenceStop:false,widened:widened,
       collectedAt:shard.generated_at,coverageStart:shard.coverage_start,
       liveAdded:merged.added,liveMs:entry.ms||null,liveError:entry.error||null,
-      liveKey:!!apiKey(),liveRows:liveRows.length,liveGapHours:gapHours}}
+      liveKey:!!apiKey(),liveRows:liveRows.length,liveGapHours:gapHours,
+      liveAsked:entry.asked||null}}
   })
 }
 
@@ -5115,6 +5129,7 @@ function debug(meta,m){
       'better cheap pattern: '+m.pressure.count+' @ '+(m.pressure.price===null?'—':fmt(m.pressure.price)),
       'better pressure active: '+(m.pressureActive?'YES':'no'))
   }
+  lines.push('live page size asked: '+(meta.liveAsked||'—')+(liveLimitCapped?' (capped by gateway)':''));
   lines.push('live rows returned: '+(meta.liveRows==null?'—':meta.liveRows)
     +' · gap between sources: '+(meta.liveGapHours==null?'none'
       :meta.liveGapHours.toFixed(2)+'h uncovered'));
