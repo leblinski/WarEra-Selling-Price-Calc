@@ -3003,7 +3003,7 @@ h1 .title-word{white-space:nowrap}
 
       <section class="flip" id="craftBox">
         <p class="flip-label"><i aria-hidden="true" class="res res-scrap res-in"></i><i aria-hidden="true" class="res res-steel res-in"></i>Craft it instead?</p>
-        <p class="flip-lead" id="craftLead">Buy the inputs, craft one piece at random, sell it</p>
+        <p class="flip-lead" id="craftLead">Buy the inputs, craft one piece at random, sell it or break it</p>
         <p class="flip-figure" id="craftVerdict">—</p>
         <p class="flip-detail" id="craftDetail">Reading the collector's order books and sale history…</p>
 
@@ -3038,7 +3038,7 @@ h1 .title-word{white-space:nowrap}
       <div class="tabpane" id="panecases" hidden>
       <section class="flip" id="caseBox">
         <p class="flip-label"><i aria-hidden="true" class="res res-case res-in"></i>Open a case?</p>
-        <p class="flip-lead" id="caseLead">Buy a Case I, open it, sell what comes out</p>
+        <p class="flip-lead" id="caseLead">Buy a Case I, open it, sell what is worth selling and break the rest</p>
         <p class="flip-figure" id="caseVerdict">—</p>
         <p class="flip-detail" id="caseDetail">Reading case prices…</p>
         <div class="craft-rows" id="caseRows"></div>
@@ -3079,7 +3079,7 @@ h1 .title-word{white-space:nowrap}
         <div class="scrap-src" id="sortGate">
           <span class="scrap-src-label">Only worth listing if it beats scrap by</span>
           <div class="craft-fields">
-            <label for="sortMin">Gold<input type="text" id="sortMin" value="0" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+            <label for="sortMin">Gold<input type="text" id="sortMin" value="0.1" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
             <label for="sortMinPct">Percent<input type="text" id="sortMinPct" value="0" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
           </div>
           <div class="scrap-btns" id="sortJoin">
@@ -3955,7 +3955,7 @@ function craftSlotValue(slot,t,taxMul){
     if(k!==null)seen[k]=rolls[key]
   }
   var space=craftRollSpace(slot,t),byCount=slot==='weapon'&&craftState.odds==='observed';
-  var dis=craftDismantle(t);
+  var dis=craftDismantle(t),need=sortNeed(t);
   var wsum=0,vsum=0,covered=0,samples=0,broken=0;
   for(var i=0;i<space.length;i++){
     var row=seen[space[i]];if(!row)continue;
@@ -3963,10 +3963,12 @@ function craftSlotValue(slot,t,taxMul){
     if(!stat||stat.median==null)continue;
     var n=(row.fallback_48h||{}).count||0,w=byCount?n:1;
     if(w<=0)continue;
-    // A roll that lists for less than its own scrap is worth breaking, and enough of them
-    // are that valuing every piece at its sale price understates what a case is worth.
-    var sale=stat.median*taxMul,best=Math.max(sale,dis);
-    if(dis>sale)broken+=w;
+    // The same rule the Sort tab applies, and for the same reason: a piece you would not
+    // list is worth its scraps, not the price you are not going to ask. With no bar set
+    // this is the old max(sale, scrap); with one, a piece whose edge does not clear the
+    // bar counts as broken here too, because that is what you will actually do with it.
+    var sale=stat.median*taxMul,sells=sale>need,best=sells?sale:dis;
+    if(!sells)broken+=w;
     covered++;samples+=n;wsum+=w;vsum+=w*best
   }
   if(!wsum)return null;
@@ -4037,7 +4039,12 @@ function loadGatewayBooks(force){
 /* Beating scrap by a hair is not a reason to list something: the listing itself costs
    attention, and a pile of 0.03 edges is a worse use of an evening than one 5.00 one. The
    floor a roll has to clear is therefore the scrapper's own, not the market's. */
-var sortMin={abs:0,pct:0,join:'both'};
+/* The bar starts at 0.10 rather than nothing. Measured against the collected book, that
+   turns 21.5 listings per 100 cases into dismantles and gives up 1.13 gold doing it -
+   five copper a listing, and 19 of the 21.5 are Commons, where the volume is. Nobody's
+   time is worth less than that, so listing everything with a positive edge is the wrong
+   default. Set it to 0 to get the old behaviour; the setting is remembered. */
+var sortMin={abs:0.10,pct:0,join:'both'};
 function loadSortMin(){
   try{
     var raw=JSON.parse(localStorage.getItem('warera-sort-min')||'null');
@@ -4244,6 +4251,7 @@ function paintCraft(){
     craftState.liveAt,craftState.liveLoading?'L':'',craftState.liveError||'',
     craftState.src==='own'?$('craftScrap').value+'/'+$('craftSteel').value:'',
     craftState.summary?'s':'',craftState.books?'b':'',craftState.loading?'L':'',
+    sortMin.abs,sortMin.pct,sortMin.join,
     craftState.error||''].join('|');
   if(sig===craftState.sig)return;
   craftState.sig=sig;
@@ -4410,8 +4418,8 @@ function simOpenOne(taxMul){
   if(!table||!table.rows.length)return {tier:t,slot:slot,net:0,label:'no collected sales',unpriced:true};
   var pick=table.rows[simPick(table.rows.map(function(r){return r.w}))];
   // Same choice the card values a piece at, or the simulator would drift away from it.
-  var sale=pick.median*taxMul,dis=craftDismantle(t);
-  return {tier:t,slot:slot,net:Math.max(sale,dis),sale:sale,dis:dis,broke:dis>sale,
+  var sale=pick.median*taxMul,dis=craftDismantle(t),sells=sale>sortNeed(t);
+  return {tier:t,slot:slot,net:sells?sale:dis,sale:sale,dis:dis,broke:!sells,
           label:simRollLabel(slot,pick.skills),unpriced:false}
 }
 function simTile(tier,slot){
@@ -4509,6 +4517,7 @@ function paintCase(){
   var taxPct=Number($('tax').value);
   if(!isFinite(taxPct)||taxPct<0)taxPct=0;
   var sig=[n,taxPct,craftState.src,craftState.odds,craftState.liveAt,state.tier,
+           sortMin.abs,sortMin.pct,sortMin.join,
            craftState.summary?'s':'',craftState.books?'b':''].join('|');
   if(sig===craftState.caseSig)return;
   craftState.caseSig=sig;
@@ -4559,8 +4568,8 @@ function paintCase(){
   var total=gross*n,profit=total-cost.cost,pct=cost.cost>0?profit/cost.cost*100:0,many=n>1;
   caseEdge=gross-cost.unit;
   caseTabPct=pct;paintTabBadges();
-  $('caseLead').textContent=many?'Buy '+n+' Case I, open them, sell what comes out'
-                                :'Buy a Case I, open it, sell what comes out';
+  $('caseLead').textContent=(many?'Buy '+n+' Case I, open them':'Buy a Case I, open it')+
+    ', sell what is worth selling and break the rest';
   $('caseVerdict').textContent=craftSigned(profit,3);
   $('caseVerdict').className='flip-figure '+(profit>=0?'up':'down');
   $('caseDetail').textContent=craftSigned(pct,2)+'% '+(many?'over '+n+' cases':'per case')+'. '+
@@ -4576,8 +4585,9 @@ function paintCase(){
   // provenance, one of what the reader has to do for the number to hold.
   var foot='Odds: the game\u2019s own. Values: collected sale medians, '+
     samples.toLocaleString()+' sales across '+covered+' of '+space+' rolls ('+cov+'%). '+
-    'Break: how often that tier is worth dismantling. '+
-    'Each piece counts at whichever is higher, so this assumes you check every piece.';
+    'Break: how often that tier is worth dismantling rather than listing. '+
+    'Each piece counts at whichever is worth more, under the same bar the Sort tab uses, '+
+    'so this assumes you sort every piece rather than listing all of them.';
   if(missing)foot+=' '+missing+' tier(s) have no sale data and are treated as worthless, so this is a floor.';
   if(cost.thin)foot+=' The case order book could not fill the whole purchase, so the cost shown is a floor.';
   var edge=gross-cost.unit;
@@ -6521,8 +6531,12 @@ $('caseCount').addEventListener('input',paintCase);
 $('tabBar').addEventListener('click',function(e){
   var b=e.target.closest('[data-tab]');if(b)setTab(b.getAttribute('data-tab'),true)
 });
+/* The bar now decides what a piece is worth on three cards, not one, so moving it has to
+   reach all of them. Leaving Craft and Cases on their last paint is how the same page ends
+   up quoting two different answers to the same question. */
 function applySortMin(){
-  craftState.sortSig=null;saveSortMin();paintSort();paintCutCard()
+  craftState.sortSig=null;craftState.sig=null;craftState.caseSig=null;
+  saveSortMin();paintSort();paintCutCard();paintCraft();paintCase()
 }
 [['sortMin','abs'],['sortMinPct','pct']].forEach(function(pair){
   $(pair[0]).addEventListener('input',function(){
