@@ -597,6 +597,37 @@ kbd{
 .craft-row.hit{background:rgba(var(--brass-rgb),.07);color:var(--ink)}
 .craft-row .up,.flip-figure.up{color:var(--verdigris)}
 .craft-row .down,.flip-figure.down{color:var(--rust)}
+/* Sorting loot is a different job from pricing one item: the question is not "what is this
+   worth" but "is this worth listing at all". One line per slot answers it for a whole pile. */
+.cut-tier{margin:0 0 15px}
+.cut-tier:last-child{margin-bottom:0}
+.cut-head{
+  display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  padding:0 0 5px;border-bottom:1px solid var(--line);margin-bottom:6px
+}
+.cut-name{
+  font-family:"Saira Condensed",sans-serif;font-weight:600;font-size:13px;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--tier,var(--ink))
+}
+.cut-floor{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--dim)}
+.cut-row{
+  display:grid;grid-template-columns:minmax(58px,.7fr) minmax(0,1.6fr) auto;gap:9px;
+  font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink);
+  padding:3px 7px;border-radius:5px;align-items:baseline
+}
+.cut-row.hit{background:rgba(var(--brass-rgb),.09)}
+.cut-slot{color:var(--dim)}
+.cut-rule{min-width:0;overflow-wrap:anywhere}
+.cut-share{text-align:right;color:var(--dim);font-size:11px;white-space:nowrap}
+.cut-sell{color:var(--verdigris)}
+.cut-scrap{color:var(--rust)}
+.cut-none{color:var(--dim)}
+.cut-note{margin:10px 0 0;font-size:11.5px;color:var(--dim);line-height:1.5}
+.cutcard{
+  margin:0 0 14px;padding:11px 13px;border:1px solid var(--line);
+  border-radius:var(--radius);background:var(--panel)
+}
+.cutcard[hidden]{display:none}
 .craft-fields{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:9px}
 .craft-fields label{display:flex;flex-direction:column;gap:4px;font-size:11.5px;color:var(--dim)}
 .craft-fields input{
@@ -2476,6 +2507,7 @@ h1 .title-word{white-space:nowrap}
         <button type="button" class="tabbtn" role="tab" data-tab="price" aria-selected="true">Price</button>
         <button type="button" class="tabbtn" role="tab" data-tab="craft" aria-selected="false">Craft <span class="tabdot"></span><b id="tabCraftVal"></b></button>
         <button type="button" class="tabbtn" role="tab" data-tab="cases" aria-selected="false">Cases <span class="tabdot"></span><b id="tabCaseVal"></b></button>
+        <button type="button" class="tabbtn" role="tab" data-tab="sort" aria-selected="false">Sort</button>
       </div>
 
       <div class="tabpane" id="paneprice">
@@ -2507,6 +2539,10 @@ h1 .title-word{white-space:nowrap}
           <span class="viewlock-icon" aria-hidden="true"></span>
           <span class="viewlock-label">PIN</span>
         </button>
+      </div>
+
+      <div class="cutcard" id="cutCard" hidden>
+        <p class="cut-note" id="cutCardText" style="margin:0"></p>
       </div>
 
       <div class="rarity" id="rarityPanel" role="group" aria-label="Item rarity">
@@ -2921,6 +2957,16 @@ h1 .title-word{white-space:nowrap}
         </div>
       </section>
 
+      </div>
+
+      <div class="tabpane" id="panesort" hidden>
+      <section class="flip" id="sortBox">
+        <p class="flip-label">Sell it or break it?</p>
+        <p class="flip-lead" id="sortLead">Every roll, by rarity, against what its scraps are worth</p>
+        <p class="flip-detail" id="sortDetail">Reading the collector's sale history…</p>
+        <div id="sortRows"></div>
+        <p class="cut-note" id="sortFoot"></p>
+      </section>
       </div>
 
       <div class="datastrip">
@@ -3556,6 +3602,7 @@ function syncTierFromPrice(v){
 // Marks the alternatives without rebuilding the row: the buttons are live targets, and
 // replacing them under a finger loses the tap.
 function paintRarityMaybes(){
+  paintSort();paintCutCard();
   var hits=state.rarityHits,note=$('rarityNote');
   Array.prototype.forEach.call($('rarityBtns').children,function(el){
     var t=Number(el.getAttribute('data-tier'));
@@ -3595,7 +3642,7 @@ function coreCalc(settled){
     prefetchSelected()
   }
   state.beat=beating;
-  paintCraft();paintCase();
+  paintCraft();paintCase();paintSort();paintCutCard();
   $('priceLabel').textContent=beating?'Price to beat':'Price to target';
   if(!shown){
     state.coreFigure='';state.listFigure='';
@@ -3855,8 +3902,61 @@ function loadGatewayBooks(force){
     res.forEach(function(r){if(r[1]){out[r[0]]=r[1];ok++}else if(!err)err=r[2]});
     if(ok===3){craftState.live=out;craftState.liveAt=Date.now();craftState.liveError=null}
     else craftState.liveError=(err&&err.message?err.message:'request failed');
-    craftState.sig=null;craftState.caseSig=null;paintCraft();paintCase()
+    craftState.sig=null;craftState.caseSig=null;craftState.sortSig=null;paintCraft();paintCase();paintSort();paintCutCard()
   })
+}
+/* Sorting a pile of loot is a different question from pricing one item: not "what is this
+   worth" but "is it worth listing at all". A roll whose sale price clears what its scraps
+   fetch is worth a listing; the rest are scrap however the market moves. Both answers come
+   from the numbers already loaded, so the rule can never go stale the way a written guide
+   does — when the scrap price moves, the cut line moves with it. */
+function sortRolls(slot,t,taxMul){
+  var cat=((craftState.summary||{}).categories||{})[itemCodeForSlot(slot,t)];
+  if(!cat)return null;
+  var rolls=cat.rolls||{},seen={},key;
+  for(key in rolls){
+    if(!Object.prototype.hasOwnProperty.call(rolls,key))continue;
+    var k=craftRollKey(slot,(rolls[key].exact_roll||{}).skills);
+    if(k!==null)seen[k]=rolls[key]
+  }
+  var space=craftRollSpace(slot,t),dis=craftDismantle(t),out=[],sell=0,known=0;
+  for(var i=0;i<space.length;i++){
+    var row=seen[space[i]],stat=row&&(row.selected||row.fallback_48h);
+    if(!stat||stat.median==null){out.push({key:space[i],net:null});continue}
+    var net=Number(stat.median)*taxMul,wins=net>dis;
+    known++;if(wins)sell++;
+    out.push({key:space[i],net:net,sell:wins})
+  }
+  return {rolls:out,floor:dis,sell:sell,known:known,space:space.length}
+}
+// Equipment rolls are one rising number, so the answer is a threshold. Weapons are a grid of
+// attack against crit, and the way the game lists them is by crit, so that is how it reads.
+function cutRule(slot,t,r){
+  if(!r||!r.known)return null;
+  if(r.sell===0)return {text:'break them all',kind:'scrap'};
+  if(r.sell===r.known)return {text:'sell them all',kind:'sell'};
+  if(slot!=='weapon'){
+    // Price rises with the roll, so the useful answer is one threshold. Where a straggler
+    // below the top still fails, take the point above it rather than reciting every roll:
+    // being told "sell 40 and up" is actionable, a list of twelve numbers is not.
+    var cut=null,i;
+    for(i=r.rolls.length-1;i>=0;i--){
+      var x=r.rolls[i];
+      if(x.net==null)continue;
+      if(!x.sell)break;
+      cut=x.key
+    }
+    return cut===null?{text:'break them all',kind:'scrap'}:{text:'sell '+cut+' and up',kind:'sell'}
+  }
+  var byCrit={},order=[];
+  r.rolls.forEach(function(x){
+    if(!x.sell)return;
+    var parts=x.key.split('/'),atk=Number(parts[0]),crit=parts[1];
+    if(byCrit[crit]===undefined){byCrit[crit]=atk;order.push(crit)}
+    else if(atk<byCrit[crit])byCrit[crit]=atk
+  });
+  order.sort(function(a,b){return Number(b)-Number(a)});
+  return {text:order.map(function(c){return 'crit '+c+' from '+byCrit[c]}).join(' · '),kind:'sell'}
 }
 function craftDismantle(t){
   var ob=craftBook('scraps'),bid=ob&&ob.best_bid;
@@ -4279,7 +4379,7 @@ function setCraftSource(src){
   });
   $('craftScrap').readOnly=src!=='own';$('craftSteel').readOnly=src!=='own';
   syncCraftInputs();
-  paintCraft();paintCase()
+  paintCraft();paintCase();paintSort();paintCutCard()
 }
 function syncCraftInputs(){
   if(craftState.src==='own')return;
@@ -4301,7 +4401,7 @@ var dataStampHold=0;
    The craft and case cards were half the page and sat in the way of the thing done every
    time. They keep their answers on the tab itself, so moving them out of the scroll path
    does not mean losing sight of whether either is currently worth doing. */
-var TABS=['price','craft','cases'];
+var TABS=['price','craft','cases','sort'];
 function currentTab(){
   try{var t=localStorage.getItem('warera-calc-tab');return TABS.indexOf(t)>=0?t:'price'}
   catch(e){return 'price'}
@@ -4319,6 +4419,74 @@ function setTab(name,fromUser){
 }
 // A tab you are not looking at still has an answer, and the edge is the whole reason to
 // open it, so it rides on the tab rather than waiting to be found.
+function sortTax(){
+  var t=Number($('tax').value);
+  return 1-((isFinite(t)&&t>0?t:0)/100)
+}
+function paintSort(){
+  var box=$('sortRows');if(!box)return;
+  var taxMul=sortTax();
+  var sig=[craftState.summary?'s':'',craftState.books?'b':'',craftState.live?'l':'',
+           $('tax').value,craftState.src,craftState.liveAt,state.tier,state.slot].join('|');
+  if(sig===craftState.sortSig)return;
+  craftState.sortSig=sig;
+  if(!craftState.summary||!craftState.books){
+    box.innerHTML='';
+    $('sortDetail').textContent=craftState.error||'Reading the collector\u2019s sale history\u2026';
+    $('sortFoot').textContent='';return
+  }
+  var html='',anyKnown=0,anySpace=0;
+  for(var t=1;t<=6;t++){
+    var floor=craftDismantle(t),rows='',tierKnownN=0,tierSell=0;
+    for(var i=0;i<SLOTS.length;i++){
+      var slot=SLOTS[i].code,label=slot==='weapon'?WEAPON_NAMES[t-1]:SLOTS[i].name;
+      var r=sortRolls(slot,t,taxMul),rule=cutRule(slot,t,r);
+      var hit=slot===state.slot&&t===state.tier?' hit':'';
+      if(!rule){
+        rows+='<div class="cut-row'+hit+'"><span class="cut-slot">'+esc(label)+
+              '</span><span class="cut-rule cut-none">no sales yet</span><span class="cut-share"></span></div>';
+        continue
+      }
+      tierKnownN+=r.known;tierSell+=r.sell;
+      rows+='<div class="cut-row'+hit+'"><span class="cut-slot">'+esc(label)+
+            '</span><span class="cut-rule '+(rule.kind==='sell'?'cut-sell':'cut-scrap')+'">'+
+            esc(rule.text)+'</span><span class="cut-share">'+r.sell+'/'+r.known+'</span></div>'
+    }
+    anyKnown+=tierKnownN;anySpace+=tierSell;
+    html+='<div class="cut-tier" style="--tier:'+RARITIES[t-1].colour+'">'+
+      '<div class="cut-head"><span class="cut-name">'+esc(RARITIES[t-1].name)+'</span>'+
+      '<span class="cut-floor">scraps fetch '+floor.toFixed(2)+' \u00b7 list above '+
+      (taxMul>0?(floor/taxMul).toFixed(2):'\u2014')+'</span></div>'+rows+'</div>';
+  }
+  box.innerHTML=html;
+  $('sortDetail').textContent='A roll only earns a listing if it beats what its own scraps fetch. '+
+    'Below the cut line, breaking it is worth more than selling it.';
+  $('sortFoot').textContent='Cut lines move with the scrap price, so they are computed fresh, not written down. '+
+    anySpace+' of '+anyKnown+' rolls with sale history are worth listing. Right-hand figure is how many of that '+
+    'slot\u2019s seen rolls sell above scrap.';
+}
+// The same answer, one line, where the rarity is chosen — so the question "is this even worth
+// listing" is settled before anyone types a price for it.
+function paintCutCard(){
+  var card=$('cutCard');if(!card)return;
+  if(!tierKnown()||!craftState.summary||!craftState.books){card.hidden=true;return}
+  var t=state.tier,taxMul=sortTax(),floor=craftDismantle(t),sell=0,known=0,all=[];
+  for(var i=0;i<SLOTS.length;i++){
+    var slot=SLOTS[i].code,r=sortRolls(slot,t,taxMul);
+    if(!r||!r.known)continue;
+    sell+=r.sell;known+=r.known;
+    var rule=cutRule(slot,t,r);
+    if(rule&&rule.kind==='sell'&&r.sell<r.known)
+      all.push((slot==='weapon'?WEAPON_NAMES[t-1]:SLOTS[i].name)+' '+rule.text.replace('sell ',''))
+  }
+  if(!known){card.hidden=true;return}
+  card.hidden=false;
+  var head=RARITIES[t-1].name+': break anything selling under '+(taxMul>0?(floor/taxMul).toFixed(3):'\u2014')+'. ';
+  var body=sell===0?'No '+RARITIES[t-1].name+' roll beats its scraps right now \u2014 break them all.'
+    :sell===known?'Every '+RARITIES[t-1].name+' roll beats its scraps \u2014 all worth listing.'
+    :sell+' of '+known+' rolls beat scrap'+(all.length?'. Cut lines: '+all.join(' \u00b7 ')+'.':'.');
+  $('cutCardText').textContent=head+body
+}
 function paintTabBadges(){
   var bar=$('tabBar');if(!bar)return;
   var set=function(tab,val,pct){
