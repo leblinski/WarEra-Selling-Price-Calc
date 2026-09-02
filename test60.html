@@ -640,6 +640,38 @@ kbd{
 .cut-row.rest .cut-slot{display:none}
 .cut-row.rest .cut-rule{grid-column:1 / 3}
 .cut-detail{margin:1px 0 5px;padding:5px 7px 6px 14px;border-left:2px solid var(--line)}
+/* A weapon is a hundred rolls of attack against crit, which is a hundred rows of text or one
+   picture. The value it carries has a natural zero - the scrap floor - and the sign of it is
+   the whole decision, so the ramp diverges from that zero rather than running low to high:
+   verdigris one way, rust the other, near-surface at the line itself. Magnitude is relative
+   within the weapon, because a Common margin is 0.45 and a Mythic one is 50. */
+.heat{margin:4px 0 2px;overflow-x:auto}
+.heat-grid{display:grid;gap:2px;min-width:max-content}
+.heat-lab{
+  font-family:"Saira Condensed",sans-serif;font-size:9.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--dim);opacity:.75;display:flex;align-items:center;
+  justify-content:center;white-space:nowrap
+}
+.heat-lab.row{justify-content:flex-end;padding-right:5px;font-family:"IBM Plex Mono",monospace;
+  font-size:10px;letter-spacing:0;text-transform:none}
+.heat-cell{
+  height:20px;min-width:44px;border-radius:3px;cursor:pointer;border:1px solid transparent;
+  background:var(--fill,transparent)
+}
+/* Texture, not only hue: the break side stays legible where colour does not survive - a
+   colourblind reader, a print, forced colours. */
+.heat-cell.br{background-image:repeating-linear-gradient(135deg,rgba(0,0,0,.28) 0 2px,transparent 2px 5px)}
+.heat-cell.none{border-color:var(--line)}
+.heat-cell.guess{border-style:dashed;border-color:rgba(var(--brass-rgb),.4)}
+.heat-cell.pick{outline:2px solid var(--brass);outline-offset:1px}
+.heat-key{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:7px 0 0;
+  font-size:10.5px;color:var(--dim)}
+.heat-key i{width:16px;height:11px;border-radius:2px;display:inline-block;font-style:normal}
+.heat-read{
+  margin:6px 0 0;min-height:15px;font-family:"IBM Plex Mono",monospace;font-size:11px;
+  color:var(--ink)
+}
+.heat-read .muted{color:var(--dim)}
 .cut-detail[hidden]{display:none}
 /* Three columns, not four: the scrap value is the same on every line and the tier header
    already states it, and a fourth column leaves nothing for the verdict on a 320px screen. */
@@ -658,6 +690,12 @@ kbd{
 .cut-line.quiet .why,.cut-line.quiet span{color:var(--dim)}
 .cut-line.head{font-family:"Saira Condensed",sans-serif;font-size:9.5px;letter-spacing:.08em;
   text-transform:uppercase;opacity:.7}
+.cut-band{
+  font-family:"Saira Condensed",sans-serif;font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--brass);opacity:.85;margin:7px 0 2px;
+  padding-top:5px;border-top:1px solid var(--line)
+}
+.cut-band:first-of-type{border-top:0;padding-top:0;margin-top:3px}
 .cut-sell{color:var(--verdigris)}
 .cut-scrap{color:var(--rust)}
 .cut-none{color:var(--dim)}
@@ -4081,18 +4119,41 @@ function cutRule(slot,t,r){
     }
     return cut===null?{text:'none',kind:'scrap'}:{text:cut+' and up',kind:'sell'}
   }
-  var byCrit={},order=[];
+  /* Every crit band, with the lowest attack that sells in each. Showing only the best two and
+     counting the rest away was worse than useless: the top bands usually sell from the very
+     bottom of the attack range, so the two on display said "all of them" while the ones behind
+     "+3 more" held the only real thresholds. Bands that sell outright collapse into one
+     "18+ all", which buys back the room to state the rest. */
+  var band={},order=[];
   r.rolls.forEach(function(x){
-    if(!x.sell)return;
-    var parts=x.key.split('/'),atk=Number(parts[0]),crit=parts[1];
-    if(byCrit[crit]===undefined){byCrit[crit]=atk;order.push(crit)}
-    else if(atk<byCrit[crit])byCrit[crit]=atk
+    var parts=x.key.split('/'),crit=parts[1];
+    if(!band[crit]){band[crit]=[];order.push(crit)}
+    band[crit].push({atk:Number(parts[0]),sell:x.sell})
+  });
+  // The threshold is where selling starts and does not stop again, the same contiguous run
+  // the equipment rule takes. The lowest selling attack on its own would promise a band that
+  // a straggler higher up breaks.
+  var byCrit={},whole={};
+  order.forEach(function(c){
+    var rolls=band[c].sort(function(a,b){return a.atk-b.atk}),cut=null,i;
+    for(i=rolls.length-1;i>=0;i--){
+      if(!rolls[i].sell)break;
+      cut=rolls[i].atk
+    }
+    if(cut!==null){byCrit[c]=cut;whole[c]=(i<0)}
   });
   order.sort(function(a,b){return Number(b)-Number(a)});
-  // Six crit thresholds do not fit a phone column. The best two carry the decision; the rest
-  // are one tap away in the roll list, which is where anyone checking the detail is looking.
-  var shown=order.slice(0,2).map(function(c){return 'crit '+c+' from '+byCrit[c]}).join(' · ');
-  return {text:shown+(order.length>2?' +'+(order.length-2)+' more':''),kind:'sell'}
+  var out=[],run=[],flush=function(){
+    if(run.length)out.push(run[run.length-1]+(run.length>1?'+':'')+' all');
+    run=[]
+  };
+  order.forEach(function(c){
+    if(whole[c]&&byCrit[c]!==undefined){run.push(c);return}
+    flush();
+    if(byCrit[c]!==undefined)out.push(c+' from '+byCrit[c])
+  });
+  flush();
+  return {text:'crit '+out.join(' · '),kind:'sell'}
 }
 function craftDismantle(t){
   var ob=craftBook('scraps'),bid=ob&&ob.best_bid;
@@ -4596,6 +4657,7 @@ function paintSort(){
       var slot=SLOTS[i].code,label=slot==='weapon'?WEAPON_NAMES[t-1]:SLOTS[i].name;
       var r=sortRolls(slot,t,taxMul),rule=cutRule(slot,t,r);
       var hit=slot===state.slot&&t===state.tier?' hit':'';
+      heatData[t+'-'+slot]=r;
       if(!rule){
         rows+='<div class="cut-row rest'+hit+'"><span class="cut-slot">'+esc(label)+
               '</span><span class="cut-rule cut-none">no sales yet</span>'+
@@ -4609,7 +4671,8 @@ function paintSort(){
             '<span class="cut-rule '+(rule.kind==='sell'?'cut-sell':'cut-scrap')+'">'+esc(rule.text)+'</span>'+
             '<span class="cut-share">'+sortHowOften(r.keep)+'</span>'+
             '<span class="cut-gold">'+sortGold(r.gold)+'</span></div>'+
-            '<div class="cut-detail" id="cutd-'+id+'"'+(open?'':' hidden')+'>'+sortDetail(r,label)+'</div>'
+            '<div class="cut-detail" id="cutd-'+id+'"'+(open?'':' hidden')+'>'+
+            (slot==='weapon'?sortHeat(r,t,id)+sortDetail(r,label,slot):sortDetail(r,label,slot))+'</div>'
     }
     if(rest>0)
       rows+='<div class="cut-row rest"><span class="cut-slot"></span>'+
@@ -4632,26 +4695,101 @@ function paintSort(){
 /* A rule people cannot check is a rule they have to take on faith. Opening a slot shows
    every roll it can produce on the same terms as the summary above it, so the ones left out
    are visibly left out for a reason rather than quietly missing. */
-var sortOpen={};
-function sortDetail(r,label){
+var sortOpen={},heatData={};
+/* Diverging from the scrap floor. Alpha carries magnitude so the near-zero step recedes into
+   the panel rather than competing with it, which is what "this roll is on the line" should
+   look like. Relative to the strongest margin in this weapon, since the tiers differ by two
+   orders of magnitude. */
+function heatFill(margin,peak){
+  if(!(peak>0))return 'transparent';
+  // Margins inside one weapon span two orders - a rifle breaks at -0.2 and sells at +11 - so a
+  // linear ramp puts almost every cell on the floor. The power scale spends the range where
+  // the cells are; the legend says the steps are relative, not a money axis.
+  var f=Math.pow(Math.min(1,Math.abs(margin)/peak),0.4),a=(0.10+0.62*f).toFixed(3);
+  return margin>=0?'rgba(107,184,168,'+a+')':'rgba(194,112,63,'+a+')'
+}
+function sortHeat(r,t,id){
+  var w=WEAPON_STATS[t-1],a0=w.attack[0],a1=w.attack[1],c0=w.criticalChance[0],c1=w.criticalChance[1];
+  var by={},mags=[],i,j;
+  for(i=0;i<r.rolls.length;i++){
+    var x=r.rolls[i];by[x.key]=x;
+    var m=x.net!=null?x.margin:(x.wide?x.wide.price*0.99-r.scrap:null);
+    if(m!=null)mags.push(Math.abs(m))
+  }
+  // Scaling on the largest margin lets one corner flatten the other ninety-nine: on the rifle
+  // it left half the grid sitting on the floor of the ramp. The ninetieth percentile keeps the
+  // bulk linear and lets the tail saturate, which is the part a reader can already see.
+  mags.sort(function(a,b){return a-b});
+  var peak=mags.length?mags[Math.min(mags.length-1,Math.floor(mags.length*0.9))]:0;
+  if(!(peak>0))peak=mags.length?mags[mags.length-1]:0;
+  var cols=c1-c0+1;
+  var out='<div class="heat"><div class="heat-grid" style="grid-template-columns:34px repeat('+
+          cols+',minmax(44px,1fr))"><span class="heat-lab"></span>';
+  for(j=c0;j<=c1;j++)out+='<span class="heat-lab">crit '+j+'</span>';
+  for(i=a0;i<=a1;i++){
+    out+='<span class="heat-lab row">'+i+'</span>';
+    for(j=c0;j<=c1;j++){
+      var k=i+'/'+j,x=by[k],cls='heat-cell',fill='transparent';
+      if(!x||(x.net==null&&!x.wide&&!x.from)){cls+=' none'}
+      else{
+        var m=x.net!=null?x.margin:(x.wide?x.wide.price*0.99-r.scrap:null),sells;
+        if(m!=null){sells=m>=0;fill=heatFill(m,peak)}
+        else{sells=x.from.sell;cls+=' guess';fill=heatFill(sells?peak*0.12:-peak*0.12,peak)}
+        if(!sells)cls+=' br'
+      }
+      out+='<button type="button" class="'+cls+'" data-heat="'+id+'|'+k+'" '+
+           'style="--fill:'+fill+'" aria-label="attack '+i+', crit '+j+'"></button>'
+    }
+  }
+  out+='</div></div>'+
+    '<p class="heat-key"><i style="background:rgba(107,184,168,.62)"></i>sells'+
+    '<i class="heat-cell br" style="background:rgba(194,112,63,.62);height:11px;min-width:16px"></i>break'+
+    '<i style="border:1px dashed rgba(var(--brass-rgb),.4)"></i>guessed'+
+    '<i style="border:1px solid var(--line)"></i>no sales'+
+    '</p><p class="heat-key">stronger colour, bigger margin \u00b7 top step is the '+
+    'strongest tenth and above</p>'+
+    '<p class="heat-read" id="heatread-'+id+'"><span class="muted">Tap a square for its numbers.</span></p>';
+  return out
+}
+/* The roll space is generated attack-major, which scatters each crit band down the page. But
+   the decision inside a band is a threshold on attack - "crit 19 from 101" - so the band is
+   the thing to read down, and the attack alone is enough once its heading names the crit. */
+function sortRows(r,slot){
+  if(slot!=='weapon')return [{band:null,rolls:r.rolls}];
+  var seen=[],by={};
+  r.rolls.forEach(function(x){
+    var p=x.key.split('/'),c=p[1];
+    if(!by[c]){by[c]=[];seen.push(c)}
+    by[c].push({x:x,label:p[0]})
+  });
+  seen.sort(function(a,b){return Number(a)-Number(b)});
+  return seen.map(function(c){
+    by[c].sort(function(a,b){return Number(a.label)-Number(b.label)});
+    return {band:'crit '+c,rolls:by[c].map(function(o){return o.x}),labels:by[c].map(function(o){return o.label})}
+  })
+}
+function sortDetail(r,label,slot){
   var out='<div class="cut-line head"><span>Roll</span><span>Sells at</span>'+
-          '<span class="why">vs breaking it</span></div>';
-  for(var i=0;i<r.rolls.length;i++){
-    var x=r.rolls[i];
+          '<span class="why">vs breaking it</span></div>',groups=sortRows(r,slot),g,gi;
+  for(gi=0;gi<groups.length;gi++){
+    g=groups[gi];
+    if(g.band)out+='<div class="cut-band">'+esc(g.band)+'</div>';
+  for(var i=0;i<g.rolls.length;i++){
+    var x=g.rolls[i],key=g.labels?g.labels[i]:x.key;
     if(x.net==null){
       var note=x.wide
         ?'this week \u00b7 '+(x.sell?'sell':'break')
         :(x.from?'like '+x.from.key+' \u00b7 '+(x.from.sell?'sell':'break'):'none traded yet');
-      out+='<div class="cut-line quiet"><span>'+esc(x.key)+'</span><span>'+
+      out+='<div class="cut-line quiet"><span>'+esc(key)+'</span><span>'+
            (x.wide?x.wide.price.toFixed(3):'\u2014')+'</span><span class="why">'+
            esc(note)+'</span></div>';
       continue
     }
     var why=x.sell?'+'+x.margin.toFixed(3)+' sell'
       :(x.net>r.scrap?'+'+x.margin.toFixed(3)+' under bar':x.margin.toFixed(3)+' break');
-    out+='<div class="cut-line '+(x.sell?'yes':'no')+'"><span>'+esc(x.key)+'</span><span>'+
+    out+='<div class="cut-line '+(x.sell?'yes':'no')+'"><span>'+esc(key)+'</span><span>'+
          x.price.toFixed(3)+'</span><span class="why">'+why+'</span></div>'
-  }
+  }}
   return out
 }
 function paintSortGate(){
@@ -6330,7 +6468,32 @@ function applySortMin(){
     applySortMin()
   })
 });
+// A grid with no readout is a picture of a decision rather than the decision. Tapping a
+// square says what it is worth and where that came from, which is the same promise the roll
+// list makes for everything else.
 $('sortRows').addEventListener('click',function(e){
+  var cell=e.target.closest('[data-heat]');
+  if(cell){
+    var parts=cell.getAttribute('data-heat').split('|'),id=parts[0],key=parts[1];
+    var box=$('heatread-'+id),r=heatData[id];
+    Array.prototype.forEach.call(cell.parentNode.querySelectorAll('.pick'),function(o){o.classList.remove('pick')});
+    cell.classList.add('pick');
+    var x=null,i;
+    for(i=0;r&&i<r.rolls.length;i++)if(r.rolls[i].key===key)x=r.rolls[i];
+    if(!box)return;
+    if(!x||(x.net==null&&!x.wide&&!x.from))
+      box.innerHTML=esc(key)+' <span class="muted">\u2014 no sales, and no worse roll to judge it by</span>';
+    else if(x.net!=null)
+      box.textContent=key+'  sells '+x.price.toFixed(3)+'  scraps '+r.scrap.toFixed(2)+
+        '  '+(x.margin>=0?'+':'')+x.margin.toFixed(3)+' '+(x.sell?'sell':'break');
+    else if(x.wide)
+      box.innerHTML=esc(key)+' '+x.wide.price.toFixed(3)+' <span class="muted">from '+
+        x.wide.count+' this week</span> '+(x.sell?'sell':'break');
+    else
+      box.innerHTML=esc(key)+' <span class="muted">no sales \u2014 like '+esc(x.from.key)+'</span> '+
+        (x.from.sell?'sell':'break');
+    return
+  }
   var row=e.target.closest('[data-cut]');if(!row)return;
   var id=row.getAttribute('data-cut'),d=$('cutd-'+id);
   sortOpen[id]=!sortOpen[id];
