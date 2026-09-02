@@ -4750,13 +4750,22 @@ function paintSortPick(){
    the panel rather than competing with it, which is what "this roll is on the line" should
    look like. Relative to the strongest margin in this weapon, since the tiers differ by two
    orders of magnitude. */
+// One tone for every breaking cell, and the legend swatch is that same tone rather
+// than the old ramp's darkest step, so the key matches what is on the grid.
+var BREAK_TONE='rgba(194,112,63,0.30)';
 function heatFill(margin,peak){
   if(!(peak>0))return 'transparent';
+  /* Only one arm carries a gradient. A roll that loses to its scraps loses by about the same
+     hair whatever it is - across the rifle the break side spanned 0.13 to 0.31 while the sell
+     side ran 0.29 to 0.72 - so shading it invited the eye to read a difference that is not
+     there, over two thirds of the grid. Breaking is one flat tone and one texture; the range
+     belongs to the side where it means something. */
+  if(margin<0)return BREAK_TONE;
   // Margins inside one weapon span two orders - a rifle breaks at -0.2 and sells at +11 - so a
   // linear ramp puts almost every cell on the floor. The power scale spends the range where
   // the cells are; the legend says the steps are relative, not a money axis.
-  var f=Math.pow(Math.min(1,Math.abs(margin)/peak),0.4),a=(0.10+0.62*f).toFixed(3);
-  return margin>=0?'rgba(107,184,168,'+a+')':'rgba(194,112,63,'+a+')'
+  var f=Math.pow(Math.min(1,margin/peak),0.4);
+  return 'rgba(107,184,168,'+(0.10+0.62*f).toFixed(3)+')'
 }
 function sortHeat(r,t,id){
   var w=WEAPON_STATS[t-1],a0=w.attack[0],a1=w.attack[1],c0=w.criticalChance[0],c1=w.criticalChance[1];
@@ -4795,11 +4804,12 @@ function sortHeat(r,t,id){
   }
   out+='</div></div>'+
     '<p class="heat-key"><i style="background:rgba(107,184,168,.62)"></i>sells'+
-    '<i class="heat-cell br" style="background:rgba(194,112,63,.62);height:11px;min-width:16px"></i>break'+
+    '<i class="heat-cell br" style="background:'+BREAK_TONE+';height:11px;min-width:16px"></i>break'+
     '<i style="border:1px dashed rgba(var(--brass-rgb),.4)"></i>guessed'+
     '<i style="border:1px solid var(--line)"></i>no sales'+
-    '</p><p class="heat-key">stronger colour, bigger margin \u00b7 top step is the '+
-    'strongest tenth and above</p>'+
+    '</p><p class="heat-key">deeper green, bigger margin \u00b7 top step is the strongest '+
+    'tenth and above \u00b7 breaking is one tone, since a losing roll loses by about the '+
+    'same either way</p>'+
     '<p class="heat-read" id="heatread-'+id+'"><span class="muted">Tap a square for its numbers.</span></p></div>';
   return out
 }
