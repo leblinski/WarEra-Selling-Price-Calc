@@ -498,6 +498,27 @@ kbd{
   margin:2px 0;font-family:"IBM Plex Mono",monospace;font-weight:600;
   font-size:36px;line-height:1.15;color:var(--ink);word-break:break-all
 }
+/* The game's own art for the three things these cards are about. One sheet like
+   the equipment, so a card never waits on a second request, and the tiles are
+   indexed left to right: case, scraps, steel. */
+.res{
+  display:inline-block;flex:none;
+  background-image:url('res.png');background-size:300% 100%;background-repeat:no-repeat
+}
+.res-case{background-position:0 50%}
+.res-scrap{background-position:50% 50%}
+.res-steel{background-position:100% 50%}
+/* Sized off whatever text it sits in, so it holds its proportion at any zoom
+   or system font scale rather than drifting away from the words. */
+.res-in{width:1.75em;height:1.75em;vertical-align:-.48em;margin-right:.3em}
+/* Card headings are 14px, so 1.95em lands near 28px - the point below which the
+   scrap pile stops reading as scrap and turns into a smudge. */
+.flip-label .res-in{width:1.95em;height:1.95em;vertical-align:-.62em;margin-right:.24em}
+.flip-label .res-in+.res-in{margin-left:-.12em}
+/* On the narrowest phones the pair pushes the craft heading onto a second line.
+   The two input fields below name scraps and steel with their own icons, so the
+   heading gives one up rather than the line. */
+@media (max-width:360px){.flip-label .res-in+.res-in{display:none}}
 .scrap-src{margin-top:14px;padding-top:12px;border-top:1px solid rgba(var(--brass-rgb),.20)}
 .scrap-src-label{
   display:block;margin-bottom:7px;font-family:"Saira Condensed",sans-serif;font-weight:600;
@@ -2951,7 +2972,7 @@ h1 .title-word{white-space:nowrap}
       </div>
 
       <div class="flip" id="scrapBox" hidden>
-        <p class="flip-label">Dismantle it?</p>
+        <p class="flip-label"><i aria-hidden="true" class="res res-scrap res-in"></i>Dismantle it?</p>
         <p class="flip-lead" id="scrapLead">Scrap value for this rarity</p>
         <p class="flip-figure" id="scrapVerdict">—</p>
         <p class="flip-detail" id="scrapDetail"></p>
@@ -2981,7 +3002,7 @@ h1 .title-word{white-space:nowrap}
       <div class="tabpane" id="panecraft" hidden>
 
       <section class="flip" id="craftBox">
-        <p class="flip-label">Craft it instead?</p>
+        <p class="flip-label"><i aria-hidden="true" class="res res-scrap res-in"></i><i aria-hidden="true" class="res res-steel res-in"></i>Craft it instead?</p>
         <p class="flip-lead" id="craftLead">Buy the inputs, craft one piece at random, sell it</p>
         <p class="flip-figure" id="craftVerdict">—</p>
         <p class="flip-detail" id="craftDetail">Reading the collector's order books and sale history…</p>
@@ -2998,8 +3019,8 @@ h1 .title-word{white-space:nowrap}
             <button type="button" class="soundbtn" data-craftsrc="own">Set it</button>
           </div>
           <div class="craft-fields">
-            <label for="craftScrap">Scraps<input type="text" id="craftScrap" value="0.223" inputmode="decimal" autocomplete="off" spellcheck="false" readonly></label>
-            <label for="craftSteel">Steel<input type="text" id="craftSteel" value="1.683" inputmode="decimal" autocomplete="off" spellcheck="false" readonly></label>
+            <label for="craftScrap"><span><i aria-hidden="true" class="res res-scrap res-in"></i>Scraps</span><input type="text" id="craftScrap" value="0.223" inputmode="decimal" autocomplete="off" spellcheck="false" readonly></label>
+            <label for="craftSteel"><span><i aria-hidden="true" class="res res-steel res-in"></i>Steel</span><input type="text" id="craftSteel" value="1.683" inputmode="decimal" autocomplete="off" spellcheck="false" readonly></label>
             <label for="craftCount">Crafts<input type="number" id="craftCount" value="1" min="1" max="999" step="1" inputmode="numeric" autocomplete="off"></label>
           </div>
           <span class="scrap-src-label" style="margin-top:4px">Weapon roll odds</span>
@@ -3016,7 +3037,7 @@ h1 .title-word{white-space:nowrap}
 
       <div class="tabpane" id="panecases" hidden>
       <section class="flip" id="caseBox">
-        <p class="flip-label">Open a case?</p>
+        <p class="flip-label"><i aria-hidden="true" class="res res-case res-in"></i>Open a case?</p>
         <p class="flip-lead" id="caseLead">Buy a Case I, open it, sell what comes out</p>
         <p class="flip-figure" id="caseVerdict">—</p>
         <p class="flip-detail" id="caseDetail">Reading case prices…</p>
