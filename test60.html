@@ -852,6 +852,45 @@ kbd{
 .tabbtn[data-flag=up] .tabdot{display:block}
 .tabbtn[data-flag=down] .tabdot{display:block;background:var(--rust)}
 @media (prefers-reduced-motion:reduce){.tabbtn{transition:none}}
+
+/* ---- Desktop compaction -------------------------------------------------------
+   The phone layout is tuned and stays as it is. The wide one was not: a 694px column
+   stretched a six-item picker into 99px tiles, ran the price field at the height a
+   thumb needs, and stacked two verdict cards that each use a third of their width.
+   None of that is a phone problem, so none of it is fixed at phone widths. */
+@media(min-width:821px){
+  /* A picker is a control, not a hero. Cap the tile rather than letting six of them
+     divide whatever width the column happens to have. */
+  .slotgrid,.slotgrid.has-selection{
+    grid-template-columns:repeat(6,minmax(0,66px));gap:8px;margin-bottom:12px;
+    justify-content:start
+  }
+  .rarity-btn{max-width:44px}
+  .rarity{margin:8px 0 5px}
+  /* 58px is a thumb target. A mouse does not need one. */
+  .fields input{height:46px;font-size:19px}
+  .fields{margin-bottom:5px}
+  .gobtn{width:46px;height:38px;font-size:21px}
+  #price{padding-right:60px}
+  .quick{margin:-4px 0 11px}
+  .quick-chip{padding:7px 11px}
+  .quick-val{font-size:17px}
+  .flip{padding:13px 16px 14px;margin:0 0 11px}
+  .flip-figure{font-size:28px}
+  .flip-lead,.flip-detail{font-size:12.5px}
+  .scrap-src{margin-top:11px;padding-top:10px}
+  /* Two cards that each use a third of their width cost one card's height side by side
+     instead of two. They stay stacked wherever the column is too narrow to split. */
+  .flip-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+  /* The credit stack was four rows tall next to a one-line title, and the whole page
+     started below whichever was taller. Laid out as a row - which is what the phone
+     already does with it - the header costs one line instead of four. */
+  .byline{
+    flex-direction:row;align-items:center;flex-wrap:wrap;
+    justify-content:flex-end;gap:10px;margin-top:0
+  }
+  .standfirst{margin-bottom:12px}
+}
 .tabpane[hidden]{display:none}
 .datastrip{
   display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
@@ -2977,6 +3016,7 @@ h1 .title-word{white-space:nowrap}
       </div>
 
 
+      <div class="flip-pair">
       <div class="flip" id="flip" hidden>
         <p class="flip-label">Flip it?</p>
         <p class="flip-lead" id="flipLead">Worth flipping only if the second offer is</p>
@@ -3014,6 +3054,8 @@ h1 .title-word{white-space:nowrap}
           <input type="text" id="scrapPrice" value="0.218" inputmode="decimal" autocomplete="off" spellcheck="false">
           <span class="scrap-note" id="scrapNote">fallback figure</span>
         </div>
+      </div>
+
       </div>
 
       <p class="warn" id="warn" hidden></p>
@@ -3173,9 +3215,14 @@ var RARITIES=[
   {name:'Rare',colour:'#4A90D9'},{name:'Epic',colour:'#9B6FC6'},
   {name:'Legendary',colour:'#D4B106'},{name:'Mythic',colour:'#C0503B'}
 ];
+/* Head to toe, with the weapon first because that is the order the game's own market
+   filters in - weapons before equipment. The five armour pieces had no order at all:
+   boots sat between chest and gloves. Now they read down the body, helmet to boots, which
+   is where a hand goes looking for them. This list drives the slot picker, the craft and
+   case tables, the sort rows and the simulator tally, so all five agree. */
 var SLOTS=[
   {code:'weapon',name:'Weapon'},{code:'helmet',name:'Helmet'},{code:'chest',name:'Chest'},
-  {code:'boots',name:'Boots'},{code:'gloves',name:'Gloves'},{code:'pants',name:'Pants'}
+  {code:'gloves',name:'Gloves'},{code:'pants',name:'Pants'},{code:'boots',name:'Boots'}
 ];
 var SHEET_COLS=['weapon','boots','helmet','gloves','chest','pants'];
 var WEAPON_CODES=['knife','gun','rifle','sniper','tank','jet'];
