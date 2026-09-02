@@ -626,7 +626,7 @@ kbd{
 .cut-scrap{color:var(--rust)}
 .cut-none{color:var(--dim)}
 .cut-note{margin:10px 0 0;font-size:11.5px;color:var(--dim);line-height:1.5}
-#sortMin{max-width:96px}
+#sortMin,#sortMinPct{max-width:88px}
 .cutcard{
   margin:0 0 14px;padding:11px 13px;border:1px solid var(--line);
   border-radius:var(--radius);background:var(--panel)
@@ -2971,11 +2971,12 @@ h1 .title-word{white-space:nowrap}
         <div class="scrap-src" id="sortGate">
           <span class="scrap-src-label">Only worth listing if it beats scrap by</span>
           <div class="craft-fields">
-            <label for="sortMin">Margin<input type="text" id="sortMin" value="0" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+            <label for="sortMin">Gold<input type="text" id="sortMin" value="0" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+            <label for="sortMinPct">Percent<input type="text" id="sortMinPct" value="0" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
           </div>
-          <div class="scrap-btns" id="sortMinMode">
-            <button type="button" class="soundbtn" data-minmode="abs" aria-pressed="true">Gold</button>
-            <button type="button" class="soundbtn" data-minmode="pct" aria-pressed="false">Percent</button>
+          <div class="scrap-btns" id="sortJoin">
+            <button type="button" class="soundbtn" data-join="both" aria-pressed="true">Clear both</button>
+            <button type="button" class="soundbtn" data-join="either" aria-pressed="false">Either will do</button>
           </div>
           <p class="scrap-tabnote" id="sortGateNote"></p>
         </div>
@@ -3928,22 +3929,35 @@ function loadGatewayBooks(force){
 /* Beating scrap by a hair is not a reason to list something: the listing itself costs
    attention, and a pile of 0.03 edges is a worse use of an evening than one 5.00 one. The
    floor a roll has to clear is therefore the scrapper's own, not the market's. */
-var sortMin={value:0,mode:'abs'};
+var sortMin={abs:0,pct:0,join:'both'};
 function loadSortMin(){
   try{
     var raw=JSON.parse(localStorage.getItem('warera-sort-min')||'null');
-    if(raw&&isFinite(Number(raw.value))&&Number(raw.value)>=0)
-      sortMin={value:Number(raw.value),mode:raw.mode==='pct'?'pct':'abs'}
+    if(!raw)return;
+    var num=function(v){return isFinite(Number(v))&&Number(v)>0?Number(v):0};
+    // The first version of this control held one number and a mode. Read it forward rather
+    // than silently dropping whatever the person had already set.
+    if(raw.value!==undefined)
+      sortMin={abs:raw.mode==='pct'?0:num(raw.value),pct:raw.mode==='pct'?num(raw.value):0,join:'both'};
+    else
+      sortMin={abs:num(raw.abs),pct:num(raw.pct),join:raw.join==='either'?'either':'both'}
   }catch(e){}
 }
 function saveSortMin(){
   try{localStorage.setItem('warera-sort-min',JSON.stringify(sortMin))}catch(e){}
 }
-// What a roll of this tier actually has to fetch, net of tax, to earn a listing.
+/* What a roll of this tier has to fetch, net of tax, to earn a listing. The two bars answer
+   different questions — the effort of listing is the same gold whatever the item, while the
+   error in a median scales with the price — so by default a roll has to satisfy both. Taking
+   the lower instead is a weaker filter than either bar alone, which is a defensible thing to
+   want and a surprising thing to get by accident, so it is a choice rather than the default. */
 function sortNeed(t){
-  var dis=craftDismantle(t);
-  if(!(sortMin.value>0))return dis;
-  return sortMin.mode==='pct'?dis*(1+sortMin.value/100):dis+sortMin.value
+  var dis=craftDismantle(t),bars=[];
+  if(sortMin.abs>0)bars.push(dis+sortMin.abs);
+  if(sortMin.pct>0)bars.push(dis*(1+sortMin.pct/100));
+  if(!bars.length)return dis;
+  if(bars.length===1)return bars[0];
+  return sortMin.join==='either'?Math.min(bars[0],bars[1]):Math.max(bars[0],bars[1])
 }
 function sortRolls(slot,t,taxMul){
   var cat=((craftState.summary||{}).categories||{})[itemCodeForSlot(slot,t)];
@@ -4463,7 +4477,7 @@ function paintSort(){
   var taxMul=sortTax();
   var sig=[craftState.summary?'s':'',craftState.books?'b':'',craftState.live?'l':'',
            $('tax').value,craftState.src,craftState.liveAt,state.tier,state.slot,
-           sortMin.value,sortMin.mode].join('|');
+           sortMin.abs,sortMin.pct,sortMin.join].join('|');
   if(sig===craftState.sortSig)return;
   craftState.sortSig=sig;
   if(!craftState.summary||!craftState.books){
@@ -4503,22 +4517,25 @@ function paintSort(){
   paintSortGate()
 }
 function paintSortGate(){
-  var note=$('sortGateNote');if(!note)return;
-  Array.prototype.forEach.call($('sortMinMode').children,function(b){
-    b.setAttribute('aria-pressed',b.getAttribute('data-minmode')===sortMin.mode?'true':'false')
+  var note=$('sortGateNote'),both=$('sortJoin');if(!note)return;
+  Array.prototype.forEach.call(both.children,function(b){
+    b.setAttribute('aria-pressed',b.getAttribute('data-join')===sortMin.join?'true':'false')
   });
-  if(!(sortMin.value>0)){
+  both.hidden=!(sortMin.abs>0&&sortMin.pct>0);
+  if(!(sortMin.abs>0)&&!(sortMin.pct>0)){
     note.textContent='Everything that beats its own scraps counts, however thin the edge.';return
   }
-  // A percentage is one number across six tiers; gold is one number that means six different
-  // things. Either way the useful readout is what it costs at the extremes.
-  var lo=sortNeed(1)-craftDismantle(1),hi=sortNeed(6)-craftDismantle(6);
-  note.textContent=sortMin.mode==='pct'
-    ?'A roll has to beat its scraps by '+sortMin.value+'% \u2014 '+lo.toFixed(3)+
-     ' on Common, '+hi.toFixed(2)+' on Mythic.'
-    :'A roll has to beat its scraps by '+sortMin.value+' \u2014 '+
-     (craftDismantle(1)>0?(lo/craftDismantle(1)*100).toFixed(1):'\u2014')+
-     '% of a Common, '+(craftDismantle(6)>0?(hi/craftDismantle(6)*100).toFixed(2):'\u2014')+'% of a Mythic.'
+  // Neither bar means anything until it is money, and gold is one number that means six
+  // different things, so the readout is what it actually demands at the two extremes.
+  var lo=sortNeed(1)-craftDismantle(1),hi=sortNeed(6)-craftDismantle(6),
+      pc=function(v,t){var d=craftDismantle(t);return d>0?(v/d*100).toFixed(v/d*100<1?2:1)+'%':'\u2014'};
+  var head=sortMin.abs>0&&sortMin.pct>0
+    ?(sortMin.join==='either'
+        ?'A roll needs '+sortMin.abs+' over scrap or '+sortMin.pct+'%, whichever is easier \u2014 a weaker bar than either alone. '
+        :'A roll needs '+sortMin.abs+' over scrap and '+sortMin.pct+'%. ')
+    :'A roll needs '+(sortMin.abs>0?sortMin.abs+' over scrap':sortMin.pct+'% over scrap')+'. ';
+  note.textContent=head+'That is '+lo.toFixed(3)+' ('+pc(lo,1)+') on a Common and '+
+    hi.toFixed(2)+' ('+pc(hi,6)+') on a Mythic.'
 }
 // The same answer, one line, where the rarity is chosen — so the question "is this even worth
 // listing" is settled before anyone types a price for it.
@@ -4536,10 +4553,10 @@ function paintCutCard(){
   }
   if(!known){card.hidden=true;return}
   card.hidden=false;
-  var bar=sortMin.value>0?'clear the bar':'beat their scraps';
+  var gated=sortMin.abs>0||sortMin.pct>0,bar=gated?'clear the bar':'beat their scraps';
   var head=RARITIES[t-1].name+': break anything selling under '+(taxMul>0?(floor/taxMul).toFixed(3):'\u2014')+'. ';
   var body=sell===0?'No '+RARITIES[t-1].name+' roll is worth listing right now \u2014 break them all.'
-    :sell===known?'Every '+RARITIES[t-1].name+' roll '+(sortMin.value>0?'clears the bar':'beats its scraps')+' \u2014 all worth listing.'
+    :sell===known?'Every '+RARITIES[t-1].name+' roll '+(gated?'clears the bar':'beats its scraps')+' \u2014 all worth listing.'
     :sell+' of '+known+' rolls '+bar+(all.length?'. Cut lines: '+all.join(' \u00b7 ')+'.':'.');
   $('cutCardText').textContent=head+body
 }
@@ -6168,14 +6185,16 @@ $('tabBar').addEventListener('click',function(e){
 function applySortMin(){
   craftState.sortSig=null;saveSortMin();paintSort();paintCutCard()
 }
-$('sortMin').addEventListener('input',function(){
-  var v=extractNumber($('sortMin').value);
-  sortMin.value=v===null||!(Number(v)>0)?0:Number(v);
-  applySortMin()
+[['sortMin','abs'],['sortMinPct','pct']].forEach(function(pair){
+  $(pair[0]).addEventListener('input',function(){
+    var v=extractNumber($(pair[0]).value);
+    sortMin[pair[1]]=v===null||!(Number(v)>0)?0:Number(v);
+    applySortMin()
+  })
 });
-$('sortMinMode').addEventListener('click',function(e){
-  var b=e.target.closest('[data-minmode]');if(!b)return;
-  sortMin.mode=b.getAttribute('data-minmode');
+$('sortJoin').addEventListener('click',function(e){
+  var b=e.target.closest('[data-join]');if(!b)return;
+  sortMin.join=b.getAttribute('data-join');
   applySortMin()
 });
 $('simBtns').addEventListener('click',function(e){
@@ -6401,7 +6420,8 @@ loadLocalProfile().then(function(){
 });
 syncInputs();refreshMarketOpts();setWorkMode(isDesktop()?'sales':'price');
 loadSortMin();
-$('sortMin').value=String(sortMin.value);
+$('sortMin').value=String(sortMin.abs);
+$('sortMinPct').value=String(sortMin.pct);
 setTab(currentTab());
 setScrapSource(scrapSource());loadScrapPrice();
 setCraftOdds(craftState.odds);setCraftSource(craftState.src);loadCraftData();
