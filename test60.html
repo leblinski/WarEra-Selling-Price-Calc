@@ -603,22 +603,25 @@ kbd{
 .cut-tier:last-child{margin-bottom:0}
 .cut-head{
   display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;
-  padding:0 0 5px;border-bottom:1px solid var(--line);margin-bottom:6px
+  padding:0 7px 5px;border-bottom:1px solid var(--line);margin-bottom:6px
 }
 .cut-name{
   font-family:"Saira Condensed",sans-serif;font-weight:600;font-size:13px;
   letter-spacing:.1em;text-transform:uppercase;color:var(--tier,var(--ink))
 }
 .cut-floor{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--dim)}
+/* Fixed outer columns, not content-sized ones. An `auto` count column is as wide as whatever
+   it happens to hold — 5/5 on one row, 289/289 on the next — and since every row is its own
+   grid that pushes the rule column to a different place on each line. */
 .cut-row{
-  display:grid;grid-template-columns:minmax(58px,.7fr) minmax(0,1.6fr) auto;gap:9px;
+  display:grid;grid-template-columns:58px minmax(0,1fr) 56px;gap:9px;
   font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink);
   padding:3px 7px;border-radius:5px;align-items:baseline
 }
 .cut-row.hit{background:rgba(var(--brass-rgb),.09)}
 .cut-slot{color:var(--dim)}
 .cut-rule{min-width:0;overflow-wrap:anywhere}
-.cut-share{text-align:right;color:var(--dim);font-size:11px;white-space:nowrap}
+.cut-share{text-align:right;color:var(--dim);font-size:11px;white-space:nowrap;font-variant-numeric:tabular-nums}
 .cut-sell{color:var(--verdigris)}
 .cut-scrap{color:var(--rust)}
 .cut-none{color:var(--dim)}
