@@ -163,6 +163,11 @@ input:focus{outline:none;border-color:var(--brass);box-shadow:0 0 0 3px rgba(var
   letter-spacing:-.02em;font-variant-numeric:tabular-nums;margin:0;word-break:break-all
 }
 .docket-hint{font-size:13px;color:var(--dim);margin:4px 0 0}
+/* A placeholder dash carries nothing, and reserving 46px of line for it opened the page
+   on a third of a screen of empty panel. The line shrinks with its content; it grows once,
+   when the first price lands, not on every keystroke after. */
+.docket.empty{padding:13px 20px 14px}
+.docket.empty .docket-figure{font-size:21px;opacity:.45}
 .docket.success{border-color:var(--verdigris)}
 .docket.success::before{
   background:repeating-linear-gradient(to bottom,var(--verdigris) 0 7px,transparent 7px 15px)
@@ -625,6 +630,7 @@ kbd{
    six times the page for five rarities nobody was reading. */
 .sort-pick{margin:2px 0 12px;gap:6px}
 .sort-pick .rarity-btn{max-width:52px}
+#craftPick{margin:9px 0 4px}
 .cut-tier{margin:0 0 15px}
 .cut-tier:last-child{margin-bottom:0}
 /* A wide screen is a second column, not a longer line: the grid says where the cut is and the
@@ -776,6 +782,12 @@ kbd{
 }
 /* In the reel the tiles are a fixed-width filmstrip; in the grid the cell sets the size. */
 .sim-grid .sim-tile{flex:none;width:auto;height:auto;aspect-ratio:1/1}
+/* A batch that appears all at once is a result; one that lands piece by piece is an
+   opening. The delay is per tile and set inline, so the whole reveal is CSS and nothing
+   is being timed in JavaScript frame by frame. */
+@keyframes simpop{from{opacity:0;transform:scale(.68)}to{opacity:1;transform:none}}
+.sim-grid .sim-tile{animation:simpop 240ms cubic-bezier(.2,1.25,.4,1) both}
+@media (prefers-reduced-motion:reduce){.sim-grid .sim-tile{animation:none}}
 /* A piece you broke is not a piece you sold, and a haul that does not say which is a haul
    you cannot read. Same two channels the roll grid uses: dimmed, and hatched. */
 .sim-tile.blank{opacity:.32}
@@ -1246,6 +1258,9 @@ kbd{
   .docket{margin-top:6px!important;padding:12px 15px 14px!important}
   .docket-label{font-size:11px!important}
   .docket-figure{font-size:36px!important}
+  /* The empty state shrinks here too; the phone rule above is !important, so this
+     has to be as well rather than quietly losing to it. */
+  .docket.empty .docket-figure{font-size:21px!important}
   .docket-hint{font-size:11px!important}
   .quick{margin:6px 0 10px!important}
   .quick-chip{padding:8px 10px!important}
@@ -3068,6 +3083,7 @@ h1 .title-word{white-space:nowrap}
         <p class="flip-lead" id="craftLead">Buy the inputs, craft one piece at random, sell it or break it</p>
         <p class="flip-figure" id="craftVerdict">—</p>
         <p class="flip-detail" id="craftDetail">Reading the collector's order books and sale history…</p>
+        <div class="rarity-btns sort-pick" id="craftPick" role="tablist" aria-label="Rarity to craft"></div>
 
         <div class="craft-rows" id="craftRows"></div>
         <p class="craft-foot" id="craftFoot"></p>
@@ -3853,7 +3869,7 @@ function coreCalc(settled){
   $('priceLabel').textContent=beating?'Price to beat':'Price to target';
   if(!shown){
     state.coreFigure='';state.listFigure='';
-    $('figure').textContent='—';$('docketLabel').textContent=beating?'Type this to undercut them':'Type this figure';
+    paintFigure('—');$('docketLabel').textContent=beating?'Type this to undercut them':'Type this figure';
     $('docketHint').textContent='Enter a price above.';
     $('docket').classList.remove('blocked','success');
     $('quickFlipVal').textContent='—';$('quickScrapVal').textContent='—';
@@ -3862,10 +3878,10 @@ function coreCalc(settled){
     return
   }
   var entry=entryForDisplayed(shown,beating);
-  if(!entry){$('figure').textContent='—';$('docketHint').textContent='That price is too low to undercut.';return}
+  if(!entry){paintFigure('—');$('docketHint').textContent='That price is too low to undercut.';return}
   var entryText=decStr(entry);state.coreFigure=entryText;state.listFigure='';
   $('docketLabel').textContent=beating?'Type this to undercut them':'Type this figure';
-  $('figure').textContent=entryText;$('docketHint').textContent='Displayed market price '+Number(shown).toFixed(3)+' · tap to copy';
+  paintFigure(entryText);$('docketHint').textContent='Displayed market price '+Number(shown).toFixed(3)+' · tap to copy';
   $('docket').classList.remove('blocked','success');
   if(settled!==false){
     flipCheckCore(shown);
@@ -3875,7 +3891,7 @@ function coreCalc(settled){
       state.coreFigure='';
       $('docket').classList.add('blocked');
       $('docketLabel').textContent='Dismantle floor reached';
-      $('figure').textContent='Dismantle it';
+      paintFigure('Dismantle it');
       $('docketHint').textContent='Sale target '+Number(state.scrapComparedTarget).toFixed(3)+' is at/below dismantle floor '+state.scrapValue+'.';
       $('listAnyway').textContent='Ignore floor and list using '+entryText;
       $('listAnyway').hidden=false
@@ -4330,6 +4346,8 @@ function craftSigned(v,dp){
 // has actually moved.
 function paintCraft(){
   if(!$('craftBox'))return;
+  // Before any early return: the rarity is choosable whether or not prices have loaded.
+  paintCraftPick();
   var sig=[state.tier,tierKnown()?'k':'',$('tax').value,craftState.src,craftState.odds,$('craftCount').value,
     craftState.liveAt,craftState.liveLoading?'L':'',craftState.liveError||'',
     craftState.src==='own'?$('craftScrap').value+'/'+$('craftSteel').value:'',
@@ -4507,9 +4525,10 @@ function simDraw(t,taxMul){
           label:simRollLabel(slot,pick.skills),unpriced:false}
 }
 function simOpenOne(taxMul){return simDraw(simPick(CASE_TIER_ODDS)+1,taxMul)}
-function simTile(tier,slot,broke,blank,title){
+function simTile(tier,slot,broke,blank,title,delay){
   return '<div class="sim-tile'+(broke?' broke':'')+(blank?' blank':'')+
-    '" style="--tier:'+RARITIES[tier-1].colour+'"'+
+    '" style="--tier:'+RARITIES[tier-1].colour+
+    (delay?';animation-delay:'+delay+'ms':'')+'"'+
     (title?' title="'+esc(title)+'"':'')+'>'+
     '<i style="background-position:'+(sheetColumn(slot)*20)+'% '+((tier-1)/5*100)+'%"></i></div>'
 }
@@ -4518,6 +4537,11 @@ function simTile(tier,slot,broke,blank,title){
    so a thousand is fourteen screens of scrolling to find the one Legendary in it. Past the
    cap the grid keeps the pulls worth looking at and the table keeps the count. */
 var SIM_TILES=100;
+/* The whole reveal fits a fixed budget rather than a fixed step, so ten cases land
+   deliberately and a hundred still finish inside a second. */
+var SIM_REVEAL=1100;
+function simStep(count){return count<2?0:Math.min(70,SIM_REVEAL/count)}
+function simRevealMs(count){return count<2?0:simStep(count)*(count-1)+240}
 function simHaul(results,label){
   var n=results.length,show=results,note='';
   if(n>SIM_TILES){
@@ -4530,15 +4554,17 @@ function simHaul(results,label){
   // Big tiles for a batch you could have opened in the game in one go; past that they
   // shrink to fit, and the cap keeps even the largest haul inside one screen.
   var size=show.length<=10?'big':'mid',out=note+'<div class="sim-grid '+size+'">';
+  var step=simStep(show.length);
   for(var i=0;i<show.length;i++){
     var r=show[i],name=RARITIES[r.tier-1].name+' '+slotName(r.slot);
     out+=simTile(r.tier,r.slot,r.broke,r.unpriced,
       name+' \u00b7 '+(r.unpriced?'no collected sales'
-                                 :(r.broke?'broken for ':'sold for ')+r.net.toFixed(3)))
+                                 :(r.broke?'broken for ':'sold for ')+r.net.toFixed(3)),
+      Math.round(i*step))
   }
-  return out+'</div>'
+  return {html:out+'</div>',ms:simRevealMs(show.length)}
 }
-var simBusy=false;
+var simBusy=false,simToken=0;
 function simRun(n){
   if(simBusy)return;
   if(!craftState.summary){$('simResult').textContent='Collector prices are not loaded yet.';return}
@@ -4594,8 +4620,20 @@ function simRun(n){
   // grid instead, which is the shape the game shows a batch in.
   var reel=$('simReel'),strip=$('simStrip');
   var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
-  $('simHaul').innerHTML=n>1?simHaul(results,'cases'):'';
-  if(n!==1||reduce){reel.hidden=true;strip.style.transition='none';finish();return}
+  if(n>1){
+    var h=simHaul(results,'cases');
+    $('simHaul').innerHTML=h.html;
+    reel.hidden=true;strip.style.transition='none';
+    // Clear last run's answer first: leaving it up while the new tiles land reads as
+    // though the new haul has already been counted.
+    $('simHeadline').hidden=true;$('simResult').textContent='';$('simTally').innerHTML='';
+    var tok=++simToken;
+    if(reduce)finish();
+    else setTimeout(function(){if(tok===simToken)finish()},h.ms);
+    return
+  }
+  $('simHaul').innerHTML='';
+  if(reduce){reel.hidden=true;strip.style.transition='none';finish();return}
 
   simBusy=true;
   $('simResult').textContent='';$('simTally').innerHTML='';
@@ -4656,9 +4694,11 @@ function craftSimRun(n){
     tally[r.slot]=(tally[r.slot]||0)+1
   }
   var spend=sc&&st?sc.cost+st.cost:null;
-  haul.innerHTML=simHaul(results,'crafts');
+  var h=simHaul(results,'crafts');
+  haul.innerHTML=h.html;
 
   var one=results[0],name=RARITIES[t-1].name+' '+slotNameAt(one.slot,t);
+  var settle=function(){
   res.innerHTML=n===1
     ? 'Crafted <span class="tier" style="color:'+RARITIES[t-1].colour+'">'+esc(name)+
       '</span>'+(one.label?' ('+esc(one.label)+')':'')+
@@ -4691,6 +4731,12 @@ function craftSimRun(n){
       'so this run reads low.'
     : 'A craft fixes the rarity and leaves the slot and the roll to chance, so this rolls '+
       'those against collected prices. It settles on the row above, eventually.'
+  };
+  var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  head.hidden=true;res.textContent='';tal.innerHTML='';
+  var tok=++simToken;
+  if(reduce||!h.ms)settle();
+  else setTimeout(function(){if(tok===simToken)settle()},h.ms)
 }
 var caseEdge=0;
 function paintCase(){
@@ -4928,6 +4974,26 @@ var sortOpen={},heatData={},sortTier=null;
 function sortShown(){return sortTier||state.tier||1}
 function rname(i){
   return '<span style="color:'+RARITIES[i].colour+'">'+esc(RARITIES[i].name)+'</span>'
+}
+/* Reuses the badge sprites the price field and the sort tab already draw. Tapping one
+   pins the rarity outright rather than keeping a private copy, because the craft card is
+   about the rarity you have chosen everywhere else - the table highlights it, the figure
+   prices it, and the simulator refuses to run without it. */
+function paintCraftPick(){
+  var box=$('craftPick');if(!box)return;
+  var t=tierKnown()?state.tier:0;
+  box.innerHTML=RARITIES.map(function(r,i){
+    return '<button type="button" class="rarity-btn" role="tab" data-crafttier="'+(i+1)+
+      '" aria-selected="'+(t===i+1?'true':'false')+'" aria-pressed="'+(t===i+1?'true':'false')+
+      '" style="--tier:'+r.colour+'" title="'+esc(r.name)+'">'+
+      '<span class="badge" style="background-position-x:'+(i*20)+'%"></span></button>'
+  }).join('')
+}
+// Every write of the headline goes through here so the empty state cannot drift out of
+// sync with what the card is actually showing.
+function paintFigure(text){
+  $('figure').textContent=text;
+  $('docket').classList.toggle('empty',text==='\u2014')
 }
 function paintSortPick(){
   var box=$('sortPick');if(!box)return;
@@ -5897,7 +5963,7 @@ function showDismantleInstead(price,label,detail){
   var typed=entry?decStr(entry):fmt(price);
   paintTrendHero('Dismantle it','BETTER MOVE','Market target '+fmt(price)+' is at/below the dismantle floor '+fmt(floor)+'.','');
   $('docketLabel').textContent='Dismantle floor reached';
-  $('figure').textContent='Dismantle it';
+  paintFigure('Dismantle it');
   $('docketHint').textContent='Market target '+fmt(price)+' is at/below dismantle floor '+fmt(floor)+'. '+detail;
   $('docket').classList.add('blocked');
   $('docket').classList.remove('success');
@@ -5921,7 +5987,7 @@ function showFinal(price,label,detail){
   var typed=entry?decStr(entry):fmt(price);
   paintTrendHero(price,'MARKET TARGET',detail,typed);
   $('docketLabel').textContent=label;
-  $('figure').textContent=typed;
+  paintFigure(typed);
   $('docketHint').textContent='Market target '+fmt(price)+' · '+detail;
   $('docket').classList.add('success');
   $('docket').classList.remove('blocked');
@@ -6571,9 +6637,8 @@ function commitAndMaybeCopy(fromPaste){
 }
 
 /* events */
-$('rarityBtns').addEventListener('click',function(e){
-  var b=e.target.closest('[data-tier]');if(!b)return;
-  var t=Number(b.getAttribute('data-tier'));
+// Tapping the same rarity again releases the pin and hands the rarity back to the price.
+function pinTier(t){
   if(state.pinnedTier===t){
     state.pinnedTier=null;state.pinnedAtPrice=null
   }else{
@@ -6586,6 +6651,14 @@ $('rarityBtns').addEventListener('click',function(e){
   $('rarityLabel').classList.toggle('auto',!state.pinnedTier);
   $('rarityPanel').classList.remove('mobile-open');$('rarityCompact').setAttribute('aria-expanded','false');
   updateCompactRarity();coreCalc(true)
+}
+$('rarityBtns').addEventListener('click',function(e){
+  var b=e.target.closest('[data-tier]');if(!b)return;
+  pinTier(Number(b.getAttribute('data-tier')))
+});
+$('craftPick').addEventListener('click',function(e){
+  var b=e.target.closest('[data-crafttier]');if(!b)return;
+  pinTier(Number(b.getAttribute('data-crafttier')))
 });
 $('slotGrid').addEventListener('click',function(e){
   var b=e.target.closest('[data-slot]');if(!b)return;
