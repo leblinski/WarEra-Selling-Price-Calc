@@ -653,6 +653,9 @@ kbd{
 .cut-line.yes{color:var(--ink)}
 .cut-line.yes .why{color:var(--verdigris)}
 .cut-line.no .why{color:var(--rust)}
+/* Rust is reserved for a verdict. A roll that simply did not trade this week has not been
+   judged, so it is neither green nor red. */
+.cut-line.quiet .why,.cut-line.quiet span{color:var(--dim)}
 .cut-line.head{font-family:"Saira Condensed",sans-serif;font-size:9.5px;letter-spacing:.08em;
   text-transform:uppercase;opacity:.7}
 .cut-sell{color:var(--verdigris)}
@@ -4011,7 +4014,16 @@ function sortRolls(slot,t,taxMul){
   var kept=0,keptGold=0,dropped=0;
   for(var i=0;i<space.length;i++){
     var row=seen[space[i]],stat=row&&(row.selected||row.fallback_48h);
-    if(!stat||stat.median==null){out.push({key:space[i],net:null,each:each});continue}
+    // The collector reports a wider window beside the comparison ones. It never prices
+    // anything - a week-old sale is not a comparable - but it is the difference between
+    // "nobody wants this roll" and "none of them traded since Tuesday", and only one of
+    // those is a reason to break it.
+    var wide=row&&row.retained_window;
+    if(!stat||stat.median==null){
+      out.push({key:space[i],net:null,each:each,
+                wide:wide&&wide.median!=null?{price:Number(wide.median),count:wide.count||0}:null});
+      continue
+    }
     var net=Number(stat.median)*taxMul,wins=net>dis;
     known++;if(wins)sell++;
     if(wins){kept+=each;keptGold+=each*(net-scrap)}else{dropped+=each}
@@ -4598,8 +4610,10 @@ function sortDetail(r,label){
   for(var i=0;i<r.rolls.length;i++){
     var x=r.rolls[i];
     if(x.net==null){
-      out+='<div class="cut-line no"><span>'+esc(x.key)+'</span><span>\u2014</span>'+
-           '<span class="why">no sales yet</span></div>';
+      out+='<div class="cut-line quiet"><span>'+esc(x.key)+'</span><span>'+
+           (x.wide?x.wide.price.toFixed(3):'\u2014')+'</span><span class="why">'+
+           (x.wide?'none in 48h \u00b7 '+x.wide.count+' this week':'none traded yet')+
+           '</span></div>';
       continue
     }
     var why=x.sell?'+'+x.margin.toFixed(3)+' sell'
