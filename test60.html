@@ -614,7 +614,7 @@ kbd{
    it happens to hold — 5/5 on one row, 289/289 on the next — and since every row is its own
    grid that pushes the rule column to a different place on each line. */
 .cut-row{
-  display:grid;grid-template-columns:58px minmax(0,1fr) 56px;gap:9px;
+  display:grid;grid-template-columns:58px minmax(0,1fr) 62px 46px;gap:8px;
   font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink);
   padding:3px 7px;border-radius:5px;align-items:baseline
 }
@@ -622,6 +622,39 @@ kbd{
 .cut-slot{color:var(--dim)}
 .cut-rule{min-width:0;overflow-wrap:anywhere}
 .cut-share{text-align:right;color:var(--dim);font-size:11px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.cut-gold{text-align:right;font-size:11px;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--brass)}
+.cut-row.head{
+  font-family:"Saira Condensed",sans-serif;font-weight:600;font-size:10px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--dim);opacity:.75
+}
+.cut-row.head .cut-gold{color:var(--dim)}
+.cut-row.tap{cursor:pointer}
+.cut-row.tap:hover{background:rgba(var(--brass-rgb),.06)}
+.cut-row .cut-slot::after{content:'';display:inline-block;width:0;height:0;margin-left:5px;
+  border:3px solid transparent;border-top-color:var(--dim);vertical-align:middle;opacity:.55}
+.cut-row.head .cut-slot::after,.cut-row.rest .cut-slot::after{display:none}
+.cut-row.open .cut-slot::after{transform:rotate(180deg)}
+.cut-row.rest{color:var(--dim);font-size:11.5px}
+/* The tally of what gets broken has no slot of its own, so it takes that column's width
+   rather than wrapping "break the rest" onto two lines beside an empty cell. */
+.cut-row.rest .cut-slot{display:none}
+.cut-row.rest .cut-rule{grid-column:1 / 3}
+.cut-detail{margin:1px 0 5px;padding:5px 7px 6px 14px;border-left:2px solid var(--line)}
+.cut-detail[hidden]{display:none}
+/* Three columns, not four: the scrap value is the same on every line and the tier header
+   already states it, and a fourth column leaves nothing for the verdict on a 320px screen. */
+.cut-line{
+  display:grid;grid-template-columns:52px 62px minmax(0,1fr);gap:8px;
+  font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--dim);padding:2px 0;
+  font-variant-numeric:tabular-nums
+}
+.cut-line span+span{text-align:right}
+.cut-line .why{text-align:left;padding-left:4px}
+.cut-line.yes{color:var(--ink)}
+.cut-line.yes .why{color:var(--verdigris)}
+.cut-line.no .why{color:var(--rust)}
+.cut-line.head{font-family:"Saira Condensed",sans-serif;font-size:9.5px;letter-spacing:.08em;
+  text-transform:uppercase;opacity:.7}
 .cut-sell{color:var(--verdigris)}
 .cut-scrap{color:var(--rust)}
 .cut-none{color:var(--dim)}
@@ -3968,22 +4001,32 @@ function sortRolls(slot,t,taxMul){
     var k=craftRollKey(slot,(rolls[key].exact_roll||{}).skills);
     if(k!==null)seen[k]=rolls[key]
   }
-  var space=craftRollSpace(slot,t),dis=sortNeed(t),out=[],sell=0,known=0;
+  var space=craftRollSpace(slot,t),dis=sortNeed(t),scrap=craftDismantle(t),out=[],sell=0,known=0;
+  // How often a case hands you this exact roll: the tier's odds, the slot's share of the
+  // tier, spread evenly over the rolls the slot can produce. Uniform inside the roll space
+  // is an assumption — sale counts cannot measure it, because they only ever show what
+  // somebody chose to list — but every roll of a slot carries the same one, so the column
+  // ranks slots correctly whether or not the level is exact.
+  var each=(CASE_TIER_ODDS[t-1]||0)*(CRAFT_SLOT_WEIGHT[slot]||0)/(space.length||1);
+  var kept=0,keptGold=0,dropped=0;
   for(var i=0;i<space.length;i++){
     var row=seen[space[i]],stat=row&&(row.selected||row.fallback_48h);
-    if(!stat||stat.median==null){out.push({key:space[i],net:null});continue}
+    if(!stat||stat.median==null){out.push({key:space[i],net:null,each:each});continue}
     var net=Number(stat.median)*taxMul,wins=net>dis;
     known++;if(wins)sell++;
-    out.push({key:space[i],net:net,sell:wins})
+    if(wins){kept+=each;keptGold+=each*(net-scrap)}else{dropped+=each}
+    out.push({key:space[i],net:net,price:Number(stat.median),margin:net-scrap,sell:wins,each:each})
   }
-  return {rolls:out,floor:dis,sell:sell,known:known,space:space.length}
+  return {rolls:out,floor:dis,scrap:scrap,sell:sell,known:known,space:space.length,
+          each:each,keep:kept,gold:keptGold,drop:dropped}
 }
 // Equipment rolls are one rising number, so the answer is a threshold. Weapons are a grid of
 // attack against crit, and the way the game lists them is by crit, so that is how it reads.
 function cutRule(slot,t,r){
   if(!r||!r.known)return null;
-  if(r.sell===0)return {text:'break them all',kind:'scrap'};
-  if(r.sell===r.known)return {text:'sell them all',kind:'sell'};
+  // The column is headed "Sell", so the rule does not repeat the verb.
+  if(r.sell===0)return {text:'none',kind:'scrap'};
+  if(r.sell===r.known)return {text:'every roll',kind:'sell'};
   if(slot!=='weapon'){
     // Price rises with the roll, so the useful answer is one threshold. Where a straggler
     // below the top still fails, take the point above it rather than reciting every roll:
@@ -3995,7 +4038,7 @@ function cutRule(slot,t,r){
       if(!x.sell)break;
       cut=x.key
     }
-    return cut===null?{text:'break them all',kind:'scrap'}:{text:'sell '+cut+' and up',kind:'sell'}
+    return cut===null?{text:'none',kind:'scrap'}:{text:cut+' and up',kind:'sell'}
   }
   var byCrit={},order=[];
   r.rolls.forEach(function(x){
@@ -4005,7 +4048,10 @@ function cutRule(slot,t,r){
     else if(atk<byCrit[crit])byCrit[crit]=atk
   });
   order.sort(function(a,b){return Number(b)-Number(a)});
-  return {text:order.map(function(c){return 'crit '+c+' from '+byCrit[c]}).join(' · '),kind:'sell'}
+  // Six crit thresholds do not fit a phone column. The best two carry the decision; the rest
+  // are one tap away in the roll list, which is where anyone checking the detail is looking.
+  var shown=order.slice(0,2).map(function(c){return 'crit '+c+' from '+byCrit[c]}).join(' · ');
+  return {text:shown+(order.length>2?' +'+(order.length-2)+' more':''),kind:'sell'}
 }
 function craftDismantle(t){
   var ob=craftBook('scraps'),bid=ob&&ob.best_bid;
@@ -4468,6 +4514,20 @@ function setTab(name,fromUser){
 }
 // A tab you are not looking at still has an answer, and the edge is the whole reason to
 // open it, so it rides on the tab rather than waiting to be found.
+var SORT_BATCH=1000;
+// Per thousand reads naturally for Common and rounds to nothing for Mythic, so the unit
+// follows the tier instead of forcing one scale across a 6,200-fold range of odds.
+function sortHowOften(share){
+  var per=share*SORT_BATCH;
+  if(per>=10)return String(Math.round(per));
+  if(per>=1)return per.toFixed(1);
+  if(per<=0)return '\u2014';
+  return '1 in '+Math.round(1/share).toLocaleString()
+}
+function sortGold(v){
+  if(!(v>0))return '\u2014';
+  return v*SORT_BATCH>=10?Math.round(v*SORT_BATCH).toLocaleString():(v*SORT_BATCH).toFixed(1)
+}
 function sortTax(){
   var t=Number($('tax').value);
   return 1-((isFinite(t)&&t>0?t:0)/100)
@@ -4487,21 +4547,33 @@ function paintSort(){
   }
   var html='',anyKnown=0,anySpace=0;
   for(var t=1;t<=6;t++){
-    var floor=craftDismantle(t),need=sortNeed(t),rows='',tierKnownN=0,tierSell=0;
+    var floor=craftDismantle(t),need=sortNeed(t),rows='',tierKnownN=0,tierSell=0,rest=0;
+    rows+='<div class="cut-row head"><span class="cut-slot">Slot</span>'+
+          '<span class="cut-rule">Sell</span><span class="cut-share">Per 1,000</span>'+
+          '<span class="cut-gold">Gold</span></div>';
     for(var i=0;i<SLOTS.length;i++){
       var slot=SLOTS[i].code,label=slot==='weapon'?WEAPON_NAMES[t-1]:SLOTS[i].name;
       var r=sortRolls(slot,t,taxMul),rule=cutRule(slot,t,r);
       var hit=slot===state.slot&&t===state.tier?' hit':'';
       if(!rule){
-        rows+='<div class="cut-row'+hit+'"><span class="cut-slot">'+esc(label)+
-              '</span><span class="cut-rule cut-none">no sales yet</span><span class="cut-share"></span></div>';
+        rows+='<div class="cut-row rest'+hit+'"><span class="cut-slot">'+esc(label)+
+              '</span><span class="cut-rule cut-none">no sales yet</span>'+
+              '<span class="cut-share">\u2014</span><span class="cut-gold">\u2014</span></div>';
         continue
       }
-      tierKnownN+=r.known;tierSell+=r.sell;
-      rows+='<div class="cut-row'+hit+'"><span class="cut-slot">'+esc(label)+
-            '</span><span class="cut-rule '+(rule.kind==='sell'?'cut-sell':'cut-scrap')+'">'+
-            esc(rule.text)+'</span><span class="cut-share">'+r.sell+'/'+r.known+'</span></div>'
+      tierKnownN+=r.known;tierSell+=r.sell;rest+=r.drop;
+      var id=t+'-'+slot,open=sortOpen[id];
+      rows+='<div class="cut-row tap'+hit+(open?' open':'')+'" data-cut="'+id+'">'+
+            '<span class="cut-slot">'+esc(label)+'</span>'+
+            '<span class="cut-rule '+(rule.kind==='sell'?'cut-sell':'cut-scrap')+'">'+esc(rule.text)+'</span>'+
+            '<span class="cut-share">'+sortHowOften(r.keep)+'</span>'+
+            '<span class="cut-gold">'+sortGold(r.gold)+'</span></div>'+
+            '<div class="cut-detail" id="cutd-'+id+'"'+(open?'':' hidden')+'>'+sortDetail(r,label)+'</div>'
     }
+    if(rest>0)
+      rows+='<div class="cut-row rest"><span class="cut-slot"></span>'+
+            '<span class="cut-rule">break the rest</span><span class="cut-share">'+
+            sortHowOften(rest)+'</span><span class="cut-gold">\u2014</span></div>';
     anyKnown+=tierKnownN;anySpace+=tierSell;
     html+='<div class="cut-tier" style="--tier:'+RARITIES[t-1].colour+'">'+
       '<div class="cut-head"><span class="cut-name">'+esc(RARITIES[t-1].name)+'</span>'+
@@ -4515,6 +4587,27 @@ function paintSort(){
     anySpace+' of '+anyKnown+' rolls with sale history clear the bar. Right-hand figure is how many of that '+
     'slot\u2019s seen rolls do.';
   paintSortGate()
+}
+/* A rule people cannot check is a rule they have to take on faith. Opening a slot shows
+   every roll it can produce on the same terms as the summary above it, so the ones left out
+   are visibly left out for a reason rather than quietly missing. */
+var sortOpen={};
+function sortDetail(r,label){
+  var out='<div class="cut-line head"><span>Roll</span><span>Sells at</span>'+
+          '<span class="why">vs breaking it</span></div>';
+  for(var i=0;i<r.rolls.length;i++){
+    var x=r.rolls[i];
+    if(x.net==null){
+      out+='<div class="cut-line no"><span>'+esc(x.key)+'</span><span>\u2014</span>'+
+           '<span class="why">no sales yet</span></div>';
+      continue
+    }
+    var why=x.sell?'+'+x.margin.toFixed(3)+' sell'
+      :(x.net>r.scrap?'+'+x.margin.toFixed(3)+' under bar':x.margin.toFixed(3)+' break');
+    out+='<div class="cut-line '+(x.sell?'yes':'no')+'"><span>'+esc(x.key)+'</span><span>'+
+         x.price.toFixed(3)+'</span><span class="why">'+why+'</span></div>'
+  }
+  return out
 }
 function paintSortGate(){
   var note=$('sortGateNote'),both=$('sortJoin');if(!note)return;
@@ -4549,7 +4642,7 @@ function paintCutCard(){
     sell+=r.sell;known+=r.known;
     var rule=cutRule(slot,t,r);
     if(rule&&rule.kind==='sell'&&r.sell<r.known)
-      all.push((slot==='weapon'?WEAPON_NAMES[t-1]:SLOTS[i].name)+' '+rule.text.replace('sell ',''))
+      all.push((slot==='weapon'?WEAPON_NAMES[t-1]:SLOTS[i].name)+' '+rule.text)
   }
   if(!known){card.hidden=true;return}
   card.hidden=false;
@@ -6191,6 +6284,13 @@ function applySortMin(){
     sortMin[pair[1]]=v===null||!(Number(v)>0)?0:Number(v);
     applySortMin()
   })
+});
+$('sortRows').addEventListener('click',function(e){
+  var row=e.target.closest('[data-cut]');if(!row)return;
+  var id=row.getAttribute('data-cut'),d=$('cutd-'+id);
+  sortOpen[id]=!sortOpen[id];
+  row.classList.toggle('open',sortOpen[id]);
+  if(d)d.hidden=!sortOpen[id]
 });
 $('sortJoin').addEventListener('click',function(e){
   var b=e.target.closest('[data-join]');if(!b)return;
