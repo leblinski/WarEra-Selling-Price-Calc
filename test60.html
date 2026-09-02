@@ -626,6 +626,7 @@ kbd{
 .cut-scrap{color:var(--rust)}
 .cut-none{color:var(--dim)}
 .cut-note{margin:10px 0 0;font-size:11.5px;color:var(--dim);line-height:1.5}
+#sortMin{max-width:96px}
 .cutcard{
   margin:0 0 14px;padding:11px 13px;border:1px solid var(--line);
   border-radius:var(--radius);background:var(--panel)
@@ -2967,6 +2968,17 @@ h1 .title-word{white-space:nowrap}
         <p class="flip-label">Sell it or break it?</p>
         <p class="flip-lead" id="sortLead">Every roll, by rarity, against what its scraps are worth</p>
         <p class="flip-detail" id="sortDetail">Reading the collector's sale history…</p>
+        <div class="scrap-src" id="sortGate">
+          <span class="scrap-src-label">Only worth listing if it beats scrap by</span>
+          <div class="craft-fields">
+            <label for="sortMin">Margin<input type="text" id="sortMin" value="0" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+          </div>
+          <div class="scrap-btns" id="sortMinMode">
+            <button type="button" class="soundbtn" data-minmode="abs" aria-pressed="true">Gold</button>
+            <button type="button" class="soundbtn" data-minmode="pct" aria-pressed="false">Percent</button>
+          </div>
+          <p class="scrap-tabnote" id="sortGateNote"></p>
+        </div>
         <div id="sortRows"></div>
         <p class="cut-note" id="sortFoot"></p>
       </section>
@@ -3913,6 +3925,26 @@ function loadGatewayBooks(force){
    fetch is worth a listing; the rest are scrap however the market moves. Both answers come
    from the numbers already loaded, so the rule can never go stale the way a written guide
    does — when the scrap price moves, the cut line moves with it. */
+/* Beating scrap by a hair is not a reason to list something: the listing itself costs
+   attention, and a pile of 0.03 edges is a worse use of an evening than one 5.00 one. The
+   floor a roll has to clear is therefore the scrapper's own, not the market's. */
+var sortMin={value:0,mode:'abs'};
+function loadSortMin(){
+  try{
+    var raw=JSON.parse(localStorage.getItem('warera-sort-min')||'null');
+    if(raw&&isFinite(Number(raw.value))&&Number(raw.value)>=0)
+      sortMin={value:Number(raw.value),mode:raw.mode==='pct'?'pct':'abs'}
+  }catch(e){}
+}
+function saveSortMin(){
+  try{localStorage.setItem('warera-sort-min',JSON.stringify(sortMin))}catch(e){}
+}
+// What a roll of this tier actually has to fetch, net of tax, to earn a listing.
+function sortNeed(t){
+  var dis=craftDismantle(t);
+  if(!(sortMin.value>0))return dis;
+  return sortMin.mode==='pct'?dis*(1+sortMin.value/100):dis+sortMin.value
+}
 function sortRolls(slot,t,taxMul){
   var cat=((craftState.summary||{}).categories||{})[itemCodeForSlot(slot,t)];
   if(!cat)return null;
@@ -3922,7 +3954,7 @@ function sortRolls(slot,t,taxMul){
     var k=craftRollKey(slot,(rolls[key].exact_roll||{}).skills);
     if(k!==null)seen[k]=rolls[key]
   }
-  var space=craftRollSpace(slot,t),dis=craftDismantle(t),out=[],sell=0,known=0;
+  var space=craftRollSpace(slot,t),dis=sortNeed(t),out=[],sell=0,known=0;
   for(var i=0;i<space.length;i++){
     var row=seen[space[i]],stat=row&&(row.selected||row.fallback_48h);
     if(!stat||stat.median==null){out.push({key:space[i],net:null});continue}
@@ -4430,7 +4462,8 @@ function paintSort(){
   var box=$('sortRows');if(!box)return;
   var taxMul=sortTax();
   var sig=[craftState.summary?'s':'',craftState.books?'b':'',craftState.live?'l':'',
-           $('tax').value,craftState.src,craftState.liveAt,state.tier,state.slot].join('|');
+           $('tax').value,craftState.src,craftState.liveAt,state.tier,state.slot,
+           sortMin.value,sortMin.mode].join('|');
   if(sig===craftState.sortSig)return;
   craftState.sortSig=sig;
   if(!craftState.summary||!craftState.books){
@@ -4440,7 +4473,7 @@ function paintSort(){
   }
   var html='',anyKnown=0,anySpace=0;
   for(var t=1;t<=6;t++){
-    var floor=craftDismantle(t),rows='',tierKnownN=0,tierSell=0;
+    var floor=craftDismantle(t),need=sortNeed(t),rows='',tierKnownN=0,tierSell=0;
     for(var i=0;i<SLOTS.length;i++){
       var slot=SLOTS[i].code,label=slot==='weapon'?WEAPON_NAMES[t-1]:SLOTS[i].name;
       var r=sortRolls(slot,t,taxMul),rule=cutRule(slot,t,r);
@@ -4459,21 +4492,40 @@ function paintSort(){
     html+='<div class="cut-tier" style="--tier:'+RARITIES[t-1].colour+'">'+
       '<div class="cut-head"><span class="cut-name">'+esc(RARITIES[t-1].name)+'</span>'+
       '<span class="cut-floor">scraps fetch '+floor.toFixed(2)+' \u00b7 list above '+
-      (taxMul>0?(floor/taxMul).toFixed(2):'\u2014')+'</span></div>'+rows+'</div>';
+      (taxMul>0?(need/taxMul).toFixed(2):'\u2014')+'</span></div>'+rows+'</div>';
   }
   box.innerHTML=html;
   $('sortDetail').textContent='A roll only earns a listing if it beats what its own scraps fetch. '+
     'Below the cut line, breaking it is worth more than selling it.';
   $('sortFoot').textContent='Cut lines move with the scrap price, so they are computed fresh, not written down. '+
-    anySpace+' of '+anyKnown+' rolls with sale history are worth listing. Right-hand figure is how many of that '+
-    'slot\u2019s seen rolls sell above scrap.';
+    anySpace+' of '+anyKnown+' rolls with sale history clear the bar. Right-hand figure is how many of that '+
+    'slot\u2019s seen rolls do.';
+  paintSortGate()
+}
+function paintSortGate(){
+  var note=$('sortGateNote');if(!note)return;
+  Array.prototype.forEach.call($('sortMinMode').children,function(b){
+    b.setAttribute('aria-pressed',b.getAttribute('data-minmode')===sortMin.mode?'true':'false')
+  });
+  if(!(sortMin.value>0)){
+    note.textContent='Everything that beats its own scraps counts, however thin the edge.';return
+  }
+  // A percentage is one number across six tiers; gold is one number that means six different
+  // things. Either way the useful readout is what it costs at the extremes.
+  var lo=sortNeed(1)-craftDismantle(1),hi=sortNeed(6)-craftDismantle(6);
+  note.textContent=sortMin.mode==='pct'
+    ?'A roll has to beat its scraps by '+sortMin.value+'% \u2014 '+lo.toFixed(3)+
+     ' on Common, '+hi.toFixed(2)+' on Mythic.'
+    :'A roll has to beat its scraps by '+sortMin.value+' \u2014 '+
+     (craftDismantle(1)>0?(lo/craftDismantle(1)*100).toFixed(1):'\u2014')+
+     '% of a Common, '+(craftDismantle(6)>0?(hi/craftDismantle(6)*100).toFixed(2):'\u2014')+'% of a Mythic.'
 }
 // The same answer, one line, where the rarity is chosen — so the question "is this even worth
 // listing" is settled before anyone types a price for it.
 function paintCutCard(){
   var card=$('cutCard');if(!card)return;
   if(!tierKnown()||!craftState.summary||!craftState.books){card.hidden=true;return}
-  var t=state.tier,taxMul=sortTax(),floor=craftDismantle(t),sell=0,known=0,all=[];
+  var t=state.tier,taxMul=sortTax(),floor=sortNeed(t),sell=0,known=0,all=[];
   for(var i=0;i<SLOTS.length;i++){
     var slot=SLOTS[i].code,r=sortRolls(slot,t,taxMul);
     if(!r||!r.known)continue;
@@ -4484,10 +4536,11 @@ function paintCutCard(){
   }
   if(!known){card.hidden=true;return}
   card.hidden=false;
+  var bar=sortMin.value>0?'clear the bar':'beat their scraps';
   var head=RARITIES[t-1].name+': break anything selling under '+(taxMul>0?(floor/taxMul).toFixed(3):'\u2014')+'. ';
-  var body=sell===0?'No '+RARITIES[t-1].name+' roll beats its scraps right now \u2014 break them all.'
-    :sell===known?'Every '+RARITIES[t-1].name+' roll beats its scraps \u2014 all worth listing.'
-    :sell+' of '+known+' rolls beat scrap'+(all.length?'. Cut lines: '+all.join(' \u00b7 ')+'.':'.');
+  var body=sell===0?'No '+RARITIES[t-1].name+' roll is worth listing right now \u2014 break them all.'
+    :sell===known?'Every '+RARITIES[t-1].name+' roll '+(sortMin.value>0?'clears the bar':'beats its scraps')+' \u2014 all worth listing.'
+    :sell+' of '+known+' rolls '+bar+(all.length?'. Cut lines: '+all.join(' \u00b7 ')+'.':'.');
   $('cutCardText').textContent=head+body
 }
 function paintTabBadges(){
@@ -6112,6 +6165,19 @@ $('caseCount').addEventListener('input',paintCase);
 $('tabBar').addEventListener('click',function(e){
   var b=e.target.closest('[data-tab]');if(b)setTab(b.getAttribute('data-tab'),true)
 });
+function applySortMin(){
+  craftState.sortSig=null;saveSortMin();paintSort();paintCutCard()
+}
+$('sortMin').addEventListener('input',function(){
+  var v=extractNumber($('sortMin').value);
+  sortMin.value=v===null||!(Number(v)>0)?0:Number(v);
+  applySortMin()
+});
+$('sortMinMode').addEventListener('click',function(e){
+  var b=e.target.closest('[data-minmode]');if(!b)return;
+  sortMin.mode=b.getAttribute('data-minmode');
+  applySortMin()
+});
 $('simBtns').addEventListener('click',function(e){
   var b=e.target.closest('[data-sim]');if(!b)return;
   var raw=b.getAttribute('data-sim');
@@ -6334,6 +6400,8 @@ loadLocalProfile().then(function(){
   loadProfile();
 });
 syncInputs();refreshMarketOpts();setWorkMode(isDesktop()?'sales':'price');
+loadSortMin();
+$('sortMin').value=String(sortMin.value);
 setTab(currentTab());
 setScrapSource(scrapSource());loadScrapPrice();
 setCraftOdds(craftState.odds);setCraftSource(craftState.src);loadCraftData();
