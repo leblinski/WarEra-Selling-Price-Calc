@@ -16,6 +16,8 @@ mkdir -p "$OUT"
 
 SLOTS="helmet chest boots gloves pants"
 WEAPONS="gun sniper tank knife"
+# The three the Cases, Craft and Sort tabs price but had no art for.
+RESOURCES="case1 scraps steel"
 
 ok=0
 missing=""
@@ -47,6 +49,12 @@ for w in $WEAPONS; do
 done
 
 echo
+echo "Resources"
+for r in $RESOURCES; do
+  grab "$r"
+done
+
+echo
 echo "Downloaded $ok files into $OUT/"
 if [ -n "$missing" ]; then
   echo "Missing:$missing"
@@ -55,4 +63,5 @@ else
   echo "Everything found."
 fi
 echo
-echo "Now: git add items && git commit -m 'Add item art' && git push"
+echo "Next: python3 build-res-sprite.py   # folds the resources into res.png"
+echo "Then: git add items res.png && git commit -m 'Add item art' && git push"
