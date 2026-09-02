@@ -599,8 +599,19 @@ kbd{
 .craft-row .down,.flip-figure.down{color:var(--rust)}
 /* Sorting loot is a different job from pricing one item: the question is not "what is this
    worth" but "is this worth listing at all". One line per slot answers it for a whole pile. */
+/* Inventory is worked one rarity at a time - the game itself filters that way - so the tab
+   shows one, chosen with the same badges the price field already uses. Six blocks stacked was
+   six times the page for five rarities nobody was reading. */
+.sort-pick{margin:2px 0 12px;gap:6px}
+.sort-pick .rarity-btn{max-width:52px}
 .cut-tier{margin:0 0 15px}
 .cut-tier:last-child{margin-bottom:0}
+/* A wide screen is a second column, not a longer line: the grid says where the cut is and the
+   list says what is behind it, and they are read together. */
+@media (min-width:900px){
+  .cut-detail.pair{display:grid;grid-template-columns:minmax(0,auto) minmax(0,1fr);gap:22px;align-items:start}
+  .cut-detail.pair .heat{margin-top:0}
+}
 .cut-head{
   display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;
   padding:0 7px 5px;border-bottom:1px solid var(--line);margin-bottom:6px
@@ -645,6 +656,7 @@ kbd{
    the whole decision, so the ramp diverges from that zero rather than running low to high:
    verdigris one way, rust the other, near-surface at the line itself. Magnitude is relative
    within the weapon, because a Common margin is 0.45 and a Mythic one is 50. */
+.heatwrap{min-width:0}
 .heat{margin:4px 0 2px;overflow-x:auto}
 .heat-grid{display:grid;gap:2px;min-width:max-content}
 .heat-lab{
@@ -3042,6 +3054,7 @@ h1 .title-word{white-space:nowrap}
         <p class="flip-label">Sell it or break it?</p>
         <p class="flip-lead" id="sortLead">Every roll, by rarity, against what its scraps are worth</p>
         <p class="flip-detail" id="sortDetail">Reading the collector's sale history…</p>
+        <div class="rarity-btns sort-pick" id="sortPick" role="tablist" aria-label="Rarity to sort"></div>
         <div class="scrap-src" id="sortGate">
           <span class="scrap-src-label">Only worth listing if it beats scrap by</span>
           <div class="craft-fields">
@@ -4251,8 +4264,8 @@ function paintCraft(){
     var exp=craftExpected(t,taxMul);
     var hit=known&&t===state.tier?' hit':'';
     if(!sc||!st||!exp){
-      rows+='<div class="craft-row'+hit+'"><span>'+esc(RARITIES[t-1].name)+
-        '</span><span>—</span><span>—</span><span>—</span><span>—</span></div>';
+      rows+='<div class="craft-row'+hit+'">'+rname(t-1)+
+        '<span>—</span><span>—</span><span>—</span><span>—</span></div>';
       continue
     }
     if(t===1){anyScrap=sc;anySteel=st}
@@ -4264,7 +4277,7 @@ function paintCraft(){
     var cls=profit>=0?'up':'down';
     rows+='<div class="craft-row'+hit+'" title="'+scrapQty.toLocaleString()+' scraps + '+
       steelQty.toLocaleString()+' steel">'+
-      '<span>'+esc(RARITIES[t-1].name)+'</span>'+
+      rname(t-1)+
       '<span>'+craftMoney(cost)+'</span>'+
       '<span>'+craftMoney(gross)+'</span>'+
       '<span class="'+cls+'">'+craftSigned(pct,1)+'%</span>'+
@@ -4425,8 +4438,8 @@ function simRun(n){
     for(var t=1;t<=6;t++){
       var exp=CASE_TIER_ODDS[t-1]*n,diff=tally[t-1]-exp;
       var cls=Math.abs(diff)<0.005?'':(diff>0?'over':'under');
-      rows+='<div class="sim-row'+(tally[t-1]?' got':'')+'"><span>'+esc(RARITIES[t-1].name)+
-        '</span><span>'+tally[t-1]+'</span><span>'+exp.toFixed(2)+
+      rows+='<div class="sim-row'+(tally[t-1]?' got':'')+'">'+rname(t-1)+
+        '<span>'+tally[t-1]+'</span><span>'+exp.toFixed(2)+
         '</span><span class="'+cls+'">'+(cls?craftSigned(diff,diff===Math.round(diff)?0:1):'0')+
         '</span></div>'
     }
@@ -4509,12 +4522,12 @@ function paintCase(){
   for(var t2=1;t2<=6;t2++){
     var pr=parts[t2-1],hit=t2===state.tier?' hit':'';
     if(!pr){
-      rows+='<div class="craft-row'+hit+'"><span>'+esc(RARITIES[t2-1].name)+
-        '</span><span>\u2014</span><span>\u2014</span><span>\u2014</span><span>\u2014</span></div>';
+      rows+='<div class="craft-row'+hit+'">'+rname(t2-1)+
+        '<span>\u2014</span><span>\u2014</span><span>\u2014</span><span>\u2014</span></div>';
       continue
     }
     rows+='<div class="craft-row'+hit+'">'+
-      '<span>'+esc(RARITIES[t2-1].name)+'</span>'+
+      rname(t2-1)+
       '<span>'+(pr.odds*100).toFixed(2)+'%</span>'+
       '<span>'+craftMoney(pr.net)+'</span>'+
       '<span>'+Math.round(pr.broken*100)+'%</span>'+
@@ -4639,7 +4652,7 @@ function paintSort(){
   var taxMul=sortTax();
   var sig=[craftState.summary?'s':'',craftState.books?'b':'',craftState.live?'l':'',
            $('tax').value,craftState.src,craftState.liveAt,state.tier,state.slot,
-           sortMin.abs,sortMin.pct,sortMin.join].join('|');
+           sortMin.abs,sortMin.pct,sortMin.join,sortShown()].join('|');
   if(sig===craftState.sortSig)return;
   craftState.sortSig=sig;
   if(!craftState.summary||!craftState.books){
@@ -4647,8 +4660,9 @@ function paintSort(){
     $('sortDetail').textContent=craftState.error||'Reading the collector\u2019s sale history\u2026';
     $('sortFoot').textContent='';return
   }
-  var html='',anyKnown=0,anySpace=0;
-  for(var t=1;t<=6;t++){
+  var html='',anyKnown=0,anySpace=0,only=sortShown();
+  paintSortPick();
+  for(var t=only;t<=only;t++){
     var floor=craftDismantle(t),need=sortNeed(t),rows='',tierKnownN=0,tierSell=0,rest=0;
     rows+='<div class="cut-row head"><span class="cut-slot">Slot</span>'+
           '<span class="cut-rule">Sell</span><span class="cut-share">Per 1,000</span>'+
@@ -4671,8 +4685,9 @@ function paintSort(){
             '<span class="cut-rule '+(rule.kind==='sell'?'cut-sell':'cut-scrap')+'">'+esc(rule.text)+'</span>'+
             '<span class="cut-share">'+sortHowOften(r.keep)+'</span>'+
             '<span class="cut-gold">'+sortGold(r.gold)+'</span></div>'+
-            '<div class="cut-detail" id="cutd-'+id+'"'+(open?'':' hidden')+'>'+
-            (slot==='weapon'?sortHeat(r,t,id)+sortDetail(r,label,slot):sortDetail(r,label,slot))+'</div>'
+            '<div class="cut-detail'+(slot==='weapon'?' pair':'')+'" id="cutd-'+id+'"'+(open?'':' hidden')+'>'+
+            (slot==='weapon'?sortHeat(r,t,id)+'<div>'+sortDetail(r,label,slot)+'</div>'
+                            :sortDetail(r,label,slot))+'</div>'
     }
     if(rest>0)
       rows+='<div class="cut-row rest"><span class="cut-slot"></span>'+
@@ -4695,7 +4710,21 @@ function paintSort(){
 /* A rule people cannot check is a rule they have to take on faith. Opening a slot shows
    every roll it can produce on the same terms as the summary above it, so the ones left out
    are visibly left out for a reason rather than quietly missing. */
-var sortOpen={},heatData={};
+var sortOpen={},heatData={},sortTier=null;
+function sortShown(){return sortTier||state.tier||1}
+function rname(i){
+  return '<span style="color:'+RARITIES[i].colour+'">'+esc(RARITIES[i].name)+'</span>'
+}
+function paintSortPick(){
+  var box=$('sortPick');if(!box)return;
+  var t=sortShown();
+  box.innerHTML=RARITIES.map(function(r,i){
+    return '<button type="button" class="rarity-btn" role="tab" data-sorttier="'+(i+1)+
+      '" aria-selected="'+(t===i+1?'true':'false')+'" aria-pressed="'+(t===i+1?'true':'false')+
+      '" style="--tier:'+r.colour+'" title="'+esc(r.name)+'">'+
+      '<span class="badge" style="background-position-x:'+(i*20)+'%"></span></button>'
+  }).join('')
+}
 /* Diverging from the scrap floor. Alpha carries magnitude so the near-zero step recedes into
    the panel rather than competing with it, which is what "this roll is on the line" should
    look like. Relative to the strongest margin in this weapon, since the tiers differ by two
@@ -4723,7 +4752,9 @@ function sortHeat(r,t,id){
   var peak=mags.length?mags[Math.min(mags.length-1,Math.floor(mags.length*0.9))]:0;
   if(!(peak>0))peak=mags.length?mags[mags.length-1]:0;
   var cols=c1-c0+1;
-  var out='<div class="heat"><div class="heat-grid" style="grid-template-columns:34px repeat('+
+  // One wrapper, so the pairing on a wide screen has two columns to place rather than the
+  // grid, its two legend lines and its readout arriving as four separate children.
+  var out='<div class="heatwrap"><div class="heat"><div class="heat-grid" style="grid-template-columns:34px repeat('+
           cols+',minmax(44px,1fr))"><span class="heat-lab"></span>';
   for(j=c0;j<=c1;j++)out+='<span class="heat-lab">crit '+j+'</span>';
   for(i=a0;i<=a1;i++){
@@ -4748,7 +4779,7 @@ function sortHeat(r,t,id){
     '<i style="border:1px solid var(--line)"></i>no sales'+
     '</p><p class="heat-key">stronger colour, bigger margin \u00b7 top step is the '+
     'strongest tenth and above</p>'+
-    '<p class="heat-read" id="heatread-'+id+'"><span class="muted">Tap a square for its numbers.</span></p>';
+    '<p class="heat-read" id="heatread-'+id+'"><span class="muted">Tap a square for its numbers.</span></p></div>';
   return out
 }
 /* The roll space is generated attack-major, which scatters each crit band down the page. But
@@ -4779,7 +4810,8 @@ function sortDetail(r,label,slot){
     if(x.net==null){
       var note=x.wide
         ?'this week \u00b7 '+(x.sell?'sell':'break')
-        :(x.from?'like '+x.from.key+' \u00b7 '+(x.from.sell?'sell':'break'):'none traded yet');
+        :(x.from?'like '+(g.band?x.from.key.split('/')[0]:x.from.key)+' \u00b7 '+
+                 (x.from.sell?'sell':'break'):'none traded yet');
       out+='<div class="cut-line quiet"><span>'+esc(key)+'</span><span>'+
            (x.wide?x.wide.price.toFixed(3):'\u2014')+'</span><span class="why">'+
            esc(note)+'</span></div>';
@@ -6499,6 +6531,11 @@ $('sortRows').addEventListener('click',function(e){
   sortOpen[id]=!sortOpen[id];
   row.classList.toggle('open',sortOpen[id]);
   if(d)d.hidden=!sortOpen[id]
+});
+$('sortPick').addEventListener('click',function(e){
+  var b=e.target.closest('[data-sorttier]');if(!b)return;
+  sortTier=Number(b.getAttribute('data-sorttier'));
+  craftState.sortSig=null;paintSort()
 });
 $('sortJoin').addEventListener('click',function(e){
   var b=e.target.closest('[data-join]');if(!b)return;
