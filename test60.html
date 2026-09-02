@@ -1795,7 +1795,7 @@ h1 .title-word{white-space:nowrap}
     background:transparent!important;
     color:var(--verdigris)!important;
     font-family:"Saira Condensed",sans-serif!important;
-    font-size:8.5px!important;
+    font-size:10.5px!important;
     font-weight:700!important;
     line-height:1.2!important;
     letter-spacing:.08em!important;
@@ -1803,6 +1803,8 @@ h1 .title-word{white-space:nowrap}
     text-decoration:none!important;
     white-space:nowrap!important
   }
+  /* Once it is a thank-you it has nothing left to ask for, so it steps back down. */
+  #tipLink.thanked{font-size:8.5px!important}
   .settings-btn{
     order:4!important;
     min-width:0!important;
@@ -6519,6 +6521,14 @@ function initialsOf(name){
   if(parts.length===1)return parts[0].slice(0,2).toUpperCase();
   return (parts[0].charAt(0)+parts[1].charAt(0)).toUpperCase()
 }
+var TIP_ASK='TIP \u00b7 NEW ARTICLE \u2197',TIP_DONE='Thank you for your support <3';
+function paintTip(id){
+  var el=$('tipLink');if(!el||!id)return;
+  var seen='';try{seen=localStorage.getItem('warera-tipped-article')||''}catch(e){}
+  var done=seen===id;
+  el.textContent=done?TIP_DONE:TIP_ASK;
+  el.classList.toggle('thanked',done)
+}
 function paintProfile(data){
   if(!data||!data.name)return;
   $('profileName').textContent=data.name;
@@ -6602,7 +6612,8 @@ function loadLocalProfile(){
       if(m){
         $('tipLink').href='https://app.warera.io/article/'+m[0];
         $('tipLink').hidden=false;
-        $('tipLink').dataset.article=m[0]
+        $('tipLink').dataset.article=m[0];
+        paintTip(m[0])
       }
       return {hasArticle:!!m}
     })
@@ -7013,7 +7024,12 @@ $('settingsClose').addEventListener('click',closeSettings);
 $('settingsPanel').addEventListener('click',function(e){if(e.target===$('settingsPanel'))closeSettings()});
 document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!$('settingsPanel').hidden)closeSettings()});
 $('handBtns').addEventListener('click',function(e){var b=e.target.closest('[data-hand]');if(b)setHand(b.getAttribute('data-hand'))});
-$('tipLink').addEventListener('click',function(){var id=this.dataset.article||'';if(id){try{localStorage.setItem('warera-tipped-article',id)}catch(e){};this.textContent='Thank you for your support <3';this.classList.add('thanked')}});
+$('tipLink').addEventListener('click',function(){
+  var id=this.dataset.article||'';
+  if(!id)return;
+  try{localStorage.setItem('warera-tipped-article',id)}catch(e){}
+  paintTip(id)
+});
 $('loadTrendsBtn').addEventListener('click',function(){loadAnalytics(false)});
 $('moreTrendsBtn').addEventListener('click',function(){loadAnalytics(false)});
 
