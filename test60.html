@@ -765,6 +765,26 @@ kbd{
   display:block;width:100%;height:100%;background-image:url('items.png');
   background-size:600% 600%;background-repeat:no-repeat
 }
+/* The haul itself, laid out the way the game lays out a batch. Five across is the game's
+   own shape and what a phone fits; a wide screen gets ten, so ten cases read as one row
+   there and two rows on a phone rather than a column of ten. */
+.sim-grid{display:grid;gap:5px;margin:11px 0 6px}
+.sim-grid.big{grid-template-columns:repeat(5,minmax(0,1fr))}
+.sim-grid.mid{grid-template-columns:repeat(auto-fill,minmax(46px,1fr))}
+@media (min-width:640px){
+  .sim-grid.big{grid-template-columns:repeat(10,minmax(0,1fr))}
+}
+/* In the reel the tiles are a fixed-width filmstrip; in the grid the cell sets the size. */
+.sim-grid .sim-tile{flex:none;width:auto;height:auto;aspect-ratio:1/1}
+/* A piece you broke is not a piece you sold, and a haul that does not say which is a haul
+   you cannot read. Same two channels the roll grid uses: dimmed, and hatched. */
+.sim-tile.blank{opacity:.32}
+.sim-tile.broke{opacity:.5}
+.sim-tile.broke::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(45deg,transparent 0 3px,rgba(0,0,0,.5) 3px 6px)
+}
+.sim-count{margin:0 0 2px;font-size:11.5px;color:var(--dim)}
 /* The marker the strip settles under, same idea as the game's own panel. */
 .sim-reel::after{
   content:"";position:absolute;left:50%;top:4px;bottom:4px;width:2px;margin-left:-1px;
@@ -3030,6 +3050,21 @@ h1 .title-word{white-space:nowrap}
           </div>
           <p class="scrap-tabnote" id="craftNote"></p>
         </div>
+
+        <div class="scrap-src">
+          <span class="scrap-src-label">Try your luck</span>
+          <div class="sim-btns" id="craftSimBtns">
+            <button type="button" class="soundbtn" data-craftsim="1">Craft 1</button>
+            <button type="button" class="soundbtn" data-craftsim="10">10</button>
+            <button type="button" class="soundbtn" data-craftsim="100">100</button>
+            <button type="button" class="soundbtn" data-craftsim="count">Use the number above</button>
+          </div>
+          <div id="craftSimHaul"></div>
+          <p class="sim-headline" id="craftSimHeadline" hidden></p>
+          <p class="sim-result" id="craftSimResult"></p>
+          <div class="sim-tally" id="craftSimTally"></div>
+          <p class="scrap-tabnote" id="craftSimNote">A craft fixes the rarity and leaves the slot and the roll to chance, so this rolls those against collected prices. It settles on the row above, eventually.</p>
+        </div>
       </section>
 
 
@@ -3061,6 +3096,7 @@ h1 .title-word{white-space:nowrap}
             <button type="button" class="soundbtn" data-sim="count">Use the number above</button>
           </div>
           <div class="sim-reel" id="simReel" hidden><div class="sim-strip" id="simStrip"></div></div>
+          <div id="simHaul"></div>
           <p class="sim-headline" id="simHeadline" hidden></p>
           <p class="sim-result" id="simResult"></p>
           <div class="sim-tally" id="simTally"></div>
@@ -4410,8 +4446,9 @@ function simRollLabel(slot,skills){
   for(var k in skills){if(Object.prototype.hasOwnProperty.call(skills,k))bits.push(k+' '+skills[k])}
   return bits.join(', ')
 }
-function simOpenOne(taxMul){
-  var t=simPick(CASE_TIER_ODDS)+1;
+/* One piece of the given rarity: the slot and the roll are chance, the rarity is not.
+   A case rolls that too and hands it here; a craft buys it outright. */
+function simDraw(t,taxMul){
   var slotCodes=SLOTS.map(function(s){return s.code});
   var slot=slotCodes[simPick(slotCodes.map(function(c){return CRAFT_SLOT_WEIGHT[c]||0}))];
   var table=craftRollTable(slot,t);
@@ -4422,9 +4459,37 @@ function simOpenOne(taxMul){
   return {tier:t,slot:slot,net:sells?sale:dis,sale:sale,dis:dis,broke:!sells,
           label:simRollLabel(slot,pick.skills),unpriced:false}
 }
-function simTile(tier,slot){
-  return '<div class="sim-tile" style="--tier:'+RARITIES[tier-1].colour+'">'+
+function simOpenOne(taxMul){return simDraw(simPick(CASE_TIER_ODDS)+1,taxMul)}
+function simTile(tier,slot,broke,blank,title){
+  return '<div class="sim-tile'+(broke?' broke':'')+(blank?' blank':'')+
+    '" style="--tier:'+RARITIES[tier-1].colour+'"'+
+    (title?' title="'+esc(title)+'"':'')+'>'+
     '<i style="background-position:'+(sheetColumn(slot)*20)+'% '+((tier-1)/5*100)+'%"></i></div>'
+}
+/* How many tiles a haul may draw. Not a speed limit - a thousand of them lay out in under
+   7ms even at phone width - but a height one: five across they run 1.4 screens per hundred,
+   so a thousand is fourteen screens of scrolling to find the one Legendary in it. Past the
+   cap the grid keeps the pulls worth looking at and the table keeps the count. */
+var SIM_TILES=100;
+function simHaul(results,label){
+  var n=results.length,show=results,note='';
+  if(n>SIM_TILES){
+    // Truncating in draw order would show a hundred Commons and hide every rare, which is
+    // the opposite of what a long run is watched for.
+    show=results.slice().sort(function(a,b){return b.net-a.net}).slice(0,SIM_TILES);
+    note='<p class="sim-count">The '+SIM_TILES+' best of '+n+' '+label+
+         ' \u2014 the rest are in the table below.</p>'
+  }
+  // Big tiles for a batch you could have opened in the game in one go; past that they
+  // shrink to fit, and the cap keeps even the largest haul inside one screen.
+  var size=show.length<=10?'big':'mid',out=note+'<div class="sim-grid '+size+'">';
+  for(var i=0;i<show.length;i++){
+    var r=show[i],name=RARITIES[r.tier-1].name+' '+slotName(r.slot);
+    out+=simTile(r.tier,r.slot,r.broke,r.unpriced,
+      name+' \u00b7 '+(r.unpriced?'no collected sales'
+                                 :(r.broke?'broken for ':'sold for ')+r.net.toFixed(3)))
+  }
+  return out+'</div>'
 }
 var simBusy=false;
 function simRun(n){
@@ -4444,8 +4509,8 @@ function simRun(n){
     simBusy=false;
     var spend=cost?cost.cost:null;
     var line=n===1
-      ? 'You opened a <span class="tier" style="color:'+RARITIES[results[0].tier-1].colour+'">'+
-        esc(RARITIES[results[0].tier-1].name)+' '+esc(slotName(results[0].slot))+'</span>'+
+      ? 'Opened <span class="tier" style="color:'+RARITIES[results[0].tier-1].colour+'">'+
+        esc(RARITIES[results[0].tier-1].name)+' '+esc(slotNameAt(results[0].slot,results[0].tier))+'</span>'+
         (results[0].label?' ('+esc(results[0].label)+')':'')+
         (results[0].broke
           ? '. Break it: '+results[0].net.toFixed(3)+' in scraps beats the '+
@@ -4478,9 +4543,11 @@ function simRun(n){
       : 'Rolls the real odds against collected prices. It settles on the same answer as the card above, eventually.'
   };
 
-  // One case gets the reel; a hundred would just be a hundred reels.
+  // One case gets the reel; a hundred would just be a hundred reels. Two or more get the
+  // grid instead, which is the shape the game shows a batch in.
   var reel=$('simReel'),strip=$('simStrip');
   var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  $('simHaul').innerHTML=n>1?simHaul(results,'cases'):'';
   if(n!==1||reduce){reel.hidden=true;strip.style.transition='none';finish();return}
 
   simBusy=true;
@@ -4508,6 +4575,75 @@ function simRun(n){
 function slotName(code){
   var s=SLOTS.filter(function(x){return x.code===code})[0];
   return s?s.name:code
+}
+// The weapon slot is a different weapon at every rarity, and "Weapon" hides that.
+function slotNameAt(code,t){return code==='weapon'?WEAPON_NAMES[t-1]:slotName(code)}
+
+/* ---- Craft simulator ----------------------------------------------------------
+   The row above answers what the average craft returns. This answers what a run of
+   them feels like, which is the question an average quietly refuses: crafting fixes
+   the rarity and leaves the slot and the roll to chance, so the spread inside one
+   rarity is the whole story. Same draw, prices and sell-or-break rule as the card,
+   so a long run lands on the row it sits under. */
+function craftSimRun(n){
+  var res=$('craftSimResult'),head=$('craftSimHeadline'),
+      haul=$('craftSimHaul'),tal=$('craftSimTally'),note=$('craftSimNote');
+  var stop=function(msg){haul.innerHTML='';head.hidden=true;tal.innerHTML='';res.textContent=msg};
+  if(!craftState.summary||!craftState.books)
+    return stop('Collector prices are not loaded yet.');
+  if(!tierKnown())
+    return stop('Pick a rarity first \u2014 a craft leaves you the slot and the roll, not the rarity.');
+
+  var t=state.tier,taxPct=Number($('tax').value);
+  if(!isFinite(taxPct)||taxPct<0)taxPct=0;
+  var taxMul=1-taxPct/100;
+  var sc=craftInput('scraps',SCRAP_YIELDS[t-1]*n,'craftScrap'),
+      st=craftInput('steel',CRAFT_STEEL[t-1]*n,'craftSteel');
+  var results=[],i;
+  for(i=0;i<n;i++)results.push(simDraw(t,taxMul));
+
+  var got=0,unpriced=0,broke=0,tally={};
+  for(i=0;i<results.length;i++){
+    var r=results[i];
+    got+=r.net;if(r.unpriced)unpriced++;if(r.broke)broke++;
+    tally[r.slot]=(tally[r.slot]||0)+1
+  }
+  var spend=sc&&st?sc.cost+st.cost:null;
+  haul.innerHTML=simHaul(results,'crafts');
+
+  var one=results[0],name=RARITIES[t-1].name+' '+slotNameAt(one.slot,t);
+  res.innerHTML=n===1
+    ? 'Crafted <span class="tier" style="color:'+RARITIES[t-1].colour+'">'+esc(name)+
+      '</span>'+(one.label?' ('+esc(one.label)+')':'')+
+      (one.unpriced?'. Nothing has sold at that exact roll, so it counts as zero here.'
+       :one.broke?'. Break it: '+one.net.toFixed(3)+' in scraps beats the '+
+                  one.sale.toFixed(3)+' it would list for.'
+       :', worth '+one.net.toFixed(3)+' listed.')
+    : 'Crafted '+n+' '+esc(RARITIES[t-1].name)+' pieces for '+
+      (spend==null?'?':craftMoney(spend))+' and got '+craftMoney(got)+
+      ' back \u2014 '+broke+' of them by breaking.';
+  if(spend!=null){
+    var pl=got-spend;
+    head.textContent=craftSigned(pl,3)+'  '+craftSigned(spend>0?pl/spend*100:0,2)+'%';
+    head.className='sim-headline '+(pl>=0?'up':'down');
+    head.hidden=false
+  }else head.hidden=true;
+
+  // The rarity is fixed here, so the interesting draw is which slot came out.
+  var rows='<div class="sim-row head"><span>Slot</span><span>Got</span><span>Expected</span><span>Diff</span></div>';
+  for(i=0;i<SLOTS.length;i++){
+    var code=SLOTS[i].code,g=tally[code]||0,exp=(CRAFT_SLOT_WEIGHT[code]||0)*n,d=g-exp;
+    var cls=Math.abs(d)<0.005?'':(d>0?'over':'under');
+    rows+='<div class="sim-row'+(g?' got':'')+'"><span>'+esc(slotNameAt(code,t))+'</span>'+
+      '<span>'+g+'</span><span>'+exp.toFixed(2)+'</span>'+
+      '<span class="'+cls+'">'+(cls?craftSigned(d,d===Math.round(d)?0:1):'0')+'</span></div>'
+  }
+  tal.innerHTML=rows;
+  note.textContent=unpriced
+    ? unpriced+' of '+n+' landed on a roll with no collected sales and counted as zero, '+
+      'so this run reads low.'
+    : 'A craft fixes the rarity and leaves the slot and the roll to chance, so this rolls '+
+      'those against collected prices. It settles on the row above, eventually.'
 }
 var caseEdge=0;
 function paintCase(){
@@ -6586,6 +6722,12 @@ $('sortJoin').addEventListener('click',function(e){
   var b=e.target.closest('[data-join]');if(!b)return;
   sortMin.join=b.getAttribute('data-join');
   applySortMin()
+});
+$('craftSimBtns').addEventListener('click',function(e){
+  var cb=e.target.closest('[data-craftsim]');if(!cb)return;
+  var craw=cb.getAttribute('data-craftsim');
+  var cn=craw==='count'?craftCount():Number(craw);
+  craftSimRun(isFinite(cn)&&cn>0?Math.min(cn,9999):1)
 });
 $('simBtns').addEventListener('click',function(e){
   var b=e.target.closest('[data-sim]');if(!b)return;
