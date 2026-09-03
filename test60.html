@@ -1006,6 +1006,10 @@ kbd{
   border-radius:var(--radius);background:var(--panel)
 }
 .datastrip-text{font-size:12px;color:var(--dim)}
+/* The one control on the page whose whole job is to be pressed when something looks wrong,
+   so it carries the brass rather than the dim ink the other pill buttons rest at, and it
+   is sized for a thumb rather than a cursor. */
+#dataRefresh{color:var(--brass);border-color:var(--brass-deep);min-height:36px;padding:0 16px}
 .datastrip button[disabled]{opacity:.55;cursor:default}
 .slider-wrap{margin-top:12px}
 .slider-row{display:flex;align-items:center;gap:8px}
@@ -3297,6 +3301,7 @@ h1 .title-word{white-space:nowrap}
 
       <div class="datastrip">
         <span class="datastrip-text" id="dataStamp">Loading collector prices…</span>
+        <button type="button" class="soundbtn" id="dataRefresh">Refresh</button>
       </div>
 
       <a class="market" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:52px;margin:14px 0 24px;border:1px solid var(--brass-deep);border-radius:var(--radius);background:var(--panel);color:var(--brass);text-decoration:none;font-family:'Saira Condensed',sans-serif;font-weight:700;font-size:15px;letter-spacing:.09em;text-transform:uppercase" href="https://app.warera.io/market/equipments" target="_blank" rel="noopener">
@@ -5477,21 +5482,38 @@ function paintDataStamp(){
   var idx=collector.index;
   if(!$('dataStamp'))return;
   if(Date.now()<dataStampHold)return;
+  var btn=$('dataRefresh');
+  if(btn){btn.disabled=refreshBusy();btn.textContent=refreshBusy()?'Checking…':'Refresh'}
   if(!idx){$('dataStamp').textContent='Collector prices not loaded yet.';return}
-  var age=dataAgeText(idx.generated_at);
+  var age=dataAgeText(idx.generated_at),
+      t=new Date(idx.generated_at).getTime(),
+      // Two cadences late is past anything the schedule explains, so say so rather than
+      // leaving a number to climb beside a sentence promising every 15 minutes.
+      late=Number.isFinite(t)&&Date.now()-t>COLLECTOR_CADENCE_MS*2;
   $('dataStamp').textContent='Prices collected '+(age||'at an unknown time')+
     (idx.status&&idx.status!=='ok'?' · collector reported '+idx.status:'')+
-    '. Published every '+Math.round(COLLECTOR_CADENCE_MS/60000)+' minutes.'
+    (late?'. Longer ago than it should be – tap refresh.'
+         :'. Published every '+Math.round(COLLECTOR_CADENCE_MS/60000)+' minutes.')
 }
 // The collector republishes on a 10-minute cadence, so a manual refresh has to bypass
 // both the in-memory copies and the browser cache to be worth pressing.
 // The collector publishes on a fixed cadence, so the page can meet it rather than making
 // anyone ask. This pulls what was last published; it cannot make the collector go and
 // collect, which would need a GitHub token in a public page.
-var COLLECTOR_CADENCE_MS=15*60*1000,autoRefreshTimer=null,refreshInFlight=false;
+/* The guard against overlapping refreshes is a timestamp rather than a boolean because a
+   boolean could not clear itself. A fetch still in flight when a phone backgrounds the tab
+   need never settle - iOS suspends the page, and the AbortController's own timeout is a
+   setTimeout, so it is suspended with it - and the promise that resets the flag then never
+   runs. The flag stayed set for the rest of the session, every later refresh returned at
+   the first line, and the stamp counted upwards for hours over data that was minutes old.
+   Worth a duplicate request in the rare case a refresh genuinely runs this long. */
+var COLLECTOR_CADENCE_MS=15*60*1000,autoRefreshTimer=null,refreshStartedAt=0,
+    REFRESH_LOCK_MS=FETCH_TIMEOUT+18000;
+function refreshBusy(){return refreshStartedAt>0&&Date.now()-refreshStartedAt<REFRESH_LOCK_MS}
 function refreshCollector(){
-  if(refreshInFlight)return;
-  refreshInFlight=true;
+  if(refreshBusy())return;
+  refreshStartedAt=Date.now();
+  paintDataStamp();
   var before=(collector.index||{}).generated_at||null;
   var code=state.itemCode||(state.slot?itemCode():null);
   collector.shards={};collector.pending={};
@@ -5500,7 +5522,7 @@ function refreshCollector(){
   if(code)jobs.push(loadShard(code,true));
   var settle=function(pr){return pr.then(function(){return null},function(e){return e})};
   Promise.all(jobs.map(settle)).then(function(res){
-    refreshInFlight=false;
+    refreshStartedAt=0;
     var failed=res.filter(Boolean).length;
     craftState.summary=collector.summary||craftState.summary;
     craftState.books=collector.books||craftState.books;
@@ -5690,7 +5712,15 @@ function dataAgeText(stamp){
   var t=stamp?new Date(stamp).getTime():NaN;
   if(!Number.isFinite(t))return '';
   var mins=Math.max(0,Math.round((Date.now()-t)/60000));
-  return mins<1?'just now':(mins===1?'1 min ago':mins+' min ago')
+  if(mins<1)return 'just now';
+  if(mins===1)return '1 min ago';
+  // Past an hour and a half, minutes stop being a unit anyone reads: "185 min ago" has to
+  // be divided before it means anything, and "3345 min ago" reads as a fault in the page.
+  if(mins<90)return mins+' min ago';
+  var hrs=mins/60;
+  if(hrs<48)return (hrs<10?hrs.toFixed(1):Math.round(hrs))+'h ago';
+  var days=Math.round(hrs/24);
+  return days+(days===1?' day ago':' days ago')
 }
 function unwrapPage(json){
   var d=json;if(d&&d.result)d=(d.result.data!==undefined)?d.result.data:d.result;
@@ -7078,11 +7108,22 @@ $('ageChips').addEventListener('click',function(e){
 });
 setInterval(paintDataStamp,30000);
 // A tab left in the background skips its turns; catch up the moment it is looked at.
-document.addEventListener('visibilitychange',function(){
-  if(document.visibilityState!=='visible')return;
+function collectorCatchUp(){
   paintDataStamp();
   var stamp=(collector.index||{}).generated_at;
   if(stamp&&Date.now()-new Date(stamp).getTime()>COLLECTOR_CADENCE_MS)refreshCollector()
+}
+document.addEventListener('visibilitychange',function(){
+  if(document.visibilityState==='visible')collectorCatchUp()
+});
+/* Coming back through the history cache is the case a phone actually takes, and it does not
+   always announce itself as a visibility change - the page is restored whole, timers and
+   all, having missed however many turns. persisted says it came from that cache. */
+window.addEventListener('pageshow',function(e){if(e.persisted)collectorCatchUp()});
+$('dataRefresh').addEventListener('click',function(){
+  // Pressed because the strip says the data is old, so it must not be the press that gets
+  // ignored: clear a lock left behind by a fetch that never came back.
+  refreshStartedAt=0;refreshCollector()
 });
 $('craftSrcBtns').addEventListener('click',function(e){
   var b=e.target.closest('[data-craftsrc]');if(b)setCraftSource(b.getAttribute('data-craftsrc'))
