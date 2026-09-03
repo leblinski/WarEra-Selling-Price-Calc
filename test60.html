@@ -714,19 +714,61 @@ kbd{
 .cut-detail[hidden]{display:none}
 /* Three columns, not four: the scrap value is the same on every line and the tier header
    already states it, and a fourth column leaves nothing for the verdict on a 320px screen. */
+/* What this exact roll has been doing on the market. It sits under the roll picker
+   because that is the moment the question becomes answerable, and it needs no fetch -
+   the collector already published it. */
+.rollfacts{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(74px,1fr));gap:1px;
+  margin:9px 0 2px;background:var(--line);border:1px solid var(--line);border-radius:8px;
+  overflow:hidden
+}
+.rollfacts div{background:var(--panel);padding:6px 9px 7px}
+.rollfacts dt{
+  display:block;margin:0 0 2px;font-family:"Saira Condensed",sans-serif;font-weight:600;
+  font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)
+}
+.rollfacts dd{
+  margin:0;font-family:"IBM Plex Mono",monospace;font-size:14px;font-weight:600;
+  color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.15
+}
+.rollfacts dd small{display:block;font-size:9.5px;font-weight:500;color:var(--dim);margin-top:2px}
+.rollfacts dd.up{color:var(--verdigris)} .rollfacts dd.down{color:var(--rust)}
+.rollfacts .week{color:var(--brass)}
+/* Three short columns do not want the whole card; stretched apart they stop reading as rows. */
+.nbrs{margin:9px 0 2px;max-width:300px}
+.nbrs-h{
+  margin:0 0 4px;font-family:"Saira Condensed",sans-serif;font-weight:600;font-size:9px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--dim)
+}
+.nbr{
+  display:grid;grid-template-columns:50px minmax(0,1fr) 46px;gap:8px;padding:2px 7px;
+  border-radius:4px;font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--dim);
+  font-variant-numeric:tabular-nums
+}
+.nbr span+span{text-align:right}
+.nbr .t{opacity:.8}
+.nbr.here{background:rgba(var(--brass-rgb),.14);color:var(--ink)}
 .cut-line{
-  display:grid;grid-template-columns:52px 62px minmax(0,1fr);gap:8px;
+  display:grid;grid-template-columns:52px 62px 44px minmax(0,1fr);gap:8px;
   font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--dim);padding:2px 0;
   font-variant-numeric:tabular-nums
 }
 .cut-line span+span{text-align:right}
-.cut-line .why{text-align:left;padding-left:4px}
+.cut-line .why{text-align:left;padding-left:4px;min-width:0;overflow-wrap:anywhere}
+/* A fourth column costs the verdict its room on the narrowest phones, so the three fixed
+   ones give some back rather than pushing the row off the screen. */
+@media (max-width:400px){
+  .cut-line{grid-template-columns:42px 54px 36px minmax(0,1fr);gap:6px}
+}
 .cut-line.yes{color:var(--ink)}
 .cut-line.yes .why{color:var(--verdigris)}
 .cut-line.no .why{color:var(--rust)}
 /* Rust is reserved for a verdict. A roll that simply did not trade this week has not been
    judged, so it is neither green nor red. */
 .cut-line.quiet .why,.cut-line.quiet span{color:var(--dim)}
+/* How long the piece sat listed before it sold. It is a fact about the past, not a
+   promise, so it never takes the ink colour the price does. */
+.cut-line .when{color:var(--dim);opacity:.8}
 .cut-line.head{font-family:"Saira Condensed",sans-serif;font-size:9.5px;letter-spacing:.08em;
   text-transform:uppercase;opacity:.7}
 .cut-band{
@@ -2897,6 +2939,8 @@ h1 .title-word{white-space:nowrap}
             <section class="trend-card trend-card-rolls" id="trendRollCard" hidden>
               <div class="trend-card-label">2 · Roll</div>
               <div class="rollgrid" id="rollGrid" hidden></div>
+              <div class="rollfacts" id="rollFacts" hidden></div>
+              <div class="nbrs" id="rollNbrs" hidden></div>
             </section>
 
             <section class="trend-card trend-card-data" id="trendDataCard" hidden>
@@ -3385,6 +3429,104 @@ function buildSlots(){
       +'<span class="slotart" style="background-position:'+(sheetColumn(s.code)*20)+'% '+y+'%"></span></button>'
   }).join('')
 }
+/* The collector already knows what this exact roll has sold for and how long it took, so
+   the moment a roll is picked there is nothing left to go and ask for. */
+function factsFor(code,slot,want){
+  var cat=((craftState.summary||{}).categories||{})[code];
+  if(!cat)return null;
+  var rolls=cat.rolls||{},k;
+  for(k in rolls){
+    if(!Object.prototype.hasOwnProperty.call(rolls,k))continue;
+    var row=rolls[k];
+    if(craftRollKey(slot,(row.exact_roll||{}).skills)!==want)continue;
+    var st=row.selected||row.fallback_48h,wide=row.retained_window;
+    if(st&&st.median!=null)
+      return {median:Number(st.median),n:st.count||0,secs:st.median_time_to_sell_seconds,
+              lo:st.min,hi:st.max,week:false};
+    if(wide&&wide.median!=null)
+      return {median:Number(wide.median),n:wide.count||0,
+              secs:wide.median_time_to_sell_seconds,lo:null,hi:null,week:true};
+    return null
+  }
+  return null
+}
+function rollChosen(){
+  if(!state.slot||!craftState.summary)return null;
+  var specs=rollSpecs();
+  if(!specs.length)return null;
+  for(var i=0;i<specs.length;i++)
+    if(!Number.isFinite(Number(state.rolls[specs[i].key])))return null;
+  return state.slot==='weapon'
+    ? Number(state.rolls.attack)+'/'+Number(state.rolls.criticalChance)
+    : String(Number(state.rolls[(STAT_RANGES[state.slot]||{}).key]))
+}
+function rollFacts(){
+  var want=rollChosen();
+  return want==null?null:factsFor(itemCode(),state.slot,want)
+}
+/* The rolls either side of the one in hand, so you can see whether it sits on a cliff or a
+   plateau. For a weapon that means the same crit and the attack next door: crossing a crit
+   is a different item to a buyer, and comparing across one would be comparing two things. */
+function rollNeighbours(){
+  var want=rollChosen();if(want==null)return null;
+  var t=state.tier,code=itemCode(),out=[],v,lo,hi,i;
+  if(state.slot==='weapon'){
+    var w=WEAPON_STATS[t-1],crit=Number(state.rolls.criticalChance);
+    v=Number(state.rolls.attack);lo=w.attack[0];hi=w.attack[1];
+    for(i=v-2;i<=v+2;i++){
+      if(i<lo||i>hi)continue;
+      out.push({key:i+'/'+crit,label:String(i),here:i===v})
+    }
+  }else{
+    var r=STAT_RANGES[state.slot];if(!r)return null;
+    var band=r.tiers[t-1];v=Number(state.rolls[r.key]);lo=band[0];hi=band[1];
+    for(i=v-2;i<=v+2;i++){
+      if(i<lo||i>hi)continue;
+      out.push({key:String(i),label:String(i),here:i===v})
+    }
+  }
+  if(out.length<2)return null;
+  for(i=0;i<out.length;i++)out[i].f=factsFor(code,state.slot,out[i].key);
+  return out
+}
+function paintRollFacts(){
+  var box=$('rollFacts');if(!box)return;
+  var f=rollFacts(),nbBox=$('rollNbrs');
+  // Clearing one without the other leaves the last roll's neighbours sitting under a
+  // blank card, which reads as though they belong to the piece now in hand.
+  if(!f){
+    box.hidden=true;box.innerHTML='';
+    if(nbBox){nbBox.hidden=true;nbBox.innerHTML=''}
+    return
+  }
+  var scrap=craftDismantle(state.tier),tax=Number($('tax').value);
+  if(!isFinite(tax)||tax<0)tax=0;
+  var net=f.median*(1-tax/100),edge=scrap>0?net-scrap:null;
+  var cell=function(label,value,extra,cls){
+    return '<div><dt>'+label+'</dt><dd'+(cls?' class="'+cls+'"':'')+'>'+value+
+           (extra?'<small>'+extra+'</small>':'')+'</dd></div>'
+  };
+  box.innerHTML=
+    cell('Sells at',f.median.toFixed(3),
+         f.lo!=null&&f.hi!=null?f.lo.toFixed(3)+'\u2013'+f.hi.toFixed(3):'')+
+    cell('Sells in',sellsIn(f.secs),f.week?'over the week':'')+
+    cell('Sales',String(f.n),f.week?'<span class="week">7-day window</span>':'last 48h')+
+    (edge==null?'':cell('Over scraps',(edge>=0?'+':'\u2212')+Math.abs(edge).toFixed(3),
+         'scraps fetch '+scrap.toFixed(2),edge>=0?'up':'down'));
+  box.hidden=false;
+  var nb=nbBox;if(!nb)return;
+  var rows=rollNeighbours();
+  if(!rows){nb.hidden=true;nb.innerHTML='';return}
+  nb.innerHTML='<p class="nbrs-h">'+(state.slot==='weapon'
+      ?'Either side, at crit '+Number(state.rolls.criticalChance)
+      :'Either side')+'</p>'+
+    rows.map(function(o){
+      return '<div class="nbr'+(o.here?' here':'')+'"><span>'+esc(o.label)+'</span>'+
+        '<span>'+(o.f?o.f.median.toFixed(3):'\u2014')+'</span>'+
+        '<span class="t">'+(o.f?sellsIn(o.f.secs):'\u2014')+'</span></div>'
+    }).join('');
+  nb.hidden=false
+}
 function buildRolls(){
   if(!state.slot){
     $('rollGrid').hidden=true;$('trendRollCard').hidden=true;$('marketOpts').hidden=true;$('trendDataCard').hidden=true;
@@ -3409,6 +3551,7 @@ function buildRolls(){
     out+='</div>'
   });
   $('rollGrid').innerHTML=out;$('rollGrid').hidden=false;$('trendRollCard').hidden=false;
+  paintRollFacts();
   refreshMarketOpts()
 }
 function refreshMarketOpts(){
@@ -4241,7 +4384,8 @@ function loadGatewayBooks(force){
     res.forEach(function(r){if(r[1]){out[r[0]]=r[1];ok++}else if(!err)err=r[2]});
     if(ok===3){craftState.live=out;craftState.liveAt=Date.now();craftState.liveError=null}
     else craftState.liveError=(err&&err.message?err.message:'request failed');
-    craftState.sig=null;craftState.caseSig=null;craftState.sortSig=null;paintCraft();paintCase();paintSort();paintCutCard()
+    craftState.sig=null;craftState.caseSig=null;craftState.sortSig=null;
+    paintCraft();paintCase();paintSort();paintCutCard();paintRollFacts()
   })
 }
 /* Sorting a pile of loot is a different question from pricing one item: not "what is this
@@ -4313,13 +4457,15 @@ function sortRolls(slot,t,taxMul){
     var wide=row&&row.retained_window;
     if(!stat||stat.median==null){
       out.push({key:space[i],net:null,each:each,
-                wide:wide&&wide.median!=null?{price:Number(wide.median),count:wide.count||0}:null});
+                wide:wide&&wide.median!=null?{price:Number(wide.median),count:wide.count||0,
+                     secs:wide.median_time_to_sell_seconds}:null});
       continue
     }
     var net=Number(stat.median)*taxMul,wins=net>dis;
     known++;if(wins)sell++;
     if(wins){kept+=each;keptGold+=each*(net-scrap)}else{dropped+=each}
-    out.push({key:space[i],net:net,price:Number(stat.median),margin:net-scrap,sell:wins,each:each})
+    out.push({key:space[i],net:net,price:Number(stat.median),margin:net-scrap,sell:wins,each:each,
+              secs:stat.median_time_to_sell_seconds})
   }
   fillQuiet(out,slot,dis,taxMul);
   return {rolls:out,floor:dis,scrap:scrap,sell:sell,known:known,space:space.length,
@@ -5223,9 +5369,21 @@ function sortRows(r,slot){
     return {band:'crit '+c,rolls:by[c].map(function(o){return o.x}),labels:by[c].map(function(o){return o.label})}
   })
 }
+/* A price you have to wait two days for is not the same offer as one that clears in twenty
+   minutes, and until now nothing on the page said which it was. Short units, because the
+   column has to stay narrow enough to leave the verdict room. */
+function sellsIn(secs){
+  if(secs==null||!(secs>0))return '\u2014';
+  var m=secs/60;
+  if(m<1)return '<1m';
+  if(m<90)return Math.round(m)+'m';
+  var h=m/60;
+  return h<48?h.toFixed(h<10?1:0)+'h':Math.round(h/24)+'d'
+}
 function sortDetail(r,label,slot){
   var out='<div class="cut-line head"><span>Roll</span><span>Sells at</span>'+
-          '<span class="why">vs breaking it</span></div>',groups=sortRows(r,slot),g,gi;
+          '<span>Sells in</span><span class="why">vs breaking it</span></div>',
+      groups=sortRows(r,slot),g,gi;
   for(gi=0;gi<groups.length;gi++){
     g=groups[gi];
     if(g.band)out+='<div class="cut-band">'+esc(g.band)+'</div>';
@@ -5237,14 +5395,16 @@ function sortDetail(r,label,slot){
         :(x.from?'like '+(g.band?x.from.key.split('/')[0]:x.from.key)+' \u00b7 '+
                  (x.from.sell?'sell':'break'):'none traded yet');
       out+='<div class="cut-line quiet"><span>'+esc(key)+'</span><span>'+
-           (x.wide?x.wide.price.toFixed(3):'\u2014')+'</span><span class="why">'+
+           (x.wide?x.wide.price.toFixed(3):'\u2014')+'</span><span class="when">'+
+           (x.wide?sellsIn(x.wide.secs):'\u2014')+'</span><span class="why">'+
            esc(note)+'</span></div>';
       continue
     }
     var why=x.sell?'+'+x.margin.toFixed(3)+' sell'
       :(x.net>r.scrap?'+'+x.margin.toFixed(3)+' under bar':x.margin.toFixed(3)+' break');
     out+='<div class="cut-line '+(x.sell?'yes':'no')+'"><span>'+esc(key)+'</span><span>'+
-         x.price.toFixed(3)+'</span><span class="why">'+why+'</span></div>'
+         x.price.toFixed(3)+'</span><span class="when">'+sellsIn(x.secs)+
+         '</span><span class="why">'+why+'</span></div>'
   }}
   return out
 }
@@ -6837,7 +6997,7 @@ $('rollGrid').addEventListener('input',function(e){
   var raw=String(el.value||'').trim(),v=raw===''?NaN:Number(raw);
   if(Number.isFinite(v)&&v>=sp.band[0]&&v<=sp.band[1])state.rolls[key]=v;
   else delete state.rolls[key];
-  resetAnalysis();refreshMarketOpts()
+  resetAnalysis();paintRollFacts();refreshMarketOpts()
 });
 $('keypad').addEventListener('click',function(e){
   var b=e.target.closest('[data-key]');if(!b)return;
