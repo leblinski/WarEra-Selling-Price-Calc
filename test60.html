@@ -828,6 +828,42 @@ kbd{
 .sim-row.got{background:rgba(var(--brass-rgb),.07);color:var(--ink)}
 .sim-row .over{color:var(--verdigris)}
 .sim-row .under{color:var(--rust)}
+/* The order book, five levels a side, the way the game shows it. Buy orders are what
+   somebody will pay you, sell orders are what you lift when you craft - so they carry the
+   same two colours money-in and money-out carry everywhere else on the page. */
+.books{display:grid;gap:9px;margin:11px 0 0}
+/* One book on its own would stretch the two sides to opposite edges of a wide card. */
+.books:not(.pair){max-width:430px}
+@media(min-width:560px){.books.pair{grid-template-columns:1fr 1fr}}
+.book{border:1px solid var(--line);border-radius:9px;background:var(--panel);padding:9px 11px 10px}
+.book-head{
+  display:flex;align-items:center;gap:0;margin:0 0 7px;
+  font-family:"Saira Condensed",sans-serif;font-weight:600;font-size:11.5px;
+  letter-spacing:.11em;text-transform:uppercase;color:var(--ink)
+}
+.book-spread{
+  margin-left:auto;font-family:"IBM Plex Mono",monospace;font-size:10.5px;
+  letter-spacing:0;text-transform:none;color:var(--dim)
+}
+.book-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.book-lbl{
+  display:block;margin-bottom:4px;font-family:"Saira Condensed",sans-serif;font-weight:600;
+  font-size:9.5px;letter-spacing:.12em;text-transform:uppercase
+}
+.book-lbl.buy{color:var(--verdigris)}
+.book-lbl.sell{color:var(--rust)}
+.book-row{
+  display:flex;justify-content:space-between;gap:8px;padding:1.5px 4px;border-radius:3px;
+  font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--dim);
+  font-variant-numeric:tabular-nums
+}
+.book-row .q{opacity:.72}
+.book-row.best{color:var(--ink)}
+/* The levels this craft actually eats, so "walking the book" is a thing you can see. */
+.book-row.taken{background:rgba(194,112,63,.18);color:var(--ink)}
+.book-none{font-size:11px;color:var(--dim);padding:2px 4px}
+.book-need{margin:7px 0 0;font-size:10.5px;color:var(--dim);line-height:1.45}
+.book-need b{color:var(--ink);font-weight:500}
 /* The variance caveat was sentence four of six and is the one that changes behaviour. */
 .case-swing{
   margin:9px 0 0;padding:8px 10px;border-radius:7px;
@@ -3092,18 +3128,16 @@ h1 .title-word{white-space:nowrap}
 
         <div class="scrap-src">
           <span class="scrap-src-label">Input prices</span>
-          <div class="scrap-btns" id="craftSrcBtns">
-            <button type="button" class="soundbtn" data-craftsrc="book" aria-pressed="true">Walk the book</button>
-            <button type="button" class="soundbtn" data-craftsrc="live">Live book</button>
-            <button type="button" class="soundbtn" data-craftsrc="ask">Best seller</button>
-            <button type="button" class="soundbtn" data-craftsrc="own">Set it</button>
-          </div>
           <div class="craft-fields">
             <label for="craftScrap"><span><i aria-hidden="true" class="res res-scrap res-in"></i>Scraps</span><input type="text" id="craftScrap" value="0.223" inputmode="decimal" autocomplete="off" spellcheck="false" readonly></label>
             <label for="craftSteel"><span><i aria-hidden="true" class="res res-steel res-in"></i>Steel</span><input type="text" id="craftSteel" value="1.683" inputmode="decimal" autocomplete="off" spellcheck="false" readonly></label>
             <label for="craftCount">Crafts<input type="number" id="craftCount" value="1" min="1" max="999" step="1" inputmode="numeric" autocomplete="off"></label>
           </div>
-          <span class="scrap-src-label" style="margin-top:4px">Weapon roll odds</span>
+          <div class="scrap-btns" id="craftSrcBtns">
+            <button type="button" class="soundbtn" data-craftsrc="own">Set my own prices</button>
+          </div>
+          <div class="books pair" id="craftBooks"></div>
+          <span class="scrap-src-label" style="margin-top:10px">Weapon roll odds</span>
           <div class="scrap-btns" id="craftOddsBtns">
             <button type="button" class="soundbtn" data-craftodds="observed" aria-pressed="true">As traded</button>
             <button type="button" class="soundbtn" data-craftodds="even">Even</button>
@@ -3143,6 +3177,7 @@ h1 .title-word{white-space:nowrap}
           <div class="craft-fields">
             <label for="caseCount">Cases<input type="number" id="caseCount" value="1" min="1" max="9999" step="1" inputmode="numeric" autocomplete="off"></label>
           </div>
+          <div class="books" id="caseBooks"></div>
           <p class="scrap-tabnote" id="caseNote"></p>
         </div>
 
@@ -4019,7 +4054,10 @@ var CRAFT_STEEL=[1,2,4,8,16,32];
 var craftState={summary:null,books:null,error:null,loading:false,src:'book',odds:'observed',
                 live:null,liveAt:0,liveError:null,liveLoading:false};
 try{
-  craftState.src=localStorage.getItem('warera-calc-craftsrc')||'book';
+  // 'live' and 'ask' were choices before the book became unconditional; read them forward
+  // rather than leaving somebody pinned to a mode that no longer exists.
+  var savedSrc=localStorage.getItem('warera-calc-craftsrc')||'book';
+  craftState.src=savedSrc==='own'?'own':'book';
   craftState.odds=localStorage.getItem('warera-calc-craftodds')||'observed'
 }catch(e){}
 
@@ -4036,6 +4074,56 @@ function craftRollSpace(slot,t){
   var band=r.tiers[t-1];
   for(i=band[0];i<=band[1];i++)out.push(String(i));
   return out
+}
+/* Orders come back one row per offer, so several sit at the same price. The game shows
+   a price level and the quantity resting on it; so does this. */
+function bookLevels(orders,dir,n){
+  var by={},k,out=[];
+  (orders||[]).forEach(function(o){
+    var pr=Number(o.price),q=Number(o.quantity)||0;
+    if(!isFinite(pr)||q<=0)return;
+    by[pr]=(by[pr]||0)+q
+  });
+  for(k in by)if(Object.prototype.hasOwnProperty.call(by,k))out.push({price:Number(k),qty:by[k]});
+  out.sort(function(a,b){return dir==='bid'?b.price-a.price:a.price-b.price});
+  return out.slice(0,n||5)
+}
+function bookQty(n){return Math.round(n).toLocaleString()}
+/* One commodity's depth. `need` is how many units the current order lifts, which marks
+   the levels it consumes - the difference between being told the book was walked and
+   watching it happen. */
+function bookPanel(code,name,icon,need,unit){
+  var ob=craftBook(code);
+  if(!ob)return '';
+  var bids=bookLevels(ob.buy_orders,'bid',5),asks=bookLevels(ob.sell_orders,'ask',5);
+  var spread=(bids[0]&&asks[0])?bids[0].price.toFixed(3)+' / '+asks[0].price.toFixed(3):'\u2014';
+  var side=function(rows,cls,label,mark){
+    var left=mark||0,out='<div><span class="book-lbl '+cls+'">'+label+'</span>';
+    if(!rows.length)return out+'<div class="book-none">nothing resting</div></div>';
+    for(var i=0;i<rows.length;i++){
+      var taken=left>0,hit=Math.min(left,rows[i].qty);
+      left-=hit;
+      out+='<div class="book-row'+(i===0?' best':'')+(taken?' taken':'')+'">'+
+        '<span class="p">'+rows[i].price.toFixed(3)+'</span>'+
+        '<span class="q">'+bookQty(rows[i].qty)+'</span></div>'
+    }
+    return out+'</div>'
+  };
+  var foot='';
+  if(need>0){
+    var eaten=0,levels=0,all=bookLevels(ob.sell_orders,'ask',999),left=need;
+    for(var j=0;j<all.length&&left>0;j++){var t=Math.min(left,all[j].qty);left-=t;eaten+=t;levels++}
+    foot='<p class="book-need">Your order lifts <b>'+bookQty(need)+'</b> '+esc(unit||name)+
+         (left>0?', more than the whole book holds \u2014 the rest is priced at the deepest offer.'
+                :' from <b>'+levels+'</b> price '+(levels===1?'level':'levels')+'.')+'</p>'
+  }
+  return '<div class="book">'+
+    '<p class="book-head"><i aria-hidden="true" class="res '+icon+' res-in"></i>'+esc(name)+
+    '<span class="book-spread">'+spread+(bookIsLive(code)?' \u00b7 live':'')+'</span></p>'+
+    '<div class="book-grid">'+
+      side(bids,'buy','Buy orders',0)+
+      side(asks,'sell','Sell orders',need)+
+    '</div>'+foot+'</div>'
 }
 function craftRollKey(slot,skills){
   if(!skills)return null;
@@ -4301,19 +4389,20 @@ function craftDismantle(t){
   var ob=craftBook('scraps'),bid=ob&&ob.best_bid;
   return bid==null?0:SCRAP_YIELDS[t-1]*Number(bid)
 }
+/* Live is not a mode any more. The Gateway copy is a minute old and the collector's is
+   at most a quarter of an hour, so the live one is simply better when a key makes it
+   available - there was never a reason to ask someone which they would like. */
 function craftBook(code){
-  if(craftState.src==='live'&&craftState.live&&craftState.live[code])return craftState.live[code];
+  if(craftState.live&&craftState.live[code])return craftState.live[code];
   var c=((craftState.books||{}).commodities||{})[code];
   return c&&c.order_book?c.order_book:null
 }
+function bookIsLive(code){return !!(craftState.live&&craftState.live[code])}
 // Buying lifts the cheapest sell orders first, so 162 scraps cost a walk down the book,
 // not the best ask 162 times over. A book too thin to fill the craft prices the rest at
 // its deepest visible order, which makes the figure a floor rather than a guess.
 function craftWalk(code,qty){
   var ob=craftBook(code);if(!ob)return null;
-  if(craftState.src==='ask'){
-    return ob.best_ask==null?null:{unit:Number(ob.best_ask),cost:Number(ob.best_ask)*qty,thin:false}
-  }
   var list=(ob.sell_orders||[]).slice().sort(function(x,y){return Number(x.price)-Number(y.price)});
   var need=qty,cost=0,last=null;
   for(var i=0;i<list.length&&need>0;i++){
@@ -4361,14 +4450,14 @@ function paintCraft(){
   syncCraftInputs();
   var rowsEl=$('craftRows'),footEl=$('craftFoot'),noteEl=$('craftNote');
   var setNote=function(){
-    noteEl.textContent=craftState.src==='own'?'Your figures.'
-      :craftState.src==='ask'?'Best seller on each book, ignoring how little of it there is.'
-      :craftState.src!=='live'?'Cheapest sell orders lifted in order until the craft is filled.'
-      :!apiKey()?'Add an API key in settings to read live books. Using the collector snapshot.'
-      :craftState.liveLoading?'Reading live order books from the Gateway…'
-      :craftState.live?'Live Gateway order books, read '+
+    noteEl.textContent=craftState.src==='own'?'Your figures, not the book.'
+      :craftState.liveLoading?'Cheapest sell orders lifted in order. Refreshing from the Gateway…'
+      :craftState.live?'Cheapest sell orders lifted in order, on Gateway books read '+
          Math.max(0,Math.round((Date.now()-craftState.liveAt)/1000))+'s ago.'
-      :'Gateway unavailable ('+craftState.liveError+'). Using the collector snapshot.'
+      :!apiKey()?'Cheapest sell orders lifted in order, on the collector\u2019s books. '+
+         'An API key in settings reads them live instead.'
+      :'Cheapest sell orders lifted in order, on the collector\u2019s books \u2014 the Gateway '+
+       'is unavailable ('+(craftState.liveError||'no response')+').'
   };
   setNote();
   if(craftState.error||(!craftState.loading&&!craftState.summary)){
@@ -4469,7 +4558,11 @@ function paintCraft(){
     ' clearing the cheap orders. Resale does not: each piece is priced at its historical'+
     ' median, and selling '+batch+' at once will push that down by an amount this cannot see.';
   if(cov<100)foot+=' Untraded rolls are assumed to price like the ones that did trade.';
-  footEl.textContent=foot
+  footEl.textContent=foot;
+  // The depth behind the two figures above, and which of it this order eats.
+  $('craftBooks').innerHTML=
+    bookPanel('scraps','Scraps','res-scrap',mine?mine.scrapQty:0,'scraps')+
+    bookPanel('steel','Steel','res-steel',mine?mine.steelQty:0,'steel')
 }
 
 // A case is the same bet as a craft with the tier left to chance, so it reuses the per-tier
@@ -4838,18 +4931,24 @@ function paintCase(){
   }
   foot+=' Selling what you open moves these prices, and the more you open at once the more it moves them.';
   footEl.textContent=foot;
-  noteEl.textContent=craftState.src==='ask'?'Best seller on the case book.'
-    :craftState.src==='live'&&craftState.live&&craftState.live.case1?'Live Gateway case book.'
-    :'Cheapest case sell orders lifted in order.'
+  $('caseBooks').innerHTML=bookPanel('case1','Case I','res-case',n,n===1?'case':'cases');
+  noteEl.textContent=bookIsLive('case1')?'Cheapest case sell orders lifted in order, on a live Gateway book.'
+    :'Cheapest case sell orders lifted in order, on the collector\u2019s book.'
 }
+/* Two states now, and the second is an escape hatch rather than a peer: the book, or a
+   price you typed to test something. The one button says which way it takes you. */
 function setCraftSource(src){
-  craftState.src=src;
-  if(src==='live')loadGatewayBooks();
-  try{localStorage.setItem('warera-calc-craftsrc',src)}catch(e){}
-  document.querySelectorAll('#craftSrcBtns [data-craftsrc]').forEach(function(b){
-    b.setAttribute('aria-pressed',b.getAttribute('data-craftsrc')===src?'true':'false')
-  });
-  $('craftScrap').readOnly=src!=='own';$('craftSteel').readOnly=src!=='own';
+  craftState.src=src==='own'?'own':'book';
+  try{localStorage.setItem('warera-calc-craftsrc',craftState.src)}catch(e){}
+  var b=document.querySelector('#craftSrcBtns [data-craftsrc]');
+  if(b){
+    var own=craftState.src==='own';
+    b.setAttribute('data-craftsrc',own?'book':'own');
+    b.setAttribute('aria-pressed',own?'true':'false');
+    b.textContent=own?'Back to the live book':'Set my own prices'
+  }
+  $('craftScrap').readOnly=craftState.src!=='own';
+  $('craftSteel').readOnly=craftState.src!=='own';
   syncCraftInputs();
   paintCraft();paintCase();paintSort();paintCutCard()
 }
@@ -6869,7 +6968,7 @@ $('simBtns').addEventListener('click',function(e){
 // Refresh the live books alongside the collector's own cadence, but only while they are
 // the selected source.
 setInterval(function(){
-  if(craftState.src==='live'&&document.visibilityState==='visible')loadGatewayBooks()
+  if(apiKey()&&document.visibilityState==='visible')loadGatewayBooks()
 },GATEWAY_TTL);
 $('tax').addEventListener('input',function(){
   try{localStorage.setItem('warera-calc-tax',$('tax').value)}catch(e){}
@@ -7092,7 +7191,9 @@ $('sortMin').value=String(sortMin.abs);
 $('sortMinPct').value=String(sortMin.pct);
 setTab(currentTab());
 setScrapSource(scrapSource());loadScrapPrice();
-setCraftOdds(craftState.odds);setCraftSource(craftState.src);loadCraftData();
+setCraftOdds(craftState.odds);setCraftSource(craftState.src);
+if(apiKey())loadGatewayBooks();
+loadCraftData();
 coreCalc(true);
 if(window.matchMedia){try{
   window.matchMedia('(min-width:821px)').addEventListener('change',function(){
