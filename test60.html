@@ -839,6 +839,18 @@ kbd{
   background:repeating-linear-gradient(45deg,transparent 0 3px,rgba(0,0,0,.5) 3px 6px)
 }
 .sim-count{margin:0 0 2px;font-size:11.5px;color:var(--dim)}
+/* Ten tiles sit under the answer happily. A hundred is a screenful, and the answer ends up
+   below it, which means scrolling away from the thing you pressed the button for. Past a
+   batch you could have opened in the game, the answer leads and the tiles fill in under it. */
+.sim-out{display:flex;flex-direction:column}
+.sim-out .sim-haul{order:1}
+.sim-out .sim-headline{order:2}
+.sim-out .sim-result{order:3}
+.sim-out .sim-tally{order:4}
+.sim-out.lead .sim-headline{order:1}
+.sim-out.lead .sim-result{order:2}
+.sim-out.lead .sim-tally{order:3}
+.sim-out.lead .sim-haul{order:4;margin-top:12px}
 /* The marker the strip settles under, same idea as the game's own panel. */
 .sim-reel::after{
   content:"";position:absolute;left:50%;top:4px;bottom:4px;width:2px;margin-left:-1px;
@@ -3202,10 +3214,12 @@ h1 .title-word{white-space:nowrap}
             <button type="button" class="soundbtn" data-craftsim="100">100</button>
             <button type="button" class="soundbtn" data-craftsim="count">Use the number above</button>
           </div>
-          <div id="craftSimHaul"></div>
-          <p class="sim-headline" id="craftSimHeadline" hidden></p>
-          <p class="sim-result" id="craftSimResult"></p>
-          <div class="sim-tally" id="craftSimTally"></div>
+          <div class="sim-out" id="craftSimOut">
+            <div class="sim-haul" id="craftSimHaul"></div>
+            <p class="sim-headline" id="craftSimHeadline" hidden></p>
+            <p class="sim-result" id="craftSimResult"></p>
+            <div class="sim-tally" id="craftSimTally"></div>
+          </div>
           <p class="scrap-tabnote" id="craftSimNote">A craft fixes the rarity and leaves the slot and the roll to chance, so this rolls those against collected prices. It settles on the row above, eventually.</p>
         </div>
       </section>
@@ -3245,10 +3259,12 @@ h1 .title-word{white-space:nowrap}
             <button type="button" class="soundbtn" data-sim="count">Use the number above</button>
           </div>
           <div class="sim-reel" id="simReel" hidden><div class="sim-strip" id="simStrip"></div></div>
-          <div id="simHaul"></div>
-          <p class="sim-headline" id="simHeadline" hidden></p>
-          <p class="sim-result" id="simResult"></p>
-          <div class="sim-tally" id="simTally"></div>
+          <div class="sim-out" id="simOut">
+            <div class="sim-haul" id="simHaul"></div>
+            <p class="sim-headline" id="simHeadline" hidden></p>
+            <p class="sim-result" id="simResult"></p>
+            <div class="sim-tally" id="simTally"></div>
+          </div>
           <p class="scrap-tabnote" id="simNote">Rolls the real odds against collected prices. It settles on the same answer as the card above, eventually.</p>
         </div>
       </section>
@@ -4804,6 +4820,10 @@ function simTile(tier,slot,broke,blank,title,delay){
    so a thousand is fourteen screens of scrolling to find the one Legendary in it. Past the
    cap the grid keeps the pulls worth looking at and the table keeps the count. */
 var SIM_TILES=100;
+// The size past which a haul stops being something you look at and starts being something
+// you scroll past - the same ten the grid uses for its big tiles.
+var SIM_LEAD=10;
+function simLead(box,n){var el=$(box);if(el)el.classList.toggle('lead',n>SIM_LEAD)}
 /* The whole reveal fits a fixed budget rather than a fixed step, so ten cases land
    deliberately and a hundred still finish inside a second. */
 var SIM_REVEAL=1100;
@@ -4889,16 +4909,20 @@ function simRun(n){
   var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
   if(n>1){
     var h=simHaul(results,'cases');
+    simLead('simOut',n);
     $('simHaul').innerHTML=h.html;
     reel.hidden=true;strip.style.transition='none';
+    // With the answer above the tiles there is nothing left to give away, so a big batch
+    // reads its number straight away and watches the haul fill in underneath.
+    if(n>SIM_LEAD||reduce){finish();return}
     // Clear last run's answer first: leaving it up while the new tiles land reads as
     // though the new haul has already been counted.
     $('simHeadline').hidden=true;$('simResult').textContent='';$('simTally').innerHTML='';
     var tok=++simToken;
-    if(reduce)finish();
-    else setTimeout(function(){if(tok===simToken)finish()},h.ms);
+    setTimeout(function(){if(tok===simToken)finish()},h.ms);
     return
   }
+  simLead('simOut',1);
   $('simHaul').innerHTML='';
   if(reduce){reel.hidden=true;strip.style.transition='none';finish();return}
 
@@ -4962,6 +4986,7 @@ function craftSimRun(n){
   }
   var spend=sc&&st?sc.cost+st.cost:null;
   var h=simHaul(results,'crafts');
+  simLead('craftSimOut',n);
   haul.innerHTML=h.html;
 
   var one=results[0],name=RARITIES[t-1].name+' '+slotNameAt(one.slot,t);
@@ -5000,10 +5025,10 @@ function craftSimRun(n){
       'those against collected prices. It settles on the row above, eventually.'
   };
   var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  if(n>SIM_LEAD||reduce||!h.ms){settle();return}
   head.hidden=true;res.textContent='';tal.innerHTML='';
   var tok=++simToken;
-  if(reduce||!h.ms)settle();
-  else setTimeout(function(){if(tok===simToken)settle()},h.ms)
+  setTimeout(function(){if(tok===simToken)settle()},h.ms)
 }
 var caseEdge=0;
 function paintCase(){
