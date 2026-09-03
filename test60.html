@@ -3193,11 +3193,6 @@ h1 .title-word{white-space:nowrap}
             <button type="button" class="soundbtn" data-craftsrc="own">Set my own prices</button>
           </div>
           <div class="books pair" id="craftBooks"></div>
-          <span class="scrap-src-label" style="margin-top:10px">Weapon roll odds</span>
-          <div class="scrap-btns" id="craftOddsBtns">
-            <button type="button" class="soundbtn" data-craftodds="observed">As traded</button>
-            <button type="button" class="soundbtn" data-craftodds="even" aria-pressed="true">Even</button>
-          </div>
           <span class="scrap-src-label" style="margin-top:10px">Only counts as sold if it beats scrap by</span>
           <div class="craft-fields">
             <label for="craftBar">Gold<input type="text" id="craftBar" value="0.1" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
@@ -4220,28 +4215,18 @@ var CRAFT_SLOT_WEIGHT={weapon:0.30,helmet:0.14,chest:0.14,boots:0.14,gloves:0.14
 // few tenths of a percent, so they are taken as given rather than estimated.
 var CASE_TIER_ODDS=[0.62,0.30,0.071,0.0085,0.0004,0.0001];
 var CRAFT_STEEL=[1,2,4,8,16,32];
-var craftState={summary:null,books:null,error:null,loading:false,src:'book',odds:'observed',
+var craftState={summary:null,books:null,error:null,loading:false,src:'book',
                 live:null,liveAt:0,liveError:null,liveLoading:false};
 try{
   // 'live' and 'ask' were choices before the book became unconditional; read them forward
   // rather than leaving somebody pinned to a mode that no longer exists.
   var savedSrc=localStorage.getItem('warera-calc-craftsrc')||'book';
   craftState.src=savedSrc==='own'?'own':'book';
-  /* Weighting weapon rolls by how often each one trades measures which rolls people
-     choose to list, not which ones a case hands you - and a case hands you one at random.
-     It moved the case EV from about +2.7% to +9.0%, the difference between a plausible
-     edge and one nobody would leave resting on a deep book. Even odds is the right basis
-     for an expected value, so it is the default.
-
-     The old default was written to storage on the first load, so nobody is holding
-     'observed' by choice. A one-time reset moves everyone onto the corrected default;
-     anything chosen after that sticks. */
-  craftState.odds=localStorage.getItem('warera-calc-craftodds')||'even';
-  if(!localStorage.getItem('warera-calc-odds-default-2')){
-    craftState.odds='even';
-    localStorage.setItem('warera-calc-craftodds','even');
-    localStorage.setItem('warera-calc-odds-default-2','1')
-  }
+  // The weapon-roll weighting was briefly a choice. Weighting rolls by how often each one
+  // trades measures which rolls people choose to list, not which ones a craft hands you -
+  // and a craft hands you one at random - so the option is gone and the keys with it.
+  localStorage.removeItem('warera-calc-craftodds');
+  localStorage.removeItem('warera-calc-odds-default-2');
 }catch(e){}
 
 // The full roll space for a slot at a tier, keyed the way the collector reports rolls.
@@ -4326,22 +4311,21 @@ function craftSlotValue(slot,t,taxMul){
     var k=craftRollKey(slot,(rolls[key].exact_roll||{}).skills);
     if(k!==null)seen[k]=rolls[key]
   }
-  var space=craftRollSpace(slot,t),byCount=slot==='weapon'&&craftState.odds==='observed';
+  var space=craftRollSpace(slot,t);
   var dis=craftDismantle(t),need=sortNeed(t);
   var wsum=0,vsum=0,covered=0,samples=0,broken=0;
   for(var i=0;i<space.length;i++){
     var row=seen[space[i]];if(!row)continue;
     var stat=row.selected||row.fallback_48h;
     if(!stat||stat.median==null)continue;
-    var n=(row.fallback_48h||{}).count||0,w=byCount?n:1;
-    if(w<=0)continue;
+    // Every roll carries the same weight, because a craft hands you one at random.
     // The same rule the Sort tab applies, and for the same reason: a piece you would not
     // list is worth its scraps, not the price you are not going to ask. With no bar set
     // this is the old max(sale, scrap); with one, a piece whose edge does not clear the
     // bar counts as broken here too, because that is what you will actually do with it.
     var sale=stat.median*taxMul,sells=sale>need,best=sells?sale:dis;
-    if(!sells)broken+=w;
-    covered++;samples+=n;wsum+=w;vsum+=w*best
+    if(!sells)broken++;
+    covered++;samples+=(row.fallback_48h||{}).count||0;wsum++;vsum+=best
   }
   if(!wsum)return null;
   return {net:vsum/wsum,covered:covered,space:space.length,samples:samples,
@@ -4625,7 +4609,7 @@ function paintCraft(){
   if(!$('craftBox'))return;
   // Before any early return: the rarity is choosable whether or not prices have loaded.
   paintCraftPick();
-  var sig=[state.tier,tierKnown()?'k':'',$('tax').value,craftState.src,craftState.odds,$('craftCount').value,
+  var sig=[state.tier,tierKnown()?'k':'',$('tax').value,craftState.src,$('craftCount').value,
     craftState.liveAt,craftState.liveLoading?'L':'',craftState.liveError||'',
     craftState.src==='own'?$('craftScrap').value+'/'+$('craftSteel').value:'',
     craftState.summary?'s':'',craftState.books?'b':'',craftState.loading?'L':'',
@@ -4739,11 +4723,8 @@ function paintCraft(){
     'valued that way. ':'')+
     mine.exp.samples.toLocaleString()+' sales across '+mine.exp.covered+' of '+
     mine.exp.space+' possible rolls ('+cov+'%). Slots weighted the way the game states them, '+
-    '30% weapon and 14% each armour piece; '+
-    (craftState.odds==='observed'
-      ?'weapon rolls weighted by how often each one trades, which measures what people list '+
-       'rather than what a craft hands you'
-      :'every weapon roll on the same odds, which is what a craft hands you')+'.';
+    '30% weapon and 14% each armour piece; every weapon roll on the same odds, which is '+
+    'what a craft hands you.';
   if(mine.exp.missingSlots)foot+=' '+mine.exp.missingSlots+' slot(s) have no data and are assumed to price like the rest.';
   if(thin)foot+=' One order book could not fill the whole order, so the cost shown is a floor.';
   if(many)foot+=' Input cost walks the book for all '+batch+' crafts, so it accounts for'+
@@ -4778,14 +4759,12 @@ function craftRollTable(slot,t){
     var k=craftRollKey(slot,(rolls[key].exact_roll||{}).skills);
     if(k!==null)seen[k]=rolls[key]
   }
-  var space=craftRollSpace(slot,t),byCount=slot==='weapon'&&craftState.odds==='observed',out=[];
+  var space=craftRollSpace(slot,t),out=[];
   for(var i=0;i<space.length;i++){
     var row=seen[space[i]];if(!row)continue;
     var stat=row.selected||row.fallback_48h;
     if(!stat||stat.median==null)continue;
-    var n=(row.fallback_48h||{}).count||0,w=byCount?n:1;
-    if(w<=0)continue;
-    out.push({key:space[i],median:stat.median,w:w,skills:(row.exact_roll||{}).skills||{}})
+    out.push({key:space[i],median:stat.median,w:1,skills:(row.exact_roll||{}).skills||{}})
   }
   return {rows:out,space:space.length}
 }
@@ -5037,7 +5016,7 @@ function paintCase(){
   n=isFinite(n)&&n>0?Math.min(n,9999):1;
   var taxPct=Number($('tax').value);
   if(!isFinite(taxPct)||taxPct<0)taxPct=0;
-  var sig=[n,taxPct,craftState.src,craftState.odds,craftState.liveAt,state.tier,
+  var sig=[n,taxPct,craftState.src,craftState.liveAt,state.tier,
            sortMin.abs,sortMin.pct,sortMin.join,
            craftState.summary?'s':'',craftState.books?'b':''].join('|');
   if(sig===craftState.caseSig)return;
@@ -5155,20 +5134,6 @@ function syncCraftInputs(){
   var sc=craftWalk('scraps',1),st=craftWalk('steel',1);
   if(sc)$('craftScrap').value=sc.unit.toFixed(5);
   if(st)$('craftSteel').value=st.unit.toFixed(4)
-}
-/* The weighting decides what a case is worth as much as what a craft is worth - both
-   cards value a piece through craftSlotValue - so repainting only this one left the case
-   card quoting a figure computed under the other setting until something unrelated
-   happened to repaint it, and the number appeared to move on its own. */
-function setCraftOdds(odds,quiet){
-  craftState.odds=odds;
-  // Painting the initial state is not a choice, so it is not recorded as one.
-  if(!quiet)try{localStorage.setItem('warera-calc-craftodds',odds)}catch(e){}
-  document.querySelectorAll('#craftOddsBtns [data-craftodds]').forEach(function(b){
-    b.setAttribute('aria-pressed',b.getAttribute('data-craftodds')===odds?'true':'false')
-  });
-  craftState.sig=null;craftState.caseSig=null;
-  paintCraft();paintCase()
 }
 // A refresh confirmation holds the line briefly so the periodic repaint cannot wipe it.
 var dataStampHold=0;
@@ -7104,9 +7069,6 @@ document.addEventListener('visibilitychange',function(){
 $('craftSrcBtns').addEventListener('click',function(e){
   var b=e.target.closest('[data-craftsrc]');if(b)setCraftSource(b.getAttribute('data-craftsrc'))
 });
-$('craftOddsBtns').addEventListener('click',function(e){
-  var b=e.target.closest('[data-craftodds]');if(b)setCraftOdds(b.getAttribute('data-craftodds'))
-});
 ['craftScrap','craftSteel'].forEach(function(id){
   $(id).addEventListener('input',function(){if(craftState.src==='own')paintCraft()})
 });
@@ -7420,7 +7382,7 @@ $('sortMinPct').value=String(sortMin.pct);
 syncBars();
 setTab(currentTab());
 setScrapSource(scrapSource());loadScrapPrice();
-setCraftOdds(craftState.odds,true);setCraftSource(craftState.src);
+setCraftSource(craftState.src);
 if(apiKey())loadGatewayBooks();
 loadCraftData();
 coreCalc(true);
