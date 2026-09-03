@@ -4958,13 +4958,18 @@ function syncCraftInputs(){
   if(sc)$('craftScrap').value=sc.unit.toFixed(5);
   if(st)$('craftSteel').value=st.unit.toFixed(4)
 }
+/* The weighting decides what a case is worth as much as what a craft is worth - both
+   cards value a piece through craftSlotValue - so repainting only this one left the case
+   card quoting a figure computed under the other setting until something unrelated
+   happened to repaint it, and the number appeared to move on its own. */
 function setCraftOdds(odds){
   craftState.odds=odds;
   try{localStorage.setItem('warera-calc-craftodds',odds)}catch(e){}
   document.querySelectorAll('#craftOddsBtns [data-craftodds]').forEach(function(b){
     b.setAttribute('aria-pressed',b.getAttribute('data-craftodds')===odds?'true':'false')
   });
-  paintCraft()
+  craftState.sig=null;craftState.caseSig=null;
+  paintCraft();paintCase()
 }
 // A refresh confirmation holds the line briefly so the periodic repaint cannot wipe it.
 var dataStampHold=0;
