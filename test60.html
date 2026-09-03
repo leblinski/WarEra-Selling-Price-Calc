@@ -4534,6 +4534,9 @@ function paintCraft(){
     }
   }
   rowsEl.innerHTML=rows;
+  $('craftBooks').innerHTML=
+    bookPanel('scraps','Scraps','res-scrap',mine?mine.scrapQty:0,'scraps')+
+    bookPanel('steel','Steel','res-steel',mine?mine.steelQty:0,'steel');
 
   if(!mine){
     craftTabPct=null;paintTabBadges();
@@ -4585,11 +4588,7 @@ function paintCraft(){
     ' clearing the cheap orders. Resale does not: each piece is priced at its historical'+
     ' median, and selling '+batch+' at once will push that down by an amount this cannot see.';
   if(cov<100)foot+=' Untraded rolls are assumed to price like the ones that did trade.';
-  footEl.textContent=foot;
-  // The depth behind the two figures above, and which of it this order eats.
-  $('craftBooks').innerHTML=
-    bookPanel('scraps','Scraps','res-scrap',mine?mine.scrapQty:0,'scraps')+
-    bookPanel('steel','Steel','res-steel',mine?mine.steelQty:0,'steel')
+  footEl.textContent=foot
 }
 
 // A case is the same bet as a craft with the tier left to chance, so it reuses the per-tier
@@ -4880,6 +4879,7 @@ function paintCase(){
     $('caseVerdict').className='flip-figure';
     $('caseDetail').textContent=craftState.summary?'No case price available.':'Reading case prices\u2026';
     rowsEl.innerHTML='';footEl.textContent='';noteEl.textContent='';
+    $('caseBooks').innerHTML=bookPanel('case1','Case I','res-case',0,'cases');
     if($('caseSwing'))$('caseSwing').hidden=true;
     return
   }
