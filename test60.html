@@ -967,18 +967,33 @@ kbd{
 }
 .zone-row.head:hover{border-color:transparent;color:var(--dim)}
 .zone-note{margin:6px 0 0;font-size:10.5px;color:var(--dim);line-height:1.45}
-/* The caveats are one tap away rather than one scroll long. */
-.foot-more{
-  /* A full 44px target, because a finger is 44px whatever the control is for, but with the
-     weight of a link rather than a button - a bordered pill this size would outrank the
-     figure it explains. */
-  display:inline-flex;align-items:center;min-height:44px;padding:0 2px;margin-left:4px;
-  border:0;background:transparent;text-decoration:underline;text-underline-offset:3px;
-  text-decoration-color:rgba(var(--brass-rgb),.5);
-  color:var(--brass);cursor:pointer;font-family:"Saira Condensed",sans-serif;font-weight:600;
-  font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;vertical-align:middle
+/* One affordance for every explanation on the page. The ? sits in a section's own heading
+   and owns every block tagged to that section, wherever those blocks sit in the card - so an
+   explanation appears beside the figure it explains rather than collected into a footnote at
+   the bottom. Nothing shows until it is asked for, and the marks come off entirely from
+   Settings once someone knows their way around. */
+.q{
+  position:relative;display:inline-flex;align-items:center;justify-content:center;flex:none;
+  width:17px;height:17px;margin-left:7px;padding:0;vertical-align:middle;
+  border:1px solid rgba(var(--brass-rgb),.5);border-radius:50%;background:transparent;
+  color:var(--brass);cursor:pointer;font-family:"Saira Condensed",sans-serif;
+  font-weight:700;font-size:11px;line-height:1;letter-spacing:0
 }
-.foot-rest[hidden]{display:none}
+/* A finger is 44px whatever the control is for, but a 44px circle beside a heading would
+   outrank the heading. The target grows; the mark does not. */
+.q::before{content:"";position:absolute;inset:-14px;border-radius:50%}
+.q:hover{border-color:var(--brass)}
+.q[aria-expanded=true]{background:var(--brass);border-color:var(--brass);color:var(--panel)}
+[data-qof]{display:none}
+[data-qof].q-on{display:block}
+.qbody{
+  margin:7px 0 3px;padding:8px 11px;border-left:2px solid rgba(var(--brass-rgb),.35);
+  border-radius:0 6px 6px 0;background:rgba(var(--brass-rgb),.05);
+  font-size:11.5px;line-height:1.5;color:var(--dim)
+}
+.qbody b{color:var(--ink);font-weight:600}
+.no-q .q{display:none}
+.no-q [data-qof]{display:none!important}
 .zone-note b{color:var(--ink);font-weight:500}
 .book-need b{color:var(--ink);font-weight:500}
 /* The variance caveat was sentence four of six and is the one that changes behaviour. */
@@ -2829,6 +2844,10 @@ h1 .title-word{white-space:nowrap}
         <input type="checkbox" id="sound" checked>
         <span><strong>Copy sound</strong><span>Plays a short confirmation when the figure reaches the clipboard.</span></span>
       </label>
+      <label class="settings-toggle on" id="qWrap">
+        <input type="checkbox" id="qMarks" checked>
+        <span><strong>Help marks</strong><span>A small ? beside each heading opens that section&rsquo;s explanation. Switch it off once you know your way around and the marks go entirely.</span></span>
+      </label>
 
       <p class="settings-head">Copy sound</p>
       <div class="soundpick"><div class="soundpick-btns" id="soundBtns"></div></div>
@@ -2871,7 +2890,7 @@ h1 .title-word{white-space:nowrap}
       <section class="pinzone" id="pinZone">
       <div class="fields">
         <div>
-          <label class="label" for="price" id="priceLabel">Price to beat</label>
+          <label class="label" for="price" id="priceLabel">Price to beat</label><button type="button" class="q" data-q="price" aria-expanded="false" aria-label="What price goes here">?</button>
           <div class="inputwrap">
             <input type="text" id="price" placeholder="e.g. 326.129" inputmode="decimal" autocomplete="off" spellcheck="false">
             <button type="button" class="gobtn" id="goBtn" aria-label="Calculate and copy">&#10003;</button>
@@ -2934,15 +2953,25 @@ h1 .title-word{white-space:nowrap}
         </div>
       </div>
 
-      <p class="hint" id="hint">Tap the keypad directly. <kbd>Enter</kbd> calculates and copies the exact figure to type.</p>
+      <div class="qbody" data-qof="price">
+        <p style="margin:0 0 7px">Open the marketplace in game, find the <b>cheapest listing</b> of the item you are
+        holding, and type that price here. Everything else on the page follows from it.</p>
+        <p style="margin:0 0 7px"><b>Tax</b> is your own country&rsquo;s market rate. It comes out of what you receive,
+        so only the gap between your rate and other sellers&rsquo; changes what you should list at.</p>
+        <p style="margin:0">Tap the keypad directly. <kbd>Enter</kbd> or <b>&#10003;</b> calculates, copies the figure,
+        and fills in the flip and dismantle tiles below.</p>
+      </div>
 
       <div class="docket" id="docket">
         <div class="pills">
           <span class="pill" id="confidence" hidden>—</span>
           <span class="pill" id="floorSignal" hidden>—</span>
         </div>
-        <p class="docket-label" id="docketLabel">Type this to undercut them</p>
+        <p class="docket-label"><span id="docketLabel">Type this to undercut them</span><button type="button" class="q" data-q="undercut" aria-expanded="false" aria-label="What this figure is">?</button></p>
         <p class="docket-figure" id="figure">&mdash;</p>
+        <div class="qbody" data-qof="undercut">This is the figure to type into the game&rsquo;s sell box. It undercuts
+        the cheapest seller by the smallest step the market allows, and the tax you pay is already in it. Tap the card
+        to copy.</div>
         <p class="docket-hint" id="docketHint">Enter a price above.</p>
         <span class="stamp" id="stamp" aria-hidden="true">Copied</span>
       </div>
@@ -3214,7 +3243,9 @@ h1 .title-word{white-space:nowrap}
 
       <div class="flip-pair">
       <div class="flip" id="flip" hidden>
-        <p class="flip-label">Flip it?</p>
+        <p class="flip-label">Flip it?<button type="button" class="q" data-q="flip" aria-expanded="false" aria-label="What flipping means">?</button></p>
+        <div class="qbody" data-qof="flip">Buying someone&rsquo;s listing to relist it higher only pays if the next
+        offer up sits far enough above what you paid to cover the tax on the resale. This is where that starts.</div>
         <p class="flip-lead" id="flipLead">Worth flipping only if the second offer is</p>
         <p class="flip-figure" id="flipFigure">—</p>
         <p class="flip-detail" id="flipDetail">or higher</p>
@@ -3228,7 +3259,9 @@ h1 .title-word{white-space:nowrap}
       </div>
 
       <div class="flip" id="scrapBox" hidden>
-        <p class="flip-label"><i aria-hidden="true" class="res res-scrap res-in"></i>Dismantle it?</p>
+        <p class="flip-label"><i aria-hidden="true" class="res res-scrap res-in"></i>Dismantle it?<button type="button" class="q" data-q="dismantle" aria-expanded="false" aria-label="When to break a piece">?</button></p>
+        <div class="qbody" data-qof="dismantle">Any piece can be broken into scraps. Below this price the scraps are
+        worth more than the sale, so breaking it beats listing it. The floor moves with the scrap market.</div>
         <p class="flip-lead" id="scrapLead">Scrap value for this rarity</p>
         <p class="flip-figure" id="scrapVerdict">—</p>
         <p class="flip-detail" id="scrapDetail"></p>
@@ -3236,7 +3269,7 @@ h1 .title-word{white-space:nowrap}
           <button type="button" class="soundbtn" data-view="listed" aria-pressed="true">As listed</button>
           <button type="button" class="soundbtn" data-view="typed">To type</button>
         </div>
-        <p class="scrap-tabnote" id="scrapTabNote"></p>
+        <p class="scrap-tabnote" id="scrapTabNote" data-qof="dismantle"></p>
         <div class="scrap-rows" id="scrapRows"></div>
 
         <div class="scrap-src">
@@ -3260,14 +3293,17 @@ h1 .title-word{white-space:nowrap}
       <div class="tabpane" id="panecraft" hidden>
 
       <section class="flip" id="craftBox">
-        <p class="flip-label"><i aria-hidden="true" class="res res-scrap res-in"></i><i aria-hidden="true" class="res res-steel res-in"></i>Craft it instead?</p>
+        <p class="flip-label"><i aria-hidden="true" class="res res-scrap res-in"></i><i aria-hidden="true" class="res res-steel res-in"></i>Craft it instead?<button type="button" class="q" data-q="craft" aria-expanded="false" aria-label="How to read this table">?</button></p>
+        <div class="qbody" data-qof="craft"><b>Cost</b> is the scraps and steel a craft consumes, at the book prices
+        below. <b>Sells for</b> is what an average piece of that rarity fetches. <b>Break even</b> is the scrap price at
+        which the craft stops paying.</div>
         <p class="flip-lead" id="craftLead">Buy the inputs, craft one piece at random, sell it or break it</p>
         <p class="flip-figure" id="craftVerdict">—</p>
         <p class="flip-detail" id="craftDetail">Reading the collector's order books and sale history…</p>
         <div class="rarity-btns sort-pick" id="craftPick" role="tablist" aria-label="Rarity to craft"></div>
 
         <div class="craft-rows" id="craftRows"></div>
-        <p class="craft-foot" id="craftFoot"></p>
+        <p class="craft-foot" id="craftFoot" data-qof="craft"></p>
 
         <div class="scrap-src">
           <span class="scrap-src-label">Input prices</span>
@@ -3284,12 +3320,12 @@ h1 .title-word{white-space:nowrap}
           <div class="craft-fields">
             <label for="craftBar">Gold<input type="text" id="craftBar" value="0.1" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
           </div>
-          <p class="scrap-tabnote" id="craftBarNote"></p>
-          <p class="scrap-tabnote" id="craftNote"></p>
+          <p class="scrap-tabnote" id="craftBarNote" data-qof="craft"></p>
+          <p class="scrap-tabnote" id="craftNote" data-qof="craft"></p>
         </div>
 
         <div class="scrap-src">
-          <span class="scrap-src-label">Try your luck</span>
+          <span class="scrap-src-label">Try your luck<button type="button" class="q" data-q="craftsim" aria-expanded="false" aria-label="What the simulator does">?</button></span>
           <div class="sim-btns" id="craftSimBtns">
             <button type="button" class="soundbtn" data-craftsim="1">Craft 1</button>
             <button type="button" class="soundbtn" data-craftsim="10">10</button>
@@ -3302,7 +3338,7 @@ h1 .title-word{white-space:nowrap}
             <p class="sim-result" id="craftSimResult"></p>
             <div class="sim-tally" id="craftSimTally"></div>
           </div>
-          <p class="scrap-tabnote" id="craftSimNote">A craft fixes the rarity and leaves the slot and the roll to chance, so this rolls those against collected prices. It settles on the row above, eventually.</p>
+          <p class="scrap-tabnote" id="craftSimNote" data-qof="craftsim">A craft fixes the rarity and leaves the slot and the roll to chance, so this rolls those against collected prices. It settles on the row above, eventually.</p>
         </div>
       </section>
 
@@ -3311,13 +3347,16 @@ h1 .title-word{white-space:nowrap}
 
       <div class="tabpane" id="panecases" hidden>
       <section class="flip" id="caseBox">
-        <p class="flip-label"><i aria-hidden="true" class="res res-case res-in"></i>Open a case?</p>
+        <p class="flip-label"><i aria-hidden="true" class="res res-case res-in"></i>Open a case?<button type="button" class="q" data-q="cases" aria-expanded="false" aria-label="How to read this table">?</button></p>
+        <div class="qbody" data-qof="cases"><b>Odds</b> are the game&rsquo;s own. <b>Worth</b> is what an average piece
+        of that rarity fetches. <b>Break</b> is how often that rarity is worth dismantling rather than listing.
+        <b>Adds</b> is that rarity&rsquo;s share of a case&rsquo;s value &mdash; the six add up to what a case holds.</div>
         <p class="flip-lead" id="caseLead">Buy a Case I, open it, sell what is worth selling and break the rest</p>
         <p class="flip-figure" id="caseVerdict">—</p>
         <p class="flip-detail" id="caseDetail">Reading case prices…</p>
         <div class="craft-rows" id="caseRows"></div>
         <p class="case-swing" id="caseSwing" hidden></p>
-        <p class="craft-foot" id="caseFoot"></p>
+        <p class="craft-foot" id="caseFoot" data-qof="cases"></p>
         <div class="scrap-src">
           <div class="craft-fields">
             <label for="caseCount">Cases<input type="number" id="caseCount" value="1" min="1" max="9999" step="1" inputmode="numeric" autocomplete="off"></label>
@@ -3328,13 +3367,13 @@ h1 .title-word{white-space:nowrap}
           <div class="craft-fields">
             <label for="caseBar">Gold<input type="text" id="caseBar" value="0.1" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
           </div>
-          <p class="scrap-tabnote" id="caseBarNote"></p>
+          <p class="scrap-tabnote" id="caseBarNote" data-qof="cases"></p>
           <div class="books" id="caseBooks"></div>
-          <p class="scrap-tabnote" id="caseNote"></p>
+          <p class="scrap-tabnote" id="caseNote" data-qof="cases"></p>
         </div>
 
         <div class="scrap-src">
-          <span class="scrap-src-label">Try your luck</span>
+          <span class="scrap-src-label">Try your luck<button type="button" class="q" data-q="casesim" aria-expanded="false" aria-label="What the simulator does">?</button></span>
           <div class="sim-btns" id="simBtns">
             <button type="button" class="soundbtn" data-sim="1">Open 1</button>
             <button type="button" class="soundbtn" data-sim="10">10</button>
@@ -3349,7 +3388,7 @@ h1 .title-word{white-space:nowrap}
             <p class="sim-result" id="simResult"></p>
             <div class="sim-tally" id="simTally"></div>
           </div>
-          <p class="scrap-tabnote" id="simNote">Rolls the real odds against collected prices. It settles on the same answer as the card above, eventually.</p>
+          <p class="scrap-tabnote" id="simNote" data-qof="casesim">Rolls the real odds against collected prices. It settles on the same answer as the card above, eventually.</p>
         </div>
       </section>
 
@@ -3357,7 +3396,10 @@ h1 .title-word{white-space:nowrap}
 
       <div class="tabpane" id="panesort" hidden>
       <section class="flip" id="sortBox">
-        <p class="flip-label">Sell it or break it?</p>
+        <p class="flip-label">Sell it or break it?<button type="button" class="q" data-q="sort" aria-expanded="false" aria-label="How to read these rows">?</button></p>
+        <div class="qbody" data-qof="sort"><b>Sell</b> is the rule for keeping a roll &mdash; anything at or above it
+        earns a listing. <b>Per 1,000</b> is how many of that slot&rsquo;s thousand possible rolls clear the rule.
+        <b>Gold</b> is what clearing it is worth on an average roll. Tap a row to see every roll behind it.</div>
         <p class="flip-lead" id="sortLead">Every roll, by rarity, against what its scraps are worth</p>
         <p class="flip-detail" id="sortDetail">Reading the collector's sale history…</p>
         <div class="rarity-btns sort-pick" id="sortPick" role="tablist" aria-label="Rarity to sort"></div>
@@ -3371,10 +3413,10 @@ h1 .title-word{white-space:nowrap}
             <button type="button" class="soundbtn" data-join="both" aria-pressed="true">Clear both</button>
             <button type="button" class="soundbtn" data-join="either" aria-pressed="false">Either will do</button>
           </div>
-          <p class="scrap-tabnote" id="sortGateNote"></p>
+          <p class="scrap-tabnote" id="sortGateNote" data-qof="sort"></p>
         </div>
         <div id="sortRows"></div>
-        <p class="cut-note" id="sortFoot"></p>
+        <p class="cut-note" id="sortFoot" data-qof="sort"></p>
       </section>
       </div>
 
@@ -3949,10 +3991,16 @@ function updateTaxChip(){
 }
 
 function syncSettings(){
-  [['beatMode','beatWrap'],['quickInput','quickWrap'],['autoCopy','autoWrap'],['sound','soundWrap']].forEach(function(x){
-    $(x[1]).classList.toggle('on',$(x[0]).checked)
+  [['beatMode','beatWrap'],['quickInput','quickWrap'],['autoCopy','autoWrap'],['sound','soundWrap'],
+   ['qMarks','qWrap']].forEach(function(x){
+    if($(x[0])&&$(x[1]))$(x[1]).classList.toggle('on',$(x[0]).checked)
   })
 }
+if($('qMarks'))$('qMarks').addEventListener('change',function(){
+  try{localStorage.setItem('warera-calc-qmarks',$('qMarks').checked?'on':'off')}catch(e){}
+  applyQMarks();syncSettings()
+});
+applyQMarks();
 function scrollToWork(){
   try{var a=document.querySelector('.fields'),y=a.getBoundingClientRect().top+window.pageYOffset-12;window.scrollTo(0,Math.max(0,y))}catch(e){}
 }
@@ -4376,27 +4424,49 @@ function footSplit(text,budget){
   if(!lead)lead=text;
   return {lead:lead,rest:text.slice(lead.length).replace(/^\s+/,'')}
 }
+/* The foot is now one of the blocks a section's ? owns, so it carries its whole text and
+   decides nothing about what to show. */
 function paintFoot(id,text){
   var el=$(id);if(!el)return;
-  if(!text){el.textContent='';return}
-  var sp=footSplit(text,150);
-  if(!sp.rest){el.textContent=text;return}
-  var open=!!footOpen[id];
-  el.innerHTML=esc(sp.lead)+
-    ' <button type="button" class="foot-more" data-foot="'+id+'" aria-expanded="'+
-    (open?'true':'false')+'">'+(open?'Less':'Why this number')+'</button>'+
-    '<span class="foot-rest"'+(open?'':' hidden')+'> '+esc(sp.rest)+'</span>'
+  el.textContent=text||''
 }
+var qOpen={};
+function qMarksOn(){
+  try{return localStorage.getItem('warera-calc-qmarks')!=='off'}catch(e){return true}
+}
+function applyQMarks(){
+  var on=qMarksOn();
+  document.documentElement.classList.toggle('no-q',!on);
+  if($('qMarks'))$('qMarks').checked=on;
+  if($('qWrap'))$('qWrap').classList.toggle('on',on)
+}
+/* Book panels and pickers are rebuilt by innerHTML on every repaint, which drops the open
+   state with the old nodes. Repainting from qOpen after a rebuild is what keeps an opened
+   explanation open while the numbers under it move. */
+function paintQ(key){
+  var open=!!qOpen[key],i,els;
+  els=document.querySelectorAll('[data-qof="'+key+'"]');
+  for(i=0;i<els.length;i++)els[i].classList.toggle('q-on',open);
+  els=document.querySelectorAll('.q[data-q="'+key+'"]');
+  for(i=0;i<els.length;i++)els[i].setAttribute('aria-expanded',open?'true':'false')
+}
+function paintQAll(){
+  var els=document.querySelectorAll('.q[data-q]'),seen={},i,k;
+  for(i=0;i<els.length;i++){
+    k=els[i].getAttribute('data-q');
+    if(!seen[k]){seen[k]=1;paintQ(k)}
+  }
+}
+/* Capture, because these marks sit inside a label and inside the copy-on-tap docket, and a
+   question is not a request to focus the field or copy the figure. */
 document.addEventListener('click',function(e){
-  var b=e.target&&e.target.closest?e.target.closest('[data-foot]'):null;
+  var b=e.target&&e.target.closest?e.target.closest('.q[data-q]'):null;
   if(!b)return;
-  var id=b.getAttribute('data-foot'),open=!footOpen[id];
-  footOpen[id]=open;
-  var el=$(id),rest=el&&el.querySelector('.foot-rest');
-  if(rest)rest.hidden=!open;
-  b.setAttribute('aria-expanded',open?'true':'false');
-  b.textContent=open?'Less':'Why this number'
-});
+  e.preventDefault();e.stopPropagation();
+  var key=b.getAttribute('data-q');
+  qOpen[key]=!qOpen[key];
+  paintQ(key)
+},true);
 function entrySig(){
   var e=craftState.entry,out=[],k;
   for(k in e)if(Object.prototype.hasOwnProperty.call(e,k)&&e[k]!=null)out.push(k+':'+e[k]);
@@ -4497,13 +4567,19 @@ function bookPanel(code,name,icon,need,unit,gross){
     for(var z=0;z<zones.length;z++)
       ladder+=row(zones[z].entry,'',zones[z].wall,zones[z].ahead,
                   dflt!=null&&Math.abs(zones[z].entry-dflt)<1e-9);
-    ladder+='</div><p class="zone-note">Resting one tick above a wall is the cheapest entry '+
-      'that still fills before it. <b>Ahead</b> is what must fill first; deeper is cheaper '+
-      'and slower, and a wall can be pulled.</p>'
+    ladder+='</div><p class="zone-note" data-qof="book">Resting one tick above a wall is the '+
+      'cheapest entry that still fills before it. <b>Ahead</b> is what must fill first; deeper '+
+      'is cheaper and slower, and a wall can be pulled.</p>'
   }
   return '<div class="book">'+
     '<p class="book-head"><i aria-hidden="true" class="res '+icon+' res-in"></i>'+esc(name)+
+    '<button type="button" class="q" data-q="book" aria-expanded="false" '+
+    'aria-label="How to read an order book">?</button>'+
     '<span class="book-spread">'+spread+(bookIsLive(code)?' \u00b7 live':'')+'</span></p>'+
+    '<div class="qbody" data-qof="book"><b>Buy orders</b> are what people will pay; '+
+    '<b>sell orders</b> what they are asking. A <b>wall</b> is a large order others must clear '+
+    'before yours. Resting a bid one step above a wall is the cheapest way in that still fills '+
+    'before it.</div>'+
     '<div class="book-grid">'+
       side(bids,'buy','Buy orders',0)+
       side(asks,'sell','Sell orders',at==null?need:0)+
@@ -5058,7 +5134,7 @@ function paintCraft(){
     ' at once will push that down by an amount this cannot see.';
   foot+=untradedNote(mine.exp);
   foot+=taxGapNote();
-  paintFoot(footEl.id,foot)
+  paintFoot(footEl.id,foot);paintQAll()
 }
 
 // A case is the same bet as a craft with the tier left to chance, so it reuses the per-tier
@@ -5456,7 +5532,8 @@ function paintCase(){
   $('caseBooks').innerHTML=bookPanel('case1','Case I','res-case',n,n===1?'case':'cases',gross);
   paintCaseBid();
   noteEl.textContent=bookIsLive('case1')?'Cheapest case sell orders lifted in order, on a live Gateway book.'
-    :'Cheapest case sell orders lifted in order, on the collector\u2019s book.'
+    :'Cheapest case sell orders lifted in order, on the collector\u2019s book.';
+  paintQAll()
 }
 /* Two states now, and the second is an escape hatch rather than a peer: the book, or a
    price you typed to test something. The one button says which way it takes you. */
@@ -5620,7 +5697,7 @@ function paintSort(){
     anySpace+' of '+anyKnown+' rolls with sale history clear the bar. Right-hand figure is how many of that '+
     'slot\u2019s seen rolls do. Open a slot and \u201clist at\u201d is the median of that roll\u2019s own recent '+
     'sales, dimmed where fewer than '+THIN_SALES+' of them set it.'+taxGapNote());
-  paintSortGate()
+  paintSortGate();paintQAll()
 }
 /* A rule people cannot check is a rule they have to take on faith. Opening a slot shows
    every roll it can produce on the same terms as the summary above it, so the ones left out
