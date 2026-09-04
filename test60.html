@@ -102,6 +102,33 @@ h1{
 }
 /* Below its floor there is no list price worth carrying, only the verdict - and the sentence
    the clipboard gets does not fit 78px. */
+/* ---- The assignment wheel ------------------------------------------------------
+   A tile knows its price the moment it is made, but the piece it belongs to is chosen
+   further down the page and usually never is. Holding a tile opens a ring of choices
+   around it: what slot, then what roll. Point and release. The centre is the way out -
+   a red target that abandons the whole assignment and leaves the price alone - which is
+   also why the tile's own x stays in its corner and means something different. */
+.wheel-veil{position:fixed;inset:0;z-index:940;background:rgba(0,0,0,.72);touch-action:none}
+.wheel{position:fixed;z-index:941;pointer-events:none;overflow:visible}
+.wheel-seg{
+  fill:var(--panel-2);stroke:rgba(var(--brass-rgb),.35);stroke-width:1;
+  transition:fill .08s linear
+}
+.wheel-seg.on{fill:var(--brass)}
+.wheel-lab{
+  fill:var(--ink);font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:13px;
+  text-anchor:middle;dominant-baseline:middle;pointer-events:none
+}
+.wheel-seg.on+.wheel-lab{fill:var(--panel)}
+.wheel-hub{fill:var(--panel-2);stroke:var(--rust);stroke-width:1.5}
+.wheel-hub.on{fill:var(--rust);stroke:var(--rust)}
+.wheel-x{stroke:var(--dim);stroke-width:2.5;stroke-linecap:round}
+.wheel-hub.on+.wheel-x{stroke:#fff}
+.wheel-title{
+  fill:var(--brass);font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:12px;
+  letter-spacing:.1em;text-anchor:middle;text-transform:uppercase
+}
+@media (prefers-reduced-motion:reduce){.wheel-seg{transition:none}}
 .ptile-price.scrap{
   color:var(--rust);font-family:"Saira Condensed",sans-serif;font-weight:700;
   letter-spacing:.08em;text-transform:uppercase
@@ -8104,6 +8131,59 @@ function renderRecent(){
    the tile being carried drops out of hit-testing so elementFromPoint names the one under
    it rather than itself. */
 var dragTile=null,dragIdx=-1,dragX=0,dragY=0,dragging=false,dragBlockClick=false;
+
+/* ---- What a tile still needs, and how to ask for it ----------------------------
+   One stage per hold, in the order the piece is described: the slot first, then the roll.
+   A weapon has two rolls and is asked for crit first, as the wheel is easier to read with
+   five to ten segments than with eighty; the tile still prints them attack/crit, the way
+   every other part of the page writes a weapon roll.
+
+   Eighty is the real constraint. A Mythic weapon's attack runs 221 to 300, and no ring of
+   eighty is pointable, so a roll with more values than a ring can hold is asked in two: a
+   band, then the value inside it. Both rings stay under a dozen segments. */
+var WHEEL_MAX=12,WHEEL_BAND=10;
+function wheelBands(lo,hi){
+  var n=hi-lo+1;
+  if(n<=WHEEL_MAX)return null;
+  var per=Math.ceil(n/Math.min(WHEEL_MAX,Math.ceil(n/WHEEL_BAND))),out=[];
+  for(var a=lo;a<=hi;a+=per)out.push([a,Math.min(hi,a+per-1)]);
+  return out
+}
+function wheelRange(x){
+  if(x.slot==='weapon'){
+    var w=WEAPON_STATS[x.tier-1];
+    return w?{attack:w.attack,criticalChance:w.criticalChance}:null
+  }
+  var r=STAT_RANGES[x.slot];
+  return r?{one:r.tiers[x.tier-1],key:r.key,label:r.label}:null
+}
+// The stage a hold should open, given what the tile already carries.
+function wheelStage(x){
+  if(!x.tier)return null;
+  if(!x.slot)
+    return {kind:'slot',title:'Which piece?',
+      opts:SLOTS.map(function(s){
+        return {label:s.code==='weapon'?WEAPON_NAMES[x.tier-1]:s.name,val:s.code}
+      })};
+  var r=wheelRange(x);if(!r)return null;
+  var need=x.slot==='weapon'
+    ? (x.rolls&&x.rolls.criticalChance==null?{key:'criticalChance',band:r.criticalChance,label:'crit %'}
+      :x.rolls&&x.rolls.attack==null?{key:'attack',band:r.attack,label:'attack'}:null)
+    : (x.rolls&&x.rolls[r.key]==null?{key:r.key,band:r.one,label:r.label}:null);
+  if(!need)return {kind:'slot',title:'Which piece?',      // fully assigned: start again
+    opts:SLOTS.map(function(s){
+      return {label:s.code==='weapon'?WEAPON_NAMES[x.tier-1]:s.name,val:s.code}
+    })};
+  var lo=need.band[0],hi=need.band[1],band=x.band&&x.band.key===need.key?x.band.range:null;
+  if(band){lo=band[0];hi=band[1]}
+  var bands=band?null:wheelBands(lo,hi);
+  if(bands)
+    return {kind:'band',key:need.key,title:need.label,
+      opts:bands.map(function(b){return {label:b[0]+'\u2013'+b[1],val:b}})};
+  var opts=[];
+  for(var v=lo;v<=hi;v++)opts.push({label:String(v),val:v});
+  return {kind:'value',key:need.key,title:need.label,opts:opts}
+}
 function tileIndexAt(x,y){
   var el=document.elementFromPoint(x,y);
   var t=el&&el.closest?el.closest('.ptile'):null;
@@ -8617,6 +8697,139 @@ $('histList').addEventListener('click',function(e){
     scrollToWork()
   }else copyTextSafe(x.price)
 });
+/* ---- Drawing and driving the wheel --------------------------------------------
+   Angle decides the segment, distance decides whether the pointer is on the ring or on the
+   hub, and nothing is committed until the finger comes up - so a hold that wanders back to
+   the centre is a cancel rather than a wrong pick. The ring is clamped into the viewport
+   because a tile at the edge of the strip would otherwise open half of itself off-screen. */
+var wheel=null;
+function wheelXY(cx,cy,r,a){return [cx+r*Math.cos(a),cy+r*Math.sin(a)]}
+function wheelArc(cx,cy,r0,r1,a0,a1){
+  var p0=wheelXY(cx,cy,r1,a0),p1=wheelXY(cx,cy,r1,a1),
+      p2=wheelXY(cx,cy,r0,a1),p3=wheelXY(cx,cy,r0,a0),
+      big=(a1-a0)>Math.PI?1:0;
+  return 'M'+p0[0]+' '+p0[1]+'A'+r1+' '+r1+' 0 '+big+' 1 '+p1[0]+' '+p1[1]+
+         'L'+p2[0]+' '+p2[1]+'A'+r0+' '+r0+' 0 '+big+' 0 '+p3[0]+' '+p3[1]+'Z'
+}
+function openWheel(stage,idx,x,y){
+  closeWheel();
+  // The title sits outside the ring, so the padding has to clear it too or a wheel
+  // opened near the top of the screen loses its heading.
+  var n=stage.opts.length,R=n>8?128:112,r0=34,pad=R+24;
+  var cx=Math.max(pad,Math.min(window.innerWidth-pad,x));
+  var cy=Math.max(pad,Math.min(window.innerHeight-pad,y));
+  var veil=document.createElement('div');veil.className='wheel-veil';
+  var svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('class','wheel');
+  svg.style.left=(cx-pad)+'px';svg.style.top=(cy-pad)+'px';
+  svg.setAttribute('width',pad*2);svg.setAttribute('height',pad*2);
+  var ox=pad,oy=pad,step=Math.PI*2/n,start=-Math.PI/2-step/2,parts='';
+  for(var i=0;i<n;i++){
+    var a0=start+i*step,a1=a0+step,mid=(a0+a1)/2,lp=wheelXY(ox,oy,(r0+R)/2,mid);
+    parts+='<path class="wheel-seg" data-seg="'+i+'" d="'+wheelArc(ox,oy,r0,R,a0,a1)+'"></path>'+
+      '<text class="wheel-lab" x="'+lp[0].toFixed(1)+'" y="'+lp[1].toFixed(1)+'">'+
+      esc(stage.opts[i].label)+'</text>';
+  }
+  parts+='<circle class="wheel-hub" cx="'+ox+'" cy="'+oy+'" r="'+(r0-4)+'"></circle>'+
+    '<path class="wheel-x" d="M'+(ox-8)+' '+(oy-8)+'L'+(ox+8)+' '+(oy+8)+
+    'M'+(ox+8)+' '+(oy-8)+'L'+(ox-8)+' '+(oy+8)+'"></path>'+
+    '<text class="wheel-title" x="'+ox+'" y="'+(oy-R-4)+'">'+esc(stage.title)+'</text>';
+  svg.innerHTML=parts;
+  document.body.appendChild(veil);document.body.appendChild(svg);
+  wheel={svg:svg,veil:veil,stage:stage,idx:idx,cx:cx,cy:cy,r0:r0,R:R,
+         step:step,start:start,n:n,pick:-1};
+  // On the document, because the veil covers the page and a pointer that leaves the tile
+  // must keep aiming - and because a lost capture should not strand an open ring.
+  document.addEventListener('pointermove',wheelMove,true);
+  document.addEventListener('pointerup',wheelUp,true);
+  document.addEventListener('pointercancel',wheelUp,true);
+  wheelAim(x,y)
+}
+function wheelMove(e){if(wheel){e.preventDefault();wheelAim(e.clientX,e.clientY)}}
+function wheelUp(e){
+  if(!wheel)return;
+  e.preventDefault();e.stopPropagation();
+  wheelCommit(e.clientX,e.clientY);
+  dragBlockClick=true;setTimeout(function(){dragBlockClick=false},0)
+}
+function wheelAim(x,y){
+  if(!wheel)return;
+  var dx=x-wheel.cx,dy=y-wheel.cy,d=Math.sqrt(dx*dx+dy*dy),pick=-1;
+  if(d>=wheel.r0){
+    var a=Math.atan2(dy,dx);
+    while(a<wheel.start)a+=Math.PI*2;
+    pick=Math.floor((a-wheel.start)/wheel.step)%wheel.n
+  }
+  wheel.pick=pick;
+  var segs=wheel.svg.querySelectorAll('.wheel-seg');
+  for(var i=0;i<segs.length;i++)segs[i].classList.toggle('on',i===pick);
+  wheel.svg.querySelector('.wheel-hub').classList.toggle('on',pick<0)
+}
+function closeWheel(){
+  if(!wheel)return;
+  document.removeEventListener('pointermove',wheelMove,true);
+  document.removeEventListener('pointerup',wheelUp,true);
+  document.removeEventListener('pointercancel',wheelUp,true);
+  if(wheel.veil.parentNode)wheel.veil.parentNode.removeChild(wheel.veil);
+  if(wheel.svg.parentNode)wheel.svg.parentNode.removeChild(wheel.svg);
+  wheel=null
+}
+/* Releasing on the hub abandons the whole assignment, not just this ring: a half-assigned
+   piece is worse than an unassigned one, so the slot goes back too and the price stays. */
+function wheelCommit(x,y){
+  if(!wheel)return;
+  var w=wheel,a=readRecent(),x0=a[w.idx];
+  closeWheel();
+  if(!x0)return;
+  if(w.pick<0){
+    x0.slot='';x0.sname='';x0.short='';x0.roll='';x0.rolls=null;x0.band=null;
+    saveRecent(a);renderRecent();return
+  }
+  var chosen=w.stage.opts[w.pick].val;
+  if(w.stage.kind==='slot'){
+    x0.slot=chosen;x0.rolls={};
+    var r=wheelRange(x0);
+    if(chosen==='weapon'){x0.rolls={attack:null,criticalChance:null}}
+    else if(r&&r.key){x0.rolls[r.key]=null}
+    x0.sname=chosen==='weapon'?WEAPON_NAMES[x0.tier-1]:slotName(chosen);
+    x0.short='';x0.roll='';
+  }else if(w.stage.kind==='band'){
+    // A band is not an answer, only a narrowing. It is remembered on the tile so the next
+    // hold opens the values inside it - one ring per hold, as every other stage works.
+    x0.band={key:w.stage.key,range:chosen}
+  }else{
+    x0.rolls=x0.rolls||{};x0.rolls[w.stage.key]=chosen;
+    x0.band=null;
+    x0.short=wheelShort(x0);x0.roll=wheelRoll(x0)
+  }
+  saveRecent(a);renderRecent()
+}
+// Written the way the rest of the page writes a roll, whatever order the wheels asked in.
+function wheelShort(x){
+  if(!x.rolls)return '';
+  if(x.slot==='weapon'){
+    var at=x.rolls.attack,cc=x.rolls.criticalChance;
+    return at==null||cc==null?'':at+'/'+cc
+  }
+  var r=wheelRange(x);if(!r||!r.key)return '';
+  var v=x.rolls[r.key];return v==null?'':String(v)
+}
+function wheelRoll(x){
+  if(!x.rolls)return '';
+  if(x.slot==='weapon'){
+    var at=x.rolls.attack,cc=x.rolls.criticalChance;
+    return at==null||cc==null?'':'attack '+at+' \u00b7 crit % '+cc
+  }
+  var r=wheelRange(x);if(!r||!r.key)return '';
+  var v=x.rolls[r.key];return v==null?'':r.label+' '+v
+}
+/* Three gestures now share one tile: a tap loads the price, a drag reorders, a hold opens
+   the wheel. They cannot all be decided at pointerdown, so they are decided by what happens
+   next - move first and it is a drag, stay still long enough and it is a hold. The hold
+   timer is what makes the two exclusive: once it fires the drag is abandoned, and once a
+   drag starts the timer is cancelled. */
+var HOLD_MS=420,holdTimer=null;
+function clearHold(){if(holdTimer){clearTimeout(holdTimer);holdTimer=null}}
 $('histList').addEventListener('pointerdown',function(e){
   if(e.button&&e.button!==0)return;
   if(e.target.closest('[data-drop]'))return;
@@ -8624,13 +8837,27 @@ $('histList').addEventListener('pointerdown',function(e){
   dragTile=t;dragIdx=Number(t.getAttribute('data-idx'));
   dragX=e.clientX;dragY=e.clientY;dragging=false;
   try{t.setPointerCapture(e.pointerId)}catch(err){}
+  var idx=dragIdx,px=e.clientX,py=e.clientY;
+  clearHold();
+  holdTimer=setTimeout(function(){
+    holdTimer=null;
+    var x0=readRecent()[idx];if(!x0)return;
+    var st=wheelStage(x0);if(!st)return;
+    // The hold has won: this pointer is now aiming, not dragging.
+    if(dragTile){dragTile.classList.remove('dragging');dragTile.style.transform=''}
+    dragging=false;dragTile=null;
+    dragBlockClick=true;
+    openWheel(st,idx,px,py)
+  },HOLD_MS)
 });
 $('histList').addEventListener('pointermove',function(e){
+  if(wheel)return;
   if(!dragTile)return;
   var dx=e.clientX-dragX,dy=e.clientY-dragY;
   // Slop, so a tap that wobbles is still a tap.
   if(!dragging){
     if(Math.abs(dx)+Math.abs(dy)<8)return;
+    clearHold();
     dragging=true;dragTile.classList.add('dragging')
   }
   e.preventDefault();
@@ -8641,6 +8868,8 @@ $('histList').addEventListener('pointermove',function(e){
   })
 });
 function endDrag(e){
+  clearHold();
+  if(wheel)return;
   if(!dragTile)return;
   var was=dragging,to=was?tileIndexAt(e.clientX,e.clientY):-1;
   try{if(e.pointerId!=null)dragTile.releasePointerCapture(e.pointerId)}catch(err){}
