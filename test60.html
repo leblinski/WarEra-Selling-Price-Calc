@@ -1047,6 +1047,18 @@ kbd{
   font-family:"Saira Condensed",sans-serif;font-weight:600;font-size:12px;letter-spacing:.08em;
   text-transform:uppercase
 }
+.tip-card{
+  position:fixed;z-index:902;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:max-content;max-width:min(340px,calc(100vw - 24px));padding:17px 18px 15px;
+  border:1px solid var(--brass-deep);border-radius:var(--radius);background:var(--panel-2);
+  box-shadow:0 16px 44px rgba(0,0,0,.6);animation:tourIn .18s ease-out
+}
+@media (prefers-reduced-motion:reduce){.tip-card{animation:none}}
+.tip-card .tour-title{margin-bottom:7px}
+.tip-gold{
+  display:inline-block;margin:0 0 11px;font-family:"IBM Plex Mono",monospace;font-size:11px;
+  letter-spacing:.06em;color:var(--brass);opacity:.85
+}
 .tour-open{
   display:inline-flex;align-items:center;gap:7px;min-height:44px;margin-top:2px;padding:0 14px;
   border:1px solid rgba(var(--brass-rgb),.5);border-radius:999px;background:transparent;
@@ -3992,6 +4004,7 @@ function buildSounds(){
   }).join('')
 }
 function showStamp(ok,value){
+  if(ok)tipCountUse();
   $('stamp').textContent=ok?'Copied':'Hold to copy';
   $('docket').classList.remove('is-copied','is-failed');
   $('docket').classList.add(ok?'is-copied':'is-failed');
@@ -7528,6 +7541,84 @@ function paintTip(id){
   el.textContent=done?TIP_DONE:TIP_ASK;
   el.classList.toggle('thanked',done)
 }
+/* ---- The tip ask -------------------------------------------------------------
+   The header link has carried this on its own, where "TIP · NEW ARTICLE" reads as a hint
+   rather than a request and gets skimmed past. The state it already tracks is enough to ask
+   properly: the last article id the reader tipped. A different id means a new article, and
+   whether they have ever tipped decides which of the two things there is to say.
+
+   Two rules stop it becoming a nag. It asks once per article - a skip is remembered against
+   that id, so the next ask waits for the next article - and it will not ask someone who has
+   not used the app yet, because "find the app useful?" is not a question you put to a person
+   on their first visit. Nor will it open over the walkthrough or over a price being worked
+   on; it simply waits for the next visit. */
+var TIP_MIN_USES=3;
+function tipUses(){
+  var n=0;try{n=Number(localStorage.getItem('warera-calc-uses'))||0}catch(e){}
+  return n
+}
+function tipCountUse(){
+  try{localStorage.setItem('warera-calc-uses',String(tipUses()+1))}catch(e){}
+}
+function tipRead(k){try{return localStorage.getItem(k)||''}catch(e){return ''}}
+function tipShouldAsk(id){
+  if(!id)return false;
+  if(tipRead('warera-tipped-article')===id)return false;   // already tipped this one
+  if(tipRead('warera-tip-skipped')===id)return false;      // already waved this one away
+  if(tourAt>=0)return false;                               // never over the walkthrough
+  if($('tourOpen')&&!$('tourOpen').hidden)return false;     // nor before it has been offered
+  if($('price')&&$('price').value)return false;             // nor over a price being worked on
+  return tipUses()>=(tipRead('warera-tipped-article')?1:TIP_MIN_USES)
+}
+function tipClose(){
+  var c=$('tipCard'),d=$('tipVeil');
+  if(c&&c.parentNode)c.parentNode.removeChild(c);
+  if(d&&d.parentNode)d.parentNode.removeChild(d)
+}
+function tipAsk(id){
+  if($('tipCard'))return;
+  var back=!!tipRead('warera-tipped-article'),href='https://app.warera.io/article/'+id;
+  var veil=document.createElement('div');veil.className='tour-dim';veil.id='tipVeil';
+  veil.style.background='rgba(0,0,0,.68)';
+  var card=document.createElement('div');card.className='tip-card';card.id='tipCard';
+  card.setAttribute('role','dialog');card.setAttribute('aria-label','Support the creator');
+  card.innerHTML=(back
+    ? '<p class="tour-title">Thank you for your ongoing support</p>'+
+      '<p class="tour-body">There is a new article up. Tipping it is what keeps the collector '+
+      'reading the market every fifteen minutes. No pressure either way.</p>'
+    : '<p class="tour-title">Find the app useful?</p>'+
+      '<p class="tour-body">Support the creator with a 5 gold tip. It goes through a WarEra '+
+      'article, which opens in a new tab.</p>')+
+    '<p class="tip-gold">5 gold · once · opens in a new tab</p>'+
+    '<div class="tour-btns">'+
+      '<a class="tour-next" id="tipGo" href="'+href+'" target="_blank" rel="noopener" '+
+      'style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none">'+
+      (back?'Tip 5 gold':'Tip the article')+' ↗</a>'+
+      '<button type="button" class="tour-skip" id="tipSkip">Skip</button>'+
+    '</div>';
+  document.body.appendChild(veil);document.body.appendChild(card);
+  var done=function(key){
+    try{localStorage.setItem(key,id)}catch(e){}
+    tipClose();paintTip(id)
+  };
+  $('tipGo').addEventListener('click',function(){done('warera-tipped-article')});
+  $('tipSkip').addEventListener('click',function(){done('warera-tip-skipped')});
+  veil.addEventListener('click',function(){done('warera-tip-skipped')})
+}
+/* The article id arrives with the profile, which lands after the page does, so the ask is
+   deferred rather than raced - and re-checked at that moment, because the reader may have
+   started typing in the meantime. */
+function maybeTipAsk(id){
+  if(!tipShouldAsk(id))return;
+  setTimeout(function(){if(tipShouldAsk(id))tipAsk(id)},1400)
+}
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'&&$('tipCard')){
+    e.preventDefault();
+    try{localStorage.setItem('warera-tip-skipped',$('tipGo').href.split('/').pop())}catch(err){}
+    tipClose()
+  }
+});
 function paintProfile(data){
   if(!data||!data.name)return;
   $('profileName').textContent=data.name;
@@ -7612,7 +7703,7 @@ function loadLocalProfile(){
         $('tipLink').href='https://app.warera.io/article/'+m[0];
         $('tipLink').hidden=false;
         $('tipLink').dataset.article=m[0];
-        paintTip(m[0])
+        paintTip(m[0]);maybeTipAsk(m[0])
       }
       return {hasArticle:!!m}
     })
