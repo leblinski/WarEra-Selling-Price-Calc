@@ -994,6 +994,65 @@ kbd{
 .qbody b{color:var(--ink);font-weight:600}
 .no-q .q{display:none}
 .no-q [data-qof]{display:none!important}
+
+/* ---- The walkthrough --------------------------------------------------------
+   Four steps, because the only things this page does not explain by looking at it are
+   where the input comes from, what the output is for, when not to sell at all, and what
+   the other three tabs answer. It does not draw a picture of the app: it fills the real
+   field with a real price so the whole page comes alive behind the dimmer, and hands that
+   state back at the end. Nothing here blocks the app - Skip carries the same weight as
+   Next, and once it has run it never opens itself again. */
+/* The veil is the ring's own outer shadow rather than a sheet over everything, so the step
+   being pointed at is genuinely lit instead of ringed and dimmed with the rest. The sheet
+   stays, transparent, to swallow taps meant for the page underneath. */
+.tour-dim{position:fixed;inset:0;background:transparent;z-index:900}
+.tour-ring{
+  position:fixed;z-index:901;pointer-events:none;border:2px solid var(--brass);border-radius:11px;
+  box-shadow:0 0 0 4px rgba(var(--brass-rgb),.22),0 0 22px rgba(var(--brass-rgb),.35),
+             0 0 0 9999px rgba(0,0,0,.72);
+  transition:top .22s ease,left .22s ease,width .22s ease,height .22s ease
+}
+.tour-bubble{
+  position:fixed;z-index:902;width:max-content;max-width:min(330px,calc(100vw - 20px));
+  padding:15px 16px 13px;
+  border:1px solid var(--brass-deep);border-radius:var(--radius);background:var(--panel-2);
+  box-shadow:0 14px 40px rgba(0,0,0,.55);animation:tourIn .18s ease-out
+}
+@keyframes tourIn{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){
+  .tour-bubble{animation:none}
+  .tour-ring{transition:none}
+}
+.tour-step{
+  font-family:"Saira Condensed",sans-serif;font-weight:600;font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--dim);margin:0 0 5px
+}
+.tour-title{
+  font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:16px;letter-spacing:.03em;
+  color:var(--brass);margin:0 0 6px
+}
+.tour-body{margin:0 0 13px;font-size:13px;line-height:1.5;color:var(--ink)}
+.tour-body b{color:var(--brass)}
+.tour-btns{display:flex;align-items:center;gap:9px}
+.tour-next{
+  flex:1 1 auto;min-height:44px;padding:0 15px;border:1px solid var(--brass);border-radius:10px;
+  background:var(--brass);color:var(--panel);cursor:pointer;
+  font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:13px;letter-spacing:.08em;
+  text-transform:uppercase
+}
+/* Skip is as easy to hit as Next. A walkthrough you cannot leave is a modal, not an offer. */
+.tour-skip{
+  flex:none;min-height:44px;padding:0 12px;border:1px solid var(--line);border-radius:10px;
+  background:transparent;color:var(--dim);cursor:pointer;
+  font-family:"Saira Condensed",sans-serif;font-weight:600;font-size:12px;letter-spacing:.08em;
+  text-transform:uppercase
+}
+.tour-open{
+  display:inline-flex;align-items:center;gap:7px;min-height:44px;margin-top:2px;padding:0 14px;
+  border:1px solid rgba(var(--brass-rgb),.5);border-radius:999px;background:transparent;
+  color:var(--brass);cursor:pointer;font-family:"Saira Condensed",sans-serif;font-weight:700;
+  font-size:11.5px;letter-spacing:.09em;text-transform:uppercase
+}
 .zone-note b{color:var(--ink);font-weight:500}
 .book-need b{color:var(--ink);font-weight:500}
 /* The variance caveat was sentence four of six and is the one that changes behaviour. */
@@ -2844,6 +2903,7 @@ h1 .title-word{white-space:nowrap}
         <input type="checkbox" id="sound" checked>
         <span><strong>Copy sound</strong><span>Plays a short confirmation when the figure reaches the clipboard.</span></span>
       </label>
+      <button type="button" class="tour-open" id="tourAgain" style="margin-bottom:12px">Show the walkthrough</button>
       <label class="settings-toggle on" id="qWrap">
         <input type="checkbox" id="qMarks" checked>
         <span><strong>Help marks</strong><span>A small ? beside each heading opens that section&rsquo;s explanation. Switch it off once you know your way around and the marks go entirely.</span></span>
@@ -2889,7 +2949,7 @@ h1 .title-word{white-space:nowrap}
       <div class="tabpane" id="paneprice">
       <section class="pinzone" id="pinZone">
       <div class="fields">
-        <div>
+        <div id="priceField">
           <label class="label" for="price" id="priceLabel">Price to beat</label><button type="button" class="q" data-q="price" aria-expanded="false" aria-label="What price goes here">?</button>
           <div class="inputwrap">
             <input type="text" id="price" placeholder="e.g. 326.129" inputmode="decimal" autocomplete="off" spellcheck="false">
@@ -2986,6 +3046,8 @@ h1 .title-word{white-space:nowrap}
           <span class="quick-val" id="quickScrapVal">—</span>
         </button>
       </div>
+
+      <button type="button" class="tour-open" id="tourOpen" hidden>First time? Walk me through it &rarr;</button>
 
       <button type="button" class="listanyway" id="listAnyway" hidden></button>
 
@@ -4467,6 +4529,109 @@ document.addEventListener('click',function(e){
   qOpen[key]=!qOpen[key];
   paintQ(key)
 },true);
+/* ---- Walkthrough -------------------------------------------------------------
+   Anchored to the real controls rather than to a picture of them, so it cannot drift out of
+   date with the layout. Step one types a real price and commits it, which is also the only
+   honest way to show what the ✓ does: everything below the answer stays blank until it is
+   pressed. The demo price is cleared on the way out. */
+var TOUR=[
+  {sel:'#priceField',tab:'price',title:'Start with their price',
+   body:'Open the marketplace in game, find the <b>cheapest listing</b> of the item you are '+
+        'holding, and type that price here. Everything else follows from this one number.',
+   next:'Try it with 51.500',
+   run:function(){
+     var el=$('price');el.value='51.500';el.dispatchEvent(new Event('input',{bubbles:true}));
+     if($('goBtn'))$('goBtn').click()
+   }},
+  {sel:'#docket',tab:'price',title:'This is what you type',
+   body:'Copy this into the game&rsquo;s sell box. It undercuts the cheapest seller by the '+
+        'smallest step the market allows, and the tax you pay is already taken out. Tap the '+
+        'card to copy it.'},
+  {sel:'#quickScrap',tab:'price',title:'When not to sell at all',
+   body:'Every piece breaks down into scraps. Below this figure the scraps are worth more '+
+        'than the sale, so breaking it beats listing it.'},
+  {sel:'#tabBar',tab:'price',title:'The other three tabs',
+   body:'<b>Price</b> and <b>Sort</b> are for things you already have. <b>Craft</b> and '+
+        '<b>Cases</b> say whether buying in pays &mdash; the figure on the tab is the edge '+
+        'right now. Every heading has a <b>?</b> when you want the detail behind a number.',
+   next:'Done'}
+];
+var tourAt=-1,tourDim=null,tourRing=null,tourBubble=null;
+function tourSeen(){try{return localStorage.getItem('warera-calc-tour')==='done'}catch(e){return true}}
+function tourMark(){try{localStorage.setItem('warera-calc-tour','done')}catch(e){}}
+function tourPlace(){
+  if(tourAt<0)return;
+  var el=document.querySelector(TOUR[tourAt].sel);
+  if(!el||!tourRing)return;
+  var r=el.getBoundingClientRect(),pad=6;
+  tourRing.style.top=(r.top-pad)+'px';tourRing.style.left=(r.left-pad)+'px';
+  tourRing.style.width=(r.width+pad*2)+'px';tourRing.style.height=(r.height+pad*2)+'px';
+  // Below the ring where there is room, above it where there is not; never off-screen.
+  var bh=tourBubble.offsetHeight,bw=tourBubble.offsetWidth,gap=14;
+  var top=r.bottom+gap;
+  if(top+bh>window.innerHeight-10)top=Math.max(10,r.top-gap-bh);
+  var left=Math.max(10,Math.min(r.left,window.innerWidth-bw-10));
+  tourBubble.style.top=top+'px';tourBubble.style.left=left+'px'
+}
+function tourShow(i){
+  var step=TOUR[i];
+  if(step.tab)setTab(step.tab,false);
+  var el=document.querySelector(step.sel);
+  if(el)el.scrollIntoView({block:'center',behavior:'auto'});
+  tourBubble.innerHTML='<p class="tour-step">Step '+(i+1)+' of '+TOUR.length+'</p>'+
+    '<p class="tour-title">'+step.title+'</p>'+
+    '<p class="tour-body">'+step.body+'</p>'+
+    '<div class="tour-btns">'+
+      '<button type="button" class="tour-next" id="tourNext">'+(step.next||'Next')+'</button>'+
+      '<button type="button" class="tour-skip" id="tourSkip">'+
+      (i===TOUR.length-1?'Close':'Skip')+'</button>'+
+    '</div>';
+  tourPlace();
+  // A step that changes the page has to let the paint land before the ring is measured again.
+  setTimeout(tourPlace,60)
+}
+function tourStart(){
+  if(tourAt>=0)return;
+  if($('settingsPanel'))$('settingsPanel').hidden=true;
+  tourDim=document.createElement('div');tourDim.className='tour-dim';
+  tourRing=document.createElement('div');tourRing.className='tour-ring';
+  tourBubble=document.createElement('div');tourBubble.className='tour-bubble';
+  tourBubble.setAttribute('role','dialog');tourBubble.setAttribute('aria-label','Walkthrough');
+  document.body.appendChild(tourDim);document.body.appendChild(tourRing);
+  document.body.appendChild(tourBubble);
+  window.addEventListener('resize',tourPlace);window.addEventListener('scroll',tourPlace,true);
+  tourAt=0;tourShow(0);
+  if($('tourOpen'))$('tourOpen').hidden=true
+}
+function tourEnd(){
+  if(tourAt<0)return;
+  tourAt=-1;tourMark();
+  window.removeEventListener('resize',tourPlace);window.removeEventListener('scroll',tourPlace,true);
+  [tourDim,tourRing,tourBubble].forEach(function(e){if(e&&e.parentNode)e.parentNode.removeChild(e)});
+  tourDim=tourRing=tourBubble=null;
+  // Hand the page back the way it was found, so the first real price is typed into an empty field.
+  var el=$('price');
+  if(el&&el.value==='51.500'){el.value='';el.dispatchEvent(new Event('input',{bubbles:true}))}
+  if($('tourOpen'))$('tourOpen').hidden=true;
+  window.scrollTo(0,0)
+}
+document.addEventListener('click',function(e){
+  var t=e.target&&e.target.closest?e.target.closest('#tourNext,#tourSkip,#tourOpen,#tourAgain'):null;
+  if(!t)return;
+  e.preventDefault();
+  var id=t.id;
+  if(id==='tourOpen'||id==='tourAgain'){tourStart();return}
+  if(id==='tourSkip'){tourEnd();return}
+  var step=TOUR[tourAt];
+  if(step&&step.run)step.run();
+  if(tourAt>=TOUR.length-1){tourEnd();return}
+  tourAt++;tourShow(tourAt)
+});
+document.addEventListener('keydown',function(e){
+  if(tourAt>=0&&e.key==='Escape'){e.preventDefault();tourEnd()}
+});
+if(!tourSeen()&&$('tourOpen'))$('tourOpen').hidden=false;
+
 function entrySig(){
   var e=craftState.entry,out=[],k;
   for(k in e)if(Object.prototype.hasOwnProperty.call(e,k)&&e[k]!=null)out.push(k+':'+e[k]);
