@@ -6193,19 +6193,40 @@ function singleModel(sales,meta){
     downwardGate:gate
   }
 }
+/* Armour prices off its own roll and only falls back to neighbours; weapons pooled the
+   twelve nearest comparables and filtered the pool, which let the roll's own sales be
+   thrown out as outliers by the cheaper rolls surrounding them. It bites hardest at the
+   top of a band, where every comparable is necessarily a worse roll: Mythic 300/46 has
+   two sales at 647.5 and the pooled model answered 500.000 - 22.8% under what the thing
+   actually clears at - and called it High 77, because the score counted comparables, of
+   which there are always about twelve, rather than sales of the roll in hand.
+
+   So weapons now do what armour does. The roll's own sales are filtered among themselves
+   and priced alone once there are three; with one or two they set a floor under the
+   comparables rather than being outvoted by them; with none the comparables stand as
+   before. Confidence counts the exact sales, so two of them can no longer read High. */
 function weaponModel(sales,meta){
   var coverage=Math.max(.25,Number(meta.coverageHours||0)),comp=weaponComparables(sales);
   var velocity=velocityForWeapon(comp,coverage),exposure=validAge()?velocity*Number(state.age):null,signal=floorSignal(exposure);
   var target=weaponScore(state.rolls);
-  var hist=weightedQuantileBy(comp,quantileForMode(),function(it){
+  var exact=robustFilter(sales.filter(exactMatch));
+  var compTarget=weightedQuantileBy(comp,quantileForMode(),function(it){
     var d=Math.abs(weaponScore(it.item.skills)-target),rel=weaponRelation(it),pref=rel==='same'?1:(rel==='higher'?.8:.55);
     return recencyWeight(saleAge(it))*pref/(1+d)
   });
-  if(hist===null)hist=underFloor();
-  var disp=dispersion(comp),score=0;
-  score+=Math.min(25,25*(coverage/Math.max(1,initialTargetHours())));
-  score+=comp.length>=10?38:(comp.length>=6?30:(comp.length>=3?18:5));
-  if(comp.filter(function(it){return weaponRelation(it)==='same'}).length>=3)score+=12;
+  var exactTarget=exact.length?weightedQuantile(exact,quantileForMode()):null,hist,source;
+  if(exact.length>=3){hist=exactTarget;source='exact'}
+  else if(exact.length){
+    hist=exactTarget;
+    if(compTarget!==null)hist=Math.max(hist,compTarget);
+    source='sparse exact + comparables'
+  }
+  else if(compTarget!==null){hist=compTarget;source='score comparables'}
+  else{hist=underFloor();source='live floor'}
+  var disp=dispersion(exact.length?exact:comp),score=0;
+  score+=Math.min(22,22*(coverage/Math.max(1,initialTargetHours())));
+  score+=exact.length>=6?40:(exact.length>=3?32:(exact.length===2?20:(exact.length===1?12:0)));
+  if(exact.length<3)score+=comp.length>=10?20:(comp.length>=6?13:(comp.length>=3?6:0));
   if(disp!==null)score+=disp<=.06?12:(disp<=.12?7:2);
   if(meta.deep)score+=5;if(meta.partial)score-=12;
   score=Math.max(0,Math.min(100,Math.round(score)));
@@ -6219,7 +6240,8 @@ function weaponModel(sales,meta){
   }
 
   return {
-    kind:'weapon',selected:comp,histTarget:round3(hist),source:'score comparables',velocity:velocity,
+    kind:'weapon',selected:(exact.length>=3?exact:comp).slice(0,12),exact:exact,
+    histTarget:round3(hist),source:source,velocity:velocity,
     exposure:exposure,signal:signal,confidenceScore:score,confidence:confidenceLabel(score),
     higher:higher,directPrice:direct,strategy:strategy,downwardGate:gate
   }
