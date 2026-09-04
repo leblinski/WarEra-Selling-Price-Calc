@@ -915,6 +915,10 @@ kbd{
   will-change:transform;
   animation:simspin var(--dur,1050ms) cubic-bezier(.11,.78,.14,1) var(--delay,0ms) both
 }
+/* will-change promotes every column to its own layer, which is the right trade for ten of
+   them and a hundred layers of GPU memory for a hundred. Past forty the hint comes off; the
+   animation is the same, the browser just schedules it the ordinary way. */
+.sim-grid.many .sim-tile.spin .sim-col{will-change:auto}
 .sim-grid .sim-tile.spin .sim-col>i{
   flex:0 0 100%;height:100%;display:block;background-image:url('items.png');
   background-size:600% 600%;background-repeat:no-repeat
@@ -5554,13 +5558,18 @@ function simTile(tier,slot,broke,blank,title,delay){
    so a thousand is fourteen screens of scrolling to find the one Legendary in it. Past the
    cap the grid keeps the pulls worth looking at and the table keeps the count. */
 var SIM_TILES=100;
-// The size past which a haul stops being something you look at and starts being something
-// you scroll past - the same ten the grid uses for its big tiles.
-var SIM_LEAD=10;
-/* The batch sizes that get the reel treatment - the ones you could have opened in the game
-   in one go and would actually watch. Past this a run is a result, not an opening. */
-var SPIN_MAX=10,SPIN_DUR=1050,SPIN_STAGGER=95;
-function spinMs(count){return SPIN_DUR+SPIN_STAGGER*(count-1)+140}
+/* Every batch gets reels, however large. What cannot scale with the count is the time: a
+   hundred tiles at ten cases' stagger would take nine seconds to finish landing. The stagger
+   fits a budget instead, so five land deliberately and a hundred still finish inside three
+   seconds - and the grid is capped at SIM_TILES either way, so a thousand cases spin the
+   same hundred tiles a hundred does. */
+var SPIN_DUR=1050,SPIN_STAGGER=95,SPIN_SWEEP=1750;
+function spinStagger(count){return count<2?0:Math.min(SPIN_STAGGER,SPIN_SWEEP/(count-1))}
+function spinMs(count){return SPIN_DUR+spinStagger(count)*(count-1)+140}
+/* Nine decoys is a satisfying wind at ten tiles and a thousand extra painted nodes at a
+   hundred. The wind shortens as the grid grows, which is also what it looks like it should
+   do when the tiles themselves are half the size. */
+function spinDecoys(count){return count<=10?9:count<=40?6:4}
 /* Kept so a run can park the headline's box while it is in flight; the order no longer
    depends on the count. */
 function simWait(id,on){var el=$(id);if(el){el.hidden=false;el.classList.toggle('waiting',!!on)}}
@@ -5580,34 +5589,35 @@ function simHaul(results,label,pick){
   }
   // Big tiles for a batch you could have opened in the game in one go; past that they
   // shrink to fit, and the cap keeps even the largest haul inside one screen.
-  var size=show.length<=10?'big':'mid',out=note+'<div class="sim-grid '+size+'">';
+  var size=show.length<=10?'big':'mid',out=note+'<div class="sim-grid '+size+
+    (show.length>40?' many':'')+'">';
   // A batch you could have opened in the game gets reels; a hundred gets the staggered pop,
   // because a hundred reels is not a reveal, it is a screen of noise.
-  var spin=!!pick&&show.length<=SPIN_MAX;
+  var spin=!!pick;
   var step=simStep(show.length);
   for(var i=0;i<show.length;i++){
     var r=show[i],name=RARITIES[r.tier-1].name+' '+slotName(r.slot);
     var title=name+' \u00b7 '+(r.unpriced?'no collected sales'
                                  :(r.broke?'broken for ':'sold for ')+r.net.toFixed(3));
-    out+=spin?simSpinTile(r,title,pick,i):simTile(r.tier,r.slot,r.broke,r.unpriced,title,
-                                                  Math.round(i*step))
+    out+=spin?simSpinTile(r,title,pick,i,show.length)
+             :simTile(r.tier,r.slot,r.broke,r.unpriced,title,Math.round(i*step))
   }
   return {html:out+'</div>',ms:spin?spinMs(show.length):simRevealMs(show.length)}
 }
 /* One tile, wound past a column of decoys onto the real pull. The decoys come from the same
    odds the run itself drew from, so a reel that stops on a Legendary has been showing the
    kind of thing that could plausibly have stopped there. */
-var SPIN_DECOYS=9;
-function simSpinTile(r,title,pick,i){
-  var col='',j,d;
-  for(j=0;j<SPIN_DECOYS;j++){
+function simSpinTile(r,title,pick,i,count){
+  var decoys=spinDecoys(count),col='',j,d;
+  for(j=0;j<decoys;j++){
     d=pick();
     col+='<i style="background-position:'+(sheetColumn(d.slot)*20)+'% '+((d.tier-1)/5*100)+'%"></i>'
   }
   col+='<i style="background-position:'+(sheetColumn(r.slot)*20)+'% '+((r.tier-1)/5*100)+'%"></i>';
   return '<div class="sim-tile spin'+(r.broke?' broke':'')+(r.unpriced?' blank':'')+
     '" style="--tier:'+RARITIES[r.tier-1].colour+
-    ';--end:-'+(SPIN_DECOYS*100)+'%;--dur:'+SPIN_DUR+'ms;--delay:'+(i*SPIN_STAGGER)+'ms"'+
+    ';--end:-'+(decoys*100)+'%;--dur:'+SPIN_DUR+'ms;--delay:'+
+    Math.round(i*spinStagger(count))+'ms"'+
     ' title="'+esc(title)+'"><div class="sim-col">'+col+'</div></div>'
 }
 function casePick(){
@@ -5671,7 +5681,7 @@ function simRun(n){
     var h=simHaul(results,'cases',reduce?null:casePick);
     $('simHaul').innerHTML=h.html;
     reel.hidden=true;strip.style.transition='none';
-    if(n>SIM_LEAD||reduce){finish();return}
+    if(reduce||!h.ms){finish();return}
     // Clear last run's answer first: leaving it up while the new tiles land reads as
     // though the new haul has already been counted. The box stays, so nothing jumps.
     simWait('simHeadline',true);$('simResult').textContent='';$('simTally').innerHTML='';
@@ -5791,7 +5801,7 @@ function craftSimRun(n){
       'those against collected prices. It settles on the row above, eventually.'
   };
   var creel=$('craftSimReel'),cstrip=$('craftSimStrip');
-  if(n>SIM_LEAD||reduce0||!h.ms){
+  if(reduce0||!h.ms){
     if(creel){creel.hidden=true;cstrip.style.transition='none'}
     settle();return
   }
