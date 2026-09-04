@@ -138,6 +138,23 @@ h1{
   border:0;border-radius:0 8px 0 8px;background:rgba(0,0,0,.55);color:var(--dim);
   font-size:13px;cursor:pointer;opacity:0;transition:opacity .12s ease
 }
+/* Opening the ring on the press means a drag needs somewhere of its own to start, and a
+   handle that says so beats a gesture nobody can see. Opposite corner to the remove button
+   so the two are never confused under a thumb. */
+.ptile-grip{
+  position:absolute;top:0;left:0;width:22px;height:22px;padding:0;
+  border:0;border-radius:8px 0 8px 0;background:rgba(0,0,0,.55);color:var(--dim);
+  cursor:grab;opacity:0;transition:opacity .12s ease;touch-action:none
+}
+.ptile-grip::before{
+  content:"";position:absolute;inset:6px;
+  background-image:radial-gradient(currentColor .9px,transparent 1.1px);
+  background-size:4px 4px
+}
+.ptile:hover .ptile-grip,.ptile:focus-within .ptile-grip{opacity:1}
+@media (hover:none){.ptile-grip{opacity:.85}}
+.ptile-grip:hover{background:var(--brass);color:var(--panel)}
+.ptile.dragging .ptile-grip{cursor:grabbing}
 .ptile:hover .ptile-x,.ptile:focus-within .ptile-x{opacity:1}
 .ptile-x:hover{background:var(--rust);color:#fff}
 /* A finger has no hover, so the control is simply there on a touch screen. */
@@ -147,7 +164,7 @@ h1{
   box-shadow:0 10px 26px rgba(0,0,0,.5);border-color:var(--brass)
 }
 .ptile.over{box-shadow:0 0 0 2px var(--brass) inset}
-@media (prefers-reduced-motion:reduce){.ptile,.ptile-x{transition:none}}
+@media (prefers-reduced-motion:reduce){.ptile,.ptile-x,.ptile-grip{transition:none}}
 .hist-item{
   position:relative;width:100%;text-align:left;font:inherit;color:inherit;
   background:var(--panel);border:1px solid rgba(var(--brass-rgb),.26);border-radius:8px;
@@ -8121,6 +8138,8 @@ function renderRecent(){
         '<span class="ptile-price'+(x.scrap?' scrap':'')+'">'+
           (x.scrap?'scrap':esc(x.price))+'</span>'+
       '</button>'+
+      '<button type="button" class="ptile-grip" data-grip="'+i+'" '+
+        'aria-label="Drag to reorder"></button>'+
       '<button type="button" class="ptile-x" data-drop="'+i+'" aria-label="Remove '+
         esc(label||x.price)+'">\u00d7</button>'+
     '</div>'
@@ -8682,6 +8701,7 @@ $('histList').addEventListener('click',function(e){
   if(dragBlockClick)return;
   var drop=e.target.closest('[data-drop]');
   if(drop){dropRecent(Number(drop.getAttribute('data-drop')));return}
+  if(!e.target.closest('.ptile-price'))return;
   var b=e.target.closest('.ptile');if(!b)return;
   var x=readRecent()[Number(b.getAttribute('data-idx'))];if(!x)return;
   /* Tapping a tile is typing that price and pressing Enter: the card re-derives the
@@ -8823,32 +8843,28 @@ function wheelRoll(x){
   var r=wheelRange(x);if(!r||!r.key)return '';
   var v=x.rolls[r.key];return v==null?'':r.label+' '+v
 }
-/* Three gestures now share one tile: a tap loads the price, a drag reorders, a hold opens
-   the wheel. They cannot all be decided at pointerdown, so they are decided by what happens
-   next - move first and it is a drag, stay still long enough and it is a hold. The hold
-   timer is what makes the two exclusive: once it fires the drag is abandoned, and once a
-   drag starts the timer is cancelled. */
-var HOLD_MS=420,holdTimer=null;
-function clearHold(){if(holdTimer){clearTimeout(holdTimer);holdTimer=null}}
+/* A tile is three controls in one, so each gets its own ground rather than its own timing.
+   Pressing the piece opens the ring at once - waiting out a hold to be told what a tile is
+   was the slowest part of the thing. The grip in the corner is the only place a drag starts,
+   which is why it is drawn rather than implied. The price line is still a tap that loads it
+   back, so the two halves of a tile do the two things a tile is for. */
 $('histList').addEventListener('pointerdown',function(e){
   if(e.button&&e.button!==0)return;
   if(e.target.closest('[data-drop]'))return;
   var t=e.target.closest('.ptile');if(!t)return;
-  dragTile=t;dragIdx=Number(t.getAttribute('data-idx'));
-  dragX=e.clientX;dragY=e.clientY;dragging=false;
-  try{t.setPointerCapture(e.pointerId)}catch(err){}
-  var idx=dragIdx,px=e.clientX,py=e.clientY;
-  clearHold();
-  holdTimer=setTimeout(function(){
-    holdTimer=null;
-    var x0=readRecent()[idx];if(!x0)return;
-    var st=wheelStage(x0);if(!st)return;
-    // The hold has won: this pointer is now aiming, not dragging.
-    if(dragTile){dragTile.classList.remove('dragging');dragTile.style.transform=''}
-    dragging=false;dragTile=null;
-    dragBlockClick=true;
-    openWheel(st,idx,px,py)
-  },HOLD_MS)
+  var idx=Number(t.getAttribute('data-idx'));
+  if(e.target.closest('[data-grip]')){
+    dragTile=t;dragIdx=idx;dragX=e.clientX;dragY=e.clientY;dragging=false;
+    try{t.setPointerCapture(e.pointerId)}catch(err){}
+    return
+  }
+  // The price is the one part of a tile that is not the piece, so it keeps its tap.
+  if(e.target.closest('.ptile-price'))return;
+  var x0=readRecent()[idx];if(!x0)return;
+  var st=wheelStage(x0);if(!st)return;
+  e.preventDefault();
+  dragBlockClick=true;
+  openWheel(st,idx,e.clientX,e.clientY)
 });
 $('histList').addEventListener('pointermove',function(e){
   if(wheel)return;
@@ -8856,8 +8872,7 @@ $('histList').addEventListener('pointermove',function(e){
   var dx=e.clientX-dragX,dy=e.clientY-dragY;
   // Slop, so a tap that wobbles is still a tap.
   if(!dragging){
-    if(Math.abs(dx)+Math.abs(dy)<8)return;
-    clearHold();
+    if(Math.abs(dx)+Math.abs(dy)<6)return;
     dragging=true;dragTile.classList.add('dragging')
   }
   e.preventDefault();
@@ -8868,7 +8883,6 @@ $('histList').addEventListener('pointermove',function(e){
   })
 });
 function endDrag(e){
-  clearHold();
   if(wheel)return;
   if(!dragTile)return;
   var was=dragging,to=was?tileIndexAt(e.clientX,e.clientY):-1;
