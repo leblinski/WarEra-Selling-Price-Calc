@@ -4190,9 +4190,13 @@ function paintScrap(shown){
     $('scrapRows').innerHTML='';
     return false
   }
+  /* Scraps are not taxed, so dismantling hands you yield x bid outright, and to receive
+     that from a sale you type exactly that - the marketplace then shows it a tick over.
+     This divided by 1.01 to get the shown figure and divided again for the typed one,
+     which put the floor about 2% below the point where dismantling actually wins. */
   for(var i=0;i<RARITIES.length;i++){
-    var value=SCRAP_YIELDS[i]*p*Number(frac.den)/Number(frac.num);
-    var typed=value*Number(frac.den)/Number(frac.num);
+    var typed=SCRAP_YIELDS[i]*p;
+    var value=typed*Number(frac.num)/Number(frac.den);
     if(i===state.tier-1)mine=value;
     rows+='<div class="scrap-row'+(i===state.tier-1?' hit':'')+'"><span>'+RARITIES[i].name+'</span><span>'+
       (scrapView==='typed'?typed:value).toFixed(3)+'</span></div>'
@@ -4813,9 +4817,7 @@ function paintCraft(){
     rowsEl.innerHTML='';footEl.textContent='';return
   }
 
-  var taxPct=Number($('tax').value);
-  if(!isFinite(taxPct)||taxPct<0)taxPct=0;
-  var taxMul=1-taxPct/100,batch=craftCount();
+  var taxMul=resaleNet(),batch=craftCount();
   var rows='<div class="craft-row head"><span>Tier</span><span>Cost</span><span>Sells for</span><span>Profit</span><span>Break even</span></div>';
   var mine=null,thin=false,anySteel=null,anyScrap=null,known=tierKnown();
 
@@ -4877,7 +4879,7 @@ function paintCraft(){
     mine.sc.unit.toFixed(5)+' and '+mine.st.unit.toFixed(4)+'; '+
     (many?'the '+batch+' pieces sell for '+craftMoney(mine.gross)
          :'the average piece sells for '+mine.gross.toFixed(3))+
-    ' after '+taxPct+'% tax'+(many?', or '+craftSigned(mine.profit/batch,3)+' each':'')+'.';
+    ' to the seller'+(many?', or '+craftSigned(mine.profit/batch,3)+' each':'')+'.';
   // A break-even at or below zero means no input price rescues the tier: the piece is
   // worth less than the other input costs on its own.
   var head2=mine.beScrap<=0
@@ -5006,9 +5008,7 @@ var simBusy=false,simToken=0;
 function simRun(n){
   if(simBusy)return;
   if(!craftState.summary){$('simResult').textContent='Collector prices are not loaded yet.';return}
-  var taxPct=Number($('tax').value);
-  if(!isFinite(taxPct)||taxPct<0)taxPct=0;
-  var taxMul=1-taxPct/100;
+  var taxMul=resaleNet();
   var cost=craftAcquire('case1',n);
   var results=[],i;
   for(i=0;i<n;i++)results.push(simOpenOne(taxMul));
@@ -5121,9 +5121,7 @@ function craftSimRun(n){
   if(!tierKnown())
     return stop('Pick a rarity first \u2014 a craft leaves you the slot and the roll, not the rarity.');
 
-  var t=state.tier,taxPct=Number($('tax').value);
-  if(!isFinite(taxPct)||taxPct<0)taxPct=0;
-  var taxMul=1-taxPct/100;
+  var t=state.tier,taxMul=resaleNet();
   var sc=craftInput('scraps',SCRAP_YIELDS[t-1]*n,'craftScrap'),
       st=craftInput('steel',CRAFT_STEEL[t-1]*n,'craftSteel');
   var results=[],i;
@@ -5186,9 +5184,7 @@ function paintCase(){
   if(!$('caseBox'))return;
   var n=Math.floor(Number($('caseCount').value));
   n=isFinite(n)&&n>0?Math.min(n,9999):1;
-  var taxPct=Number($('tax').value);
-  if(!isFinite(taxPct)||taxPct<0)taxPct=0;
-  var sig=[n,taxPct,craftState.src,craftState.liveAt,state.tier,entrySig(),
+  var sig=[n,craftState.src,craftState.liveAt,state.tier,entrySig(),
            sortMin.abs,sortMin.pct,sortMin.join,
            craftState.summary?'s':'',craftState.books?'b':''].join('|');
   if(sig===craftState.caseSig)return;
@@ -5206,7 +5202,7 @@ function paintCase(){
     if($('caseSwing'))$('caseSwing').hidden=true;
     return
   }
-  var taxMul=1-taxPct/100,gross=0,covered=0,space=0,samples=0,missing=0,parts=[];
+  var taxMul=resaleNet(),gross=0,covered=0,space=0,samples=0,missing=0,parts=[];
   for(var t=1;t<=6;t++){
     var exp=craftExpected(t,taxMul),odds=CASE_TIER_ODDS[t-1];
     if(!exp){missing++;parts.push(null);continue}
@@ -5255,7 +5251,7 @@ function paintCase(){
                   'wall'+(cost.wall?' at '+cost.wall.wallPrice.toFixed(3):''))+
         ' rather than lifting the '+(cost.lift!=null?cost.lift.toFixed(5):'ask')
        :', lifting the cheapest offers')+
-    '; the average case holds '+gross.toFixed(4)+' after '+taxPct+'% tax'+
+    '; the average case holds '+gross.toFixed(4)+' to the seller'+
     (many?', or '+craftSigned(profit/n,4)+' each':'')+
     '. Break even at a case price of '+gross.toFixed(4)+' ('+
     craftSigned((gross/cost.unit-1)*100,2)+'% from what you would pay now).';
@@ -5363,13 +5359,24 @@ function sortGold(v){
   if(!(v>0))return '\u2014';
   return v*SORT_BATCH>=10?Math.round(v*SORT_BATCH).toLocaleString():(v*SORT_BATCH).toFixed(1)
 }
-function sortTax(){
-  var t=Number($('tax').value);
-  return 1-((isFinite(t)&&t>0?t:0)/100)
-}
+/* What a collected median is worth to the seller who took it, as a multiplier.
+   It is 1, and the reason is worth writing down because three tabs assumed otherwise.
+
+   The tax sits on top of the seller's price rather than coming out of it: you type E, the
+   marketplace shows E x 1.01, and E is what lands in your wallet. So the `money` the
+   collector records is already the seller's proceeds - 100% of 95,140 sales sit exactly
+   on the 0.001 grid a seller types on, while only 1.10% of money/1.01 do, which is chance.
+   Multiplying the median by (1 - tax) charged the seller a tax nobody charges them, and
+   understated every listing against a scrap value that was never taxed either: only
+   equipment is taxed at all.
+
+   Both sides of sell-or-break are therefore in the same units - gold received - and the
+   comparison needs no tax in it. The rate still matters where it always did: on the Price
+   tab, converting between what you want to receive and what a buyer sees. */
+function resaleNet(){return 1}
 function paintSort(){
   var box=$('sortRows');if(!box)return;
-  var taxMul=sortTax();
+  var taxMul=resaleNet();
   var sig=[craftState.summary?'s':'',craftState.books?'b':'',craftState.live?'l':'',
            $('tax').value,craftState.src,craftState.liveAt,state.tier,state.slot,
            sortMin.abs,sortMin.pct,sortMin.join,sortShown()].join('|');
@@ -5628,7 +5635,7 @@ function paintSortGate(){
 function paintCutCard(){
   var card=$('cutCard');if(!card)return;
   if(!tierKnown()||!craftState.summary||!craftState.books||!scrapKnown()){card.hidden=true;return}
-  var t=state.tier,taxMul=sortTax(),floor=sortNeed(t),sell=0,known=0,all=[];
+  var t=state.tier,taxMul=resaleNet(),floor=sortNeed(t),sell=0,known=0,all=[];
   for(var i=0;i<SLOTS.length;i++){
     var slot=SLOTS[i].code,r=sortRolls(slot,t,taxMul);
     if(!r||!r.known)continue;
