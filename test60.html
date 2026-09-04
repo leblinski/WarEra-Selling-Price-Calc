@@ -58,7 +58,53 @@ h1{
   letter-spacing:.1em;text-transform:uppercase;color:var(--dim)
 }
 .hist-clear:hover{color:var(--rust)}
-.hist-list{display:grid;gap:6px}
+/* ---- Priced pieces ------------------------------------------------------------
+   The game gives you no way to sort your own equipment, so pricing a stack means holding
+   the order in your head. Each piece you price becomes a tile instead: its icon, its roll
+   and its price, laid out so a glance finds the one you want. Tapping loads it back;
+   dragging groups them however you are actually working; the x drops one. */
+.hist-list{display:flex;flex-wrap:wrap;gap:7px;touch-action:pan-y}
+.ptile{
+  position:relative;width:78px;flex:none;border-radius:9px;
+  border:1px solid var(--tier,rgba(var(--brass-rgb),.3));background:var(--panel);
+  overflow:hidden;transition:box-shadow .12s ease
+}
+.ptile-body{
+  display:block;width:100%;padding:0;border:0;background:none;color:inherit;font:inherit;
+  cursor:pointer;text-align:center;-webkit-tap-highlight-color:transparent
+}
+.ptile-art{position:relative;display:block;width:100%;aspect-ratio:1/1}
+.ptile-art i{
+  position:absolute;inset:0;background-image:url('items.png');
+  background-size:600% 600%;background-repeat:no-repeat
+}
+/* The roll is the thing you are choosing between, so it sits on the piece rather than under
+   it - a caption below would push the tile past the size that lets six fit a phone. */
+.ptile-roll{
+  position:absolute;left:0;right:0;bottom:0;padding:2px 3px;
+  background:linear-gradient(to top,rgba(0,0,0,.82),rgba(0,0,0,0));
+  font-family:"IBM Plex Mono",monospace;font-size:10px;line-height:1.25;color:#fff;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+}
+.ptile-price{
+  display:block;padding:3px 2px 4px;font-family:"IBM Plex Mono",monospace;font-size:11px;
+  font-variant-numeric:tabular-nums;color:var(--brass);white-space:nowrap;overflow:hidden
+}
+.ptile-x{
+  position:absolute;top:0;right:0;width:22px;height:22px;padding:0;line-height:1;
+  border:0;border-radius:0 8px 0 8px;background:rgba(0,0,0,.55);color:var(--dim);
+  font-size:13px;cursor:pointer;opacity:0;transition:opacity .12s ease
+}
+.ptile:hover .ptile-x,.ptile:focus-within .ptile-x{opacity:1}
+.ptile-x:hover{background:var(--rust);color:#fff}
+/* A finger has no hover, so the control is simply there on a touch screen. */
+@media (hover:none){.ptile-x{opacity:.85}}
+.ptile.dragging{
+  pointer-events:none;z-index:5;opacity:.9;
+  box-shadow:0 10px 26px rgba(0,0,0,.5);border-color:var(--brass)
+}
+.ptile.over{box-shadow:0 0 0 2px var(--brass) inset}
+@media (prefers-reduced-motion:reduce){.ptile,.ptile-x{transition:none}}
 .hist-item{
   position:relative;width:100%;text-align:left;font:inherit;color:inherit;
   background:var(--panel);border:1px solid rgba(var(--brass-rgb),.26);border-radius:8px;
@@ -857,6 +903,33 @@ kbd{
 @keyframes simpop{from{opacity:0;transform:scale(.68)}to{opacity:1;transform:none}}
 .sim-grid .sim-tile{animation:simpop 240ms cubic-bezier(.2,1.25,.4,1) both}
 @media (prefers-reduced-motion:reduce){.sim-grid .sim-tile{animation:none}}
+/* A batch small enough to have opened in the game deserves the same reveal one case gets.
+   Each tile is its own little reel: a column of decoys with the real pull at the bottom,
+   wound past the window and stopped on it, left to right. Percentages on translateY are
+   of the column's own height, which is one cell, so the distance is just how many decoys
+   there are - the whole thing is CSS with two inline custom properties. */
+@keyframes simspin{from{transform:translateY(0)}to{transform:translateY(var(--end))}}
+.sim-grid .sim-tile.spin{animation:none;overflow:hidden}
+.sim-grid .sim-tile.spin .sim-col{
+  position:absolute;left:0;right:0;top:0;height:100%;display:flex;flex-direction:column;
+  will-change:transform;
+  animation:simspin var(--dur,1050ms) cubic-bezier(.11,.78,.14,1) var(--delay,0ms) both
+}
+.sim-grid .sim-tile.spin .sim-col>i{
+  flex:0 0 100%;height:100%;display:block;background-image:url('items.png');
+  background-size:600% 600%;background-repeat:no-repeat
+}
+/* The line the tile settles on, so a stopped reel reads as stopped. */
+.sim-grid .sim-tile.spin::after{
+  content:"";position:absolute;left:0;right:0;top:50%;height:1px;margin-top:-1px;
+  background:rgba(var(--brass-rgb),.55);pointer-events:none;
+  animation:simfade var(--dur,1050ms) linear var(--delay,0ms) both
+}
+@keyframes simfade{0%{opacity:.9}80%{opacity:.9}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){
+  .sim-grid .sim-tile.spin .sim-col{animation:none;transform:translateY(var(--end))}
+  .sim-grid .sim-tile.spin::after{animation:none;opacity:0}
+}
 /* A piece you broke is not a piece you sold, and a haul that does not say which is a haul
    you cannot read. Same two channels the roll grid uses: dimmed, and hatched. */
 .sim-tile.blank{opacity:.32}
@@ -866,18 +939,17 @@ kbd{
   background:repeating-linear-gradient(45deg,transparent 0 3px,rgba(0,0,0,.5) 3px 6px)
 }
 .sim-count{margin:0 0 2px;font-size:11.5px;color:var(--dim)}
-/* Ten tiles sit under the answer happily. A hundred is a screenful, and the answer ends up
-   below it, which means scrolling away from the thing you pressed the button for. Past a
-   batch you could have opened in the game, the answer leads and the tiles fill in under it. */
+/* The answer used to sit under the haul for ten and over it for a hundred, so the figure
+   you pressed the button for moved when you changed the batch size. It leads at every size
+   now. Nothing is given away by the position: the headline is only written when the run
+   finishes, and it holds an empty box of its own height until then so the haul underneath
+   does not jump when the number lands. */
 .sim-out{display:flex;flex-direction:column}
-.sim-out .sim-haul{order:1}
-.sim-out .sim-headline{order:2}
-.sim-out .sim-result{order:3}
-.sim-out .sim-tally{order:4}
-.sim-out.lead .sim-headline{order:1}
-.sim-out.lead .sim-result{order:2}
-.sim-out.lead .sim-tally{order:3}
-.sim-out.lead .sim-haul{order:4;margin-top:12px}
+.sim-out .sim-headline{order:1}
+.sim-out .sim-result{order:2}
+.sim-out .sim-tally{order:3}
+.sim-out .sim-haul{order:4;margin-top:12px}
+.sim-headline.waiting{visibility:hidden}
 /* The marker the strip settles under, same idea as the game's own panel. */
 .sim-reel::after{
   content:"";position:absolute;left:50%;top:4px;bottom:4px;width:2px;margin-left:-1px;
@@ -2915,7 +2987,7 @@ h1 .title-word{white-space:nowrap}
         <input type="checkbox" id="sound" checked>
         <span><strong>Copy sound</strong><span>Plays a short confirmation when the figure reaches the clipboard.</span></span>
       </label>
-      <button type="button" class="tour-open" id="tourAgain" style="margin-bottom:12px">Show the walkthrough</button>
+      <button type="button" class="tour-open" id="tourAgain" data-tour="here" style="margin-bottom:12px">Walk me through this tab</button>
       <label class="settings-toggle on" id="qWrap">
         <input type="checkbox" id="qMarks" checked>
         <span><strong>Help marks</strong><span>A small ? beside each heading opens that section&rsquo;s explanation. Switch it off once you know your way around and the marks go entirely.</span></span>
@@ -2953,9 +3025,9 @@ h1 .title-word{white-space:nowrap}
     <main>
       <div class="tabbar" role="tablist" id="tabBar">
         <button type="button" class="tabbtn" role="tab" data-tab="price" aria-selected="true">Price</button>
+        <button type="button" class="tabbtn" role="tab" data-tab="sort" aria-selected="false">Sort</button>
         <button type="button" class="tabbtn" role="tab" data-tab="craft" aria-selected="false">Craft <span class="tabdot"></span><b id="tabCraftVal"></b></button>
         <button type="button" class="tabbtn" role="tab" data-tab="cases" aria-selected="false">Cases <span class="tabdot"></span><b id="tabCaseVal"></b></button>
-        <button type="button" class="tabbtn" role="tab" data-tab="sort" aria-selected="false">Sort</button>
       </div>
 
       <div class="tabpane" id="paneprice">
@@ -2964,7 +3036,7 @@ h1 .title-word{white-space:nowrap}
         <div id="priceField">
           <label class="label" for="price" id="priceLabel">Price to beat</label><button type="button" class="q" data-q="price" aria-expanded="false" aria-label="What price goes here">?</button>
           <div class="inputwrap">
-            <input type="text" id="price" placeholder="e.g. 326.129" inputmode="decimal" autocomplete="off" spellcheck="false">
+            <input type="text" id="price" placeholder="their cheapest · e.g. 326.129" inputmode="decimal" autocomplete="off" spellcheck="false">
             <button type="button" class="gobtn" id="goBtn" aria-label="Calculate and copy">&#10003;</button>
           </div>
         </div>
@@ -3060,7 +3132,7 @@ h1 .title-word{white-space:nowrap}
         </button>
       </div>
 
-      <button type="button" class="tour-open" id="tourOpen" hidden>First time? Walk me through it &rarr;</button>
+      <button type="button" class="tour-open" id="tourOpen-price" data-tour="price" hidden>First time? Walk me through it &rarr;</button>
 
       <button type="button" class="listanyway" id="listAnyway" hidden></button>
 
@@ -3375,6 +3447,7 @@ h1 .title-word{white-space:nowrap}
         <p class="flip-lead" id="craftLead">Buy the inputs, craft one piece at random, sell it or break it</p>
         <p class="flip-figure" id="craftVerdict">—</p>
         <p class="flip-detail" id="craftDetail">Reading the collector's order books and sale history…</p>
+        <button type="button" class="tour-open" id="tourOpen-craft" data-tour="craft" hidden>First time? Walk me through it &rarr;</button>
         <div class="rarity-btns sort-pick" id="craftPick" role="tablist" aria-label="Rarity to craft"></div>
 
         <div class="craft-rows" id="craftRows"></div>
@@ -3403,10 +3476,12 @@ h1 .title-word{white-space:nowrap}
           <span class="scrap-src-label">Try your luck<button type="button" class="q" data-q="craftsim" aria-expanded="false" aria-label="What the simulator does">?</button></span>
           <div class="sim-btns" id="craftSimBtns">
             <button type="button" class="soundbtn" data-craftsim="1">Craft 1</button>
+            <button type="button" class="soundbtn" data-craftsim="5">5</button>
             <button type="button" class="soundbtn" data-craftsim="10">10</button>
             <button type="button" class="soundbtn" data-craftsim="100">100</button>
             <button type="button" class="soundbtn" data-craftsim="count">Use the number above</button>
           </div>
+          <div class="sim-reel" id="craftSimReel" hidden><div class="sim-strip" id="craftSimStrip"></div></div>
           <div class="sim-out" id="craftSimOut">
             <div class="sim-haul" id="craftSimHaul"></div>
             <p class="sim-headline" id="craftSimHeadline" hidden></p>
@@ -3429,6 +3504,7 @@ h1 .title-word{white-space:nowrap}
         <p class="flip-lead" id="caseLead">Buy a Case I, open it, sell what is worth selling and break the rest</p>
         <p class="flip-figure" id="caseVerdict">—</p>
         <p class="flip-detail" id="caseDetail">Reading case prices…</p>
+        <button type="button" class="tour-open" id="tourOpen-cases" data-tour="cases" hidden>First time? Walk me through it &rarr;</button>
         <div class="craft-rows" id="caseRows"></div>
         <p class="case-swing" id="caseSwing" hidden></p>
         <p class="craft-foot" id="caseFoot" data-qof="cases"></p>
@@ -3451,6 +3527,7 @@ h1 .title-word{white-space:nowrap}
           <span class="scrap-src-label">Try your luck<button type="button" class="q" data-q="casesim" aria-expanded="false" aria-label="What the simulator does">?</button></span>
           <div class="sim-btns" id="simBtns">
             <button type="button" class="soundbtn" data-sim="1">Open 1</button>
+            <button type="button" class="soundbtn" data-sim="5">5</button>
             <button type="button" class="soundbtn" data-sim="10">10</button>
             <button type="button" class="soundbtn" data-sim="100">100</button>
             <button type="button" class="soundbtn" data-sim="1000">1000</button>
@@ -3474,9 +3551,12 @@ h1 .title-word{white-space:nowrap}
         <p class="flip-label">Sell it or break it?<button type="button" class="q" data-q="sort" aria-expanded="false" aria-label="How to read these rows">?</button></p>
         <div class="qbody" data-qof="sort"><b>Sell</b> is the rule for keeping a roll &mdash; anything at or above it
         earns a listing. <b>Per 1,000</b> is how many of that slot&rsquo;s thousand possible rolls clear the rule.
-        <b>Gold</b> is what clearing it is worth on an average roll. Tap a row to see every roll behind it.</div>
+        <b>Gold</b> is what clearing it is worth on an average roll. Tap a row to see every roll behind it.
+        Figures on this tab are gold you receive, not the price the market shows &mdash; the two differ by your
+        market tax.</div>
         <p class="flip-lead" id="sortLead">Every roll, by rarity, against what its scraps are worth</p>
         <p class="flip-detail" id="sortDetail">Reading the collector's sale history…</p>
+        <button type="button" class="tour-open" id="tourOpen-sort" data-tour="sort" hidden>First time? Walk me through it &rarr;</button>
         <div class="rarity-btns sort-pick" id="sortPick" role="tablist" aria-label="Rarity to sort"></div>
         <div class="scrap-src" id="sortGate">
           <span class="scrap-src-label">Only worth listing if it beats scrap by</span>
@@ -3511,7 +3591,7 @@ h1 .title-word{white-space:nowrap}
         <button type="button" class="hist-clear" id="histClear" hidden>Clear</button>
       </div>
       <div class="hist-list" id="histList"></div>
-      <p class="hist-empty" id="histEmpty">Your recent recommendations will collect here. Tap one to copy the recommended price.</p>
+      <p class="hist-empty" id="histEmpty">Every piece you price lands here as a tile. Tap one to load it back, drag to group them, &times; to drop one.</p>
     </aside>
   </div>
 
@@ -4299,21 +4379,24 @@ function coreCalc(settled){
   $('docketLabel').textContent=beating?'Type this to undercut them':'Type this figure';
   paintFigure(entryText);$('docketHint').textContent='Displayed market price '+Number(shown).toFixed(3)+' · tap to copy';
   $('docket').classList.remove('blocked','success');
-  if(settled!==false){
-    flipCheckCore(shown);
-    var dismantle=paintScrap(Number(shown));
-    if(dismantle){
-      state.listFigure=entryText;
-      state.coreFigure='';
-      $('docket').classList.add('blocked');
-      $('docketLabel').textContent='Dismantle floor reached';
-      paintFigure('Dismantle it');
-      $('docketHint').textContent='Sale target '+Number(state.scrapComparedTarget).toFixed(3)+' is at/below dismantle floor '+state.scrapValue+'.';
-      $('listAnyway').textContent='Ignore floor and list using '+entryText;
-      $('listAnyway').hidden=false
-    }else{
-      $('listAnyway').hidden=true
-    }
+  /* These used to wait for the tick while the figure above them updated on every keystroke,
+     so the page taught you it was live and then left two em-dashes that never filled. They
+     follow the field now. Only the takeover - the card turning into "Dismantle it" - still
+     waits for a settled price, because a half-typed number passing under the floor should
+     not blockade the card mid-keystroke. */
+  flipCheckCore(shown);
+  var dismantle=paintScrap(Number(shown));
+  if(settled!==false&&dismantle){
+    state.listFigure=entryText;
+    state.coreFigure='';
+    $('docket').classList.add('blocked');
+    $('docketLabel').textContent='Dismantle floor reached';
+    paintFigure('Dismantle it');
+    $('docketHint').textContent='Sale target '+Number(state.scrapComparedTarget).toFixed(3)+' is at/below dismantle floor '+state.scrapValue+'.';
+    $('listAnyway').textContent='Ignore floor and list using '+entryText;
+    $('listAnyway').hidden=false
+  }else{
+    $('listAnyway').hidden=true
   }
 }
 var flipState={buy:0n,min:0n,max:0n,num:101n,den:100n};
@@ -4548,34 +4631,110 @@ document.addEventListener('click',function(e){
    date with the layout. Step one types a real price and commits it, which is also the only
    honest way to show what the ✓ does: everything below the answer stays blank until it is
    pressed. The demo price is cleared on the way out. */
-var TOUR=[
-  {sel:'#priceField',tab:'price',title:'Start with their price',
-   body:'Open the marketplace in game, find the <b>cheapest listing</b> of the item you are '+
-        'holding, and type that price here. Everything else follows from this one number.',
-   next:'Try it with 51.500',
-   run:function(){
-     var el=$('price');el.value='51.500';el.dispatchEvent(new Event('input',{bubbles:true}));
-     if($('goBtn'))$('goBtn').click()
-   }},
-  {sel:'#docket',tab:'price',title:'This is what you type',
-   body:'Copy this into the game&rsquo;s sell box. It undercuts the cheapest seller by the '+
-        'smallest step the market allows, with the market tax already worked in. Tap the '+
-        'card to copy it.'},
-  {sel:'#quickScrap',tab:'price',title:'When not to sell at all',
-   body:'Every piece breaks down into scraps. Below this figure the scraps are worth more '+
-        'than the sale, so breaking it beats listing it.'},
-  {sel:'#tabBar',tab:'price',title:'The other three tabs',
-   body:'<b>Price</b> and <b>Sort</b> are for things you already have. <b>Craft</b> and '+
-        '<b>Cases</b> say whether buying in pays &mdash; the figure on the tab is the edge '+
-        'right now. Every heading has a <b>?</b> when you want the detail behind a number.',
-   next:'Done'}
-];
-var tourAt=-1,tourDim=null,tourRing=null,tourBubble=null;
-function tourSeen(){try{return localStorage.getItem('warera-calc-tour')==='done'}catch(e){return true}}
-function tourMark(){try{localStorage.setItem('warera-calc-tour','done')}catch(e){}}
+/* One walkthrough per tab rather than one long tour across four. Each card answers its own
+   question and people arrive at them separately - somebody who came to price a piece may
+   never open Cases, and somebody who did should not have to sit through Price to be shown
+   it. Each is offered on its own tab, remembered on its own, and never mentions the others.
+   A step whose anchor is missing or not laid out is dropped rather than ringing nothing,
+   because these cards hide parts of themselves until the collector has answered. */
+var TOURS={
+  price:[
+    {sel:'#priceField',title:'Start with their price',
+     body:'Open the marketplace in game, find the <b>cheapest listing</b> of the item you are '+
+          'holding, and type that price here. Everything else follows from this one number.',
+     next:'Try it with 51.500',
+     run:function(){
+       var el=$('price');el.value='51.500';el.dispatchEvent(new Event('input',{bubbles:true}));
+       if($('goBtn'))$('goBtn').click()
+     }},
+    {sel:'#docket',title:'This is what you type',
+     body:'Copy this into the game&rsquo;s sell box. It undercuts the cheapest seller by the '+
+          'smallest step the market allows, with the market tax already worked in. Tap the '+
+          'card to copy it.'},
+    {sel:'#goBtn',title:'It is already copied',
+     body:'You never have to select that number. <b>Enter</b> on the keypad, or this tick, '+
+          'calculates and puts the figure straight on your clipboard &mdash; switch to the '+
+          'game and paste.'},
+    {sel:'#quickScrap',title:'When not to sell at all',
+     body:'Every piece breaks down into scraps. Below this figure the scraps are worth more '+
+          'than the sale, so breaking it beats listing it.'},
+    {sel:'#tabBar',title:'The other three tabs',
+     body:'The first two, <b>Price</b> and <b>Sort</b>, are for things you already have. The '+
+          'last two, <b>Craft</b> and <b>Cases</b>, say whether buying in pays &mdash; the '+
+          'figure on the tab is the edge right now. Each has a walkthrough of its own, and every heading has a <b>?</b> '+
+          'when you want the detail behind a number.'},
+    {sel:'.history',title:'Everything you priced stays here',
+     body:'Each piece you price becomes a tile with its icon, its roll and its price. Tap one '+
+          'to load it back and copy the figure again, drag them into whatever groups you like, '+
+          'and use the &times; to drop one.',
+     next:'Done'}
+  ],
+  craft:[
+    {sel:'#craftRows',title:'Every rarity at once',
+     body:'Crafting spends scraps and steel on one piece of a rarity you pick. This prices '+
+          'all six: what the inputs cost, what the piece sells for, and how often that '+
+          'rarity is worth breaking instead.'},
+    {sel:'#craftBooks',title:'Where the input prices come from',
+     body:'Live order books. You are not obliged to pay the asking price &mdash; rest a buy '+
+          'order one step above a <b>wall</b> and you pay less, but you wait. The ladder '+
+          'shows what is ahead of you at each level.'},
+    {sel:'#craftSimBtns',title:'The average is not the experience',
+     body:'The table above is what a craft returns on average. This rolls real ones against '+
+          'the same odds and prices, so you can see how wide the spread around that average '+
+          'actually is.',
+     next:'Done'}
+  ],
+  cases:[
+    {sel:'#caseVerdict',title:'A case is a bet on six rarities',
+     body:'One Case I hands you a random piece. This is what the average case holds against '+
+          'what a case costs you right now &mdash; the whole tab exists to answer whether '+
+          'that gap is positive.'},
+    {sel:'#caseRows',title:'Where the number comes from',
+     body:'<b>Odds</b> are the game&rsquo;s own. <b>Worth</b> is what an average piece of that '+
+          'rarity fetches. <b>Adds</b> is that rarity&rsquo;s share of a case&rsquo;s value, '+
+          'and the six add up to what a case holds.'},
+    {sel:'#caseSwing',title:'Read this before you buy a hundred',
+     body:'The edge is small and a single case swings far wider than it. This says how many '+
+          'cases it takes before profit reliably beats the swing &mdash; below that, a losing '+
+          'run is normal rather than evidence the edge is wrong.'},
+    {sel:'#caseBid',title:'Price it at your own bid',
+     body:'You can set the price you would actually pay rather than the market&rsquo;s. Leave '+
+          'it empty and the card prices at the top of the book, or tap one of the resting '+
+          'places below it.',
+     next:'Done'}
+  ],
+  sort:[
+    {sel:'#sortPick',title:'One rarity at a time',
+     body:'Pick a rarity and every roll it can produce is measured against what that '+
+          'roll&rsquo;s own scraps fetch. This is the tab for a stack of pieces rather than '+
+          'one in your hand.'},
+    {sel:'#sortRows',title:'The rule for keeping a roll',
+     body:'<b>Sell</b> is the cut line for that slot &mdash; anything at or above it earns a '+
+          'listing and the rest is scrap. Tap a row to see every roll behind the rule.'},
+    {sel:'#sortGate',title:'How much better than scrap is worth it',
+     body:'A piece that only just beats its scraps is not worth the listing slot. This is how '+
+          'far ahead it has to be, and the Craft and Cases tabs use the same bar.',
+     next:'Done'}
+  ]
+};
+var TOUR_TABS=['price','sort','craft','cases'];
+var tourName='',tourSteps=[],tourAt=-1,tourDim=null,tourRing=null,tourBubble=null;
+function tourKey(name){return 'warera-calc-tour'+(name==='price'?'':'-'+name)}
+function tourSeen(name){
+  try{return localStorage.getItem(tourKey(name))==='done'}catch(e){return true}
+}
+function tourMark(name){try{localStorage.setItem(tourKey(name),'done')}catch(e){}}
+// A card can be mid-load with half its parts absent; ringing an element of no size points
+// at nothing, so those steps simply are not in this run.
+function tourLive(step){
+  var el=document.querySelector(step.sel);
+  if(!el)return false;
+  var r=el.getBoundingClientRect();
+  return r.width>0&&r.height>0
+}
 function tourPlace(){
   if(tourAt<0)return;
-  var el=document.querySelector(TOUR[tourAt].sel);
+  var el=document.querySelector(tourSteps[tourAt].sel);
   if(!el||!tourRing)return;
   var r=el.getBoundingClientRect(),pad=6;
   tourRing.style.top=(r.top-pad)+'px';tourRing.style.left=(r.left-pad)+'px';
@@ -4588,63 +4747,77 @@ function tourPlace(){
   tourBubble.style.top=top+'px';tourBubble.style.left=left+'px'
 }
 function tourShow(i){
-  var step=TOUR[i];
-  if(step.tab)setTab(step.tab,false);
+  var step=tourSteps[i],last=i===tourSteps.length-1;
   var el=document.querySelector(step.sel);
   if(el)el.scrollIntoView({block:'center',behavior:'auto'});
-  tourBubble.innerHTML='<p class="tour-step">Step '+(i+1)+' of '+TOUR.length+'</p>'+
+  tourBubble.innerHTML='<p class="tour-step">Step '+(i+1)+' of '+tourSteps.length+'</p>'+
     '<p class="tour-title">'+step.title+'</p>'+
     '<p class="tour-body">'+step.body+'</p>'+
     '<div class="tour-btns">'+
-      '<button type="button" class="tour-next" id="tourNext">'+(step.next||'Next')+'</button>'+
-      '<button type="button" class="tour-skip" id="tourSkip">'+
-      (i===TOUR.length-1?'Close':'Skip')+'</button>'+
+      '<button type="button" class="tour-next" id="tourNext">'+
+      (step.next||(last?'Done':'Next'))+'</button>'+
+      '<button type="button" class="tour-skip" id="tourSkip">'+(last?'Close':'Skip')+'</button>'+
     '</div>';
   tourPlace();
   // A step that changes the page has to let the paint land before the ring is measured again.
   setTimeout(tourPlace,60)
 }
-function tourStart(){
+function tourOffer(){
+  for(var i=0;i<TOUR_TABS.length;i++){
+    var b=$('tourOpen-'+TOUR_TABS[i]);
+    if(b)b.hidden=tourSeen(TOUR_TABS[i])||tourAt>=0
+  }
+}
+function tourStart(name){
   if(tourAt>=0)return;
+  if(!TOURS[name])return;
   if($('settingsPanel'))$('settingsPanel').hidden=true;
+  setTab(name,false);
+  tourSteps=TOURS[name].filter(tourLive);
+  if(!tourSteps.length){tourMark(name);tourOffer();return}
+  tourName=name;
   tourDim=document.createElement('div');tourDim.className='tour-dim';
   tourRing=document.createElement('div');tourRing.className='tour-ring';
   tourBubble=document.createElement('div');tourBubble.className='tour-bubble';
-  tourBubble.setAttribute('role','dialog');tourBubble.setAttribute('aria-label','Walkthrough');
+  tourBubble.setAttribute('role','dialog');
+  tourBubble.setAttribute('aria-label',name+' walkthrough');
   document.body.appendChild(tourDim);document.body.appendChild(tourRing);
   document.body.appendChild(tourBubble);
   window.addEventListener('resize',tourPlace);window.addEventListener('scroll',tourPlace,true);
-  tourAt=0;tourShow(0);
-  if($('tourOpen'))$('tourOpen').hidden=true
+  tourAt=0;tourShow(0);tourOffer()
 }
 function tourEnd(){
   if(tourAt<0)return;
-  tourAt=-1;tourMark();
+  tourAt=-1;tourMark(tourName);
   window.removeEventListener('resize',tourPlace);window.removeEventListener('scroll',tourPlace,true);
   [tourDim,tourRing,tourBubble].forEach(function(e){if(e&&e.parentNode)e.parentNode.removeChild(e)});
   tourDim=tourRing=tourBubble=null;
   // Hand the page back the way it was found, so the first real price is typed into an empty field.
   var el=$('price');
   if(el&&el.value==='51.500'){el.value='';el.dispatchEvent(new Event('input',{bubbles:true}))}
-  if($('tourOpen'))$('tourOpen').hidden=true;
+  tourName='';tourSteps=[];tourOffer();
   window.scrollTo(0,0)
 }
 document.addEventListener('click',function(e){
-  var t=e.target&&e.target.closest?e.target.closest('#tourNext,#tourSkip,#tourOpen,#tourAgain'):null;
+  var t=e.target&&e.target.closest?e.target.closest('#tourNext,#tourSkip,[data-tour]'):null;
   if(!t)return;
   e.preventDefault();
-  var id=t.id;
-  if(id==='tourOpen'||id==='tourAgain'){tourStart();return}
-  if(id==='tourSkip'){tourEnd();return}
-  var step=TOUR[tourAt];
+  var want=t.getAttribute&&t.getAttribute('data-tour');
+  if(want){tourStart(want==='here'?currentTab():want);return}
+  if(t.id==='tourSkip'){tourEnd();return}
+  var step=tourSteps[tourAt];
   if(step&&step.run)step.run();
-  if(tourAt>=TOUR.length-1){tourEnd();return}
+  if(tourAt>=tourSteps.length-1){tourEnd();return}
   tourAt++;tourShow(tourAt)
 });
 document.addEventListener('keydown',function(e){
   if(tourAt>=0&&e.key==='Escape'){e.preventDefault();tourEnd()}
 });
-if(!tourSeen()&&$('tourOpen'))$('tourOpen').hidden=false;
+function currentTab(){
+  var b=document.querySelector('#tabBar [aria-selected="true"]');
+  return b?b.getAttribute('data-tab'):'price'
+}
+tourOffer();
 
 function entrySig(){
   var e=craftState.entry,out=[],k;
@@ -5384,13 +5557,19 @@ var SIM_TILES=100;
 // The size past which a haul stops being something you look at and starts being something
 // you scroll past - the same ten the grid uses for its big tiles.
 var SIM_LEAD=10;
-function simLead(box,n){var el=$(box);if(el)el.classList.toggle('lead',n>SIM_LEAD)}
+/* The batch sizes that get the reel treatment - the ones you could have opened in the game
+   in one go and would actually watch. Past this a run is a result, not an opening. */
+var SPIN_MAX=10,SPIN_DUR=1050,SPIN_STAGGER=95;
+function spinMs(count){return SPIN_DUR+SPIN_STAGGER*(count-1)+140}
+/* Kept so a run can park the headline's box while it is in flight; the order no longer
+   depends on the count. */
+function simWait(id,on){var el=$(id);if(el){el.hidden=false;el.classList.toggle('waiting',!!on)}}
 /* The whole reveal fits a fixed budget rather than a fixed step, so ten cases land
    deliberately and a hundred still finish inside a second. */
 var SIM_REVEAL=1100;
 function simStep(count){return count<2?0:Math.min(70,SIM_REVEAL/count)}
 function simRevealMs(count){return count<2?0:simStep(count)*(count-1)+240}
-function simHaul(results,label){
+function simHaul(results,label,pick){
   var n=results.length,show=results,note='';
   if(n>SIM_TILES){
     // Truncating in draw order would show a hundred Commons and hide every rare, which is
@@ -5402,15 +5581,37 @@ function simHaul(results,label){
   // Big tiles for a batch you could have opened in the game in one go; past that they
   // shrink to fit, and the cap keeps even the largest haul inside one screen.
   var size=show.length<=10?'big':'mid',out=note+'<div class="sim-grid '+size+'">';
+  // A batch you could have opened in the game gets reels; a hundred gets the staggered pop,
+  // because a hundred reels is not a reveal, it is a screen of noise.
+  var spin=!!pick&&show.length<=SPIN_MAX;
   var step=simStep(show.length);
   for(var i=0;i<show.length;i++){
     var r=show[i],name=RARITIES[r.tier-1].name+' '+slotName(r.slot);
-    out+=simTile(r.tier,r.slot,r.broke,r.unpriced,
-      name+' \u00b7 '+(r.unpriced?'no collected sales'
-                                 :(r.broke?'broken for ':'sold for ')+r.net.toFixed(3)),
-      Math.round(i*step))
+    var title=name+' \u00b7 '+(r.unpriced?'no collected sales'
+                                 :(r.broke?'broken for ':'sold for ')+r.net.toFixed(3));
+    out+=spin?simSpinTile(r,title,pick,i):simTile(r.tier,r.slot,r.broke,r.unpriced,title,
+                                                  Math.round(i*step))
   }
-  return {html:out+'</div>',ms:simRevealMs(show.length)}
+  return {html:out+'</div>',ms:spin?spinMs(show.length):simRevealMs(show.length)}
+}
+/* One tile, wound past a column of decoys onto the real pull. The decoys come from the same
+   odds the run itself drew from, so a reel that stops on a Legendary has been showing the
+   kind of thing that could plausibly have stopped there. */
+var SPIN_DECOYS=9;
+function simSpinTile(r,title,pick,i){
+  var col='',j,d;
+  for(j=0;j<SPIN_DECOYS;j++){
+    d=pick();
+    col+='<i style="background-position:'+(sheetColumn(d.slot)*20)+'% '+((d.tier-1)/5*100)+'%"></i>'
+  }
+  col+='<i style="background-position:'+(sheetColumn(r.slot)*20)+'% '+((r.tier-1)/5*100)+'%"></i>';
+  return '<div class="sim-tile spin'+(r.broke?' broke':'')+(r.unpriced?' blank':'')+
+    '" style="--tier:'+RARITIES[r.tier-1].colour+
+    ';--end:-'+(SPIN_DECOYS*100)+'%;--dur:'+SPIN_DUR+'ms;--delay:'+(i*SPIN_STAGGER)+'ms"'+
+    ' title="'+esc(title)+'"><div class="sim-col">'+col+'</div></div>'
+}
+function casePick(){
+  return {tier:simPick(CASE_TIER_ODDS)+1,slot:SLOTS[Math.floor(Math.random()*SLOTS.length)].code}
 }
 var simBusy=false,simToken=0;
 function simRun(n){
@@ -5467,30 +5668,31 @@ function simRun(n){
   var reel=$('simReel'),strip=$('simStrip');
   var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
   if(n>1){
-    var h=simHaul(results,'cases');
-    simLead('simOut',n);
+    var h=simHaul(results,'cases',reduce?null:casePick);
     $('simHaul').innerHTML=h.html;
     reel.hidden=true;strip.style.transition='none';
-    // With the answer above the tiles there is nothing left to give away, so a big batch
-    // reads its number straight away and watches the haul fill in underneath.
     if(n>SIM_LEAD||reduce){finish();return}
     // Clear last run's answer first: leaving it up while the new tiles land reads as
-    // though the new haul has already been counted.
-    $('simHeadline').hidden=true;$('simResult').textContent='';$('simTally').innerHTML='';
+    // though the new haul has already been counted. The box stays, so nothing jumps.
+    simWait('simHeadline',true);$('simResult').textContent='';$('simTally').innerHTML='';
     var tok=++simToken;
     setTimeout(function(){if(tok===simToken)finish()},h.ms);
     return
   }
-  simLead('simOut',1);
   $('simHaul').innerHTML='';
   if(reduce){reel.hidden=true;strip.style.transition='none';finish();return}
-
-  simBusy=true;
   $('simResult').textContent='';$('simTally').innerHTML='';
-  var WIN=42,TOTAL=52,tiles='';
+  simWait('simHeadline',true);
+  spinWideReel(reel,strip,results[0],casePick,finish)
+}
+/* The one-at-a-time reel, which was the case simulator's alone. A single craft is the same
+   moment - one pull, watched - so it is a function now and both cards call it. */
+function spinWideReel(reel,strip,result,pick,done){
+  simBusy=true;
+  var WIN=42,TOTAL=52,tiles='',i,d;
   for(i=0;i<TOTAL;i++){
-    if(i===WIN)tiles+=simTile(results[0].tier,results[0].slot);
-    else tiles+=simTile(simPick(CASE_TIER_ODDS)+1,SLOTS[Math.floor(Math.random()*SLOTS.length)].code)
+    if(i===WIN)tiles+=simTile(result.tier,result.slot);
+    else{d=pick();tiles+=simTile(d.tier,d.slot)}
   }
   strip.innerHTML=tiles;
   reel.hidden=false;
@@ -5503,7 +5705,7 @@ function simRun(n){
     requestAnimationFrame(function(){
       strip.style.transition='transform 3.1s cubic-bezier(.11,.75,.13,1)';
       strip.style.transform='translateX('+(-target)+'px)';
-      setTimeout(finish,3200)
+      setTimeout(done,3200)
     })
   })
 }
@@ -5521,6 +5723,7 @@ function slotNameAt(code,t){return code==='weapon'?WEAPON_NAMES[t-1]:slotName(co
    rarity is the whole story. Same draw, prices and sell-or-break rule as the card,
    so a long run lands on the row it sits under. */
 function craftSimRun(n){
+  if(simBusy)return;
   var res=$('craftSimResult'),head=$('craftSimHeadline'),
       haul=$('craftSimHaul'),tal=$('craftSimTally'),note=$('craftSimNote');
   var stop=function(msg){haul.innerHTML='';head.hidden=true;tal.innerHTML='';res.textContent=msg};
@@ -5542,12 +5745,18 @@ function craftSimRun(n){
     tally[r.slot]=(tally[r.slot]||0)+1
   }
   var spend=sc&&st?sc.cost+st.cost:null;
-  var h=simHaul(results,'crafts');
-  simLead('craftSimOut',n);
+  var reduce0=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  // A craft fixes the rarity, so only the slot is in doubt - and that is what the reel
+  // should be seen to be deciding.
+  var craftPickRoll=function(){
+    return {tier:t,slot:SLOTS[Math.floor(Math.random()*SLOTS.length)].code}
+  };
+  var h=simHaul(results,'crafts',reduce0?null:craftPickRoll);
   haul.innerHTML=h.html;
 
   var one=results[0],name=RARITIES[t-1].name+' '+slotNameAt(one.slot,t);
   var settle=function(){
+  simBusy=false;
   res.innerHTML=n===1
     ? 'Crafted <span class="tier" style="color:'+RARITIES[t-1].colour+'">'+esc(name)+
       '</span>'+(one.label?' ('+esc(one.label)+')':'')+
@@ -5581,9 +5790,18 @@ function craftSimRun(n){
     : 'A craft fixes the rarity and leaves the slot and the roll to chance, so this rolls '+
       'those against collected prices. It settles on the row above, eventually.'
   };
-  var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
-  if(n>SIM_LEAD||reduce||!h.ms){settle();return}
-  head.hidden=true;res.textContent='';tal.innerHTML='';
+  var creel=$('craftSimReel'),cstrip=$('craftSimStrip');
+  if(n>SIM_LEAD||reduce0||!h.ms){
+    if(creel){creel.hidden=true;cstrip.style.transition='none'}
+    settle();return
+  }
+  simWait('craftSimHeadline',true);res.textContent='';tal.innerHTML='';
+  if(n===1&&creel){
+    haul.innerHTML='';
+    spinWideReel(creel,cstrip,results[0],craftPickRoll,settle);
+    return
+  }
+  if(creel){creel.hidden=true;cstrip.style.transition='none'}
   var tok=++simToken;
   setTimeout(function(){if(tok===simToken)settle()},h.ms)
 }
@@ -5743,7 +5961,7 @@ var dataStampHold=0;
    The craft and case cards were half the page and sat in the way of the thing done every
    time. They keep their answers on the tab itself, so moving them out of the scroll path
    does not mean losing sight of whether either is currently worth doing. */
-var TABS=['price','craft','cases','sort'];
+var TABS=['price','sort','craft','cases'];
 function currentTab(){
   try{var t=localStorage.getItem('warera-calc-tab');return TABS.indexOf(t)>=0?t:'price'}
   catch(e){return 'price'}
@@ -6117,7 +6335,13 @@ function paintCutCard(){
   if(!known){card.hidden=true;return}
   card.hidden=false;
   var gated=sortMin.abs>0||sortMin.pct>0,bar=gated?'clear the bar':'beat their scraps';
-  var head=RARITIES[t-1].name+': break anything selling under '+(taxMul>0?(floor/taxMul).toFixed(3):'\u2014')+'. ';
+  /* "Selling under" is a price the market shows, and this figure was the one you receive -
+     a gold threshold labelled as a shop-window one, about a point of tax too low, which had
+     it recommending a listing for pieces that should have been broken. The dismantle tile
+     converts with the same factor; now the two differ only by the bar, which is the one
+     difference a reader can see the reason for. */
+  var frac=taxFrac(),shownMul=Number(frac.num)/Number(frac.den);
+  var head=RARITIES[t-1].name+': break anything selling under '+(floor*shownMul).toFixed(3)+'. ';
   var body=sell===0?'No '+RARITIES[t-1].name+' roll is worth listing right now \u2014 break them all.'
     :sell===known?'Every '+RARITIES[t-1].name+' roll '+(gated?'clears the bar':'beats its scraps')+' \u2014 all worth listing.'
     :sell+' of '+known+' rolls '+bar+(all.length?'. Cut lines: '+all.join(' \u00b7 ')+'.':'.');
@@ -6246,8 +6470,22 @@ function copyCore(){
   copyTextSafe(value);
   addRecentCore(state.lastPrice,value)
 }
+/* Loading a tile back runs the same calculate-and-copy an Enter does, which would file the
+   result as a new piece. It is the piece that is already there, so nothing is filed and the
+   group the reader arranged stays as they arranged it. */
+var recentQuiet=false;
 function addRecentCore(inp,out){
-  var a=readRecent(),entry={price:out,item:'Calculator',roll:'from '+inp,mode:$('beatMode').checked?'beat':'convert',t:Date.now()};
+  if(recentQuiet)return;
+  var a=readRecent(),entry={
+    price:out,inp:inp==null?'':String(inp),
+    item:itemName()||(tierKnown()?tier().name:'Calculator'),
+    roll:state.slot?describeRoll():'',short:state.slot?compactRoll():'',
+    tier:tierKnown()?state.tier:0,slot:state.slot||'',
+    mode:$('beatMode').checked?'beat':'convert',t:Date.now()};
+  // The same piece priced twice is one tile, kept where it already sits in the group.
+  a=a.filter(function(x){
+    return !(x.price===entry.price&&x.item===entry.item&&x.roll===entry.roll)
+  });
   a.unshift(entry);saveRecent(a);renderRecent()
 }
 function scrollToCard(el){
@@ -7567,7 +7805,10 @@ function tipShouldAsk(id){
   if(tipRead('warera-tipped-article')===id)return false;   // already tipped this one
   if(tipRead('warera-tip-skipped')===id)return false;      // already waved this one away
   if(tourAt>=0)return false;                               // never over the walkthrough
-  if($('tourOpen')&&!$('tourOpen').hidden)return false;     // nor before it has been offered
+  // Nor before the first-run walkthrough has been taken up. Only the Price offer counts:
+  // the other three stand until someone visits those tabs, and Settings' own button never
+  // hides at all, so either would have blocked the ask for good.
+  if($('tourOpen-price')&&!$('tourOpen-price').hidden)return false;
   if($('price')&&$('price').value)return false;             // nor over a price being worked on
   return tipUses()>=(tipRead('warera-tipped-article')?1:TIP_MIN_USES)
 }
@@ -7712,7 +7953,18 @@ function loadLocalProfile(){
 
 /* recent recommendations */
 function readRecent(){try{return JSON.parse(sessionStorage.getItem('warera-calc-history-v60')||'[]')}catch(e){return []}}
-function saveRecent(a){try{sessionStorage.setItem('warera-calc-history-v60',JSON.stringify(a.slice(0,14)))}catch(e){}}
+function saveRecent(a){try{sessionStorage.setItem('warera-calc-history-v60',JSON.stringify(a.slice(0,30)))}catch(e){}}
+/* The roll is what you are choosing between, and on a tile there is room for the numbers
+   but not their names: a weapon is attack/crit, everything else is its one stat. */
+function compactRoll(){
+  var specs=rollSpecs(),out=[],i,v;
+  for(i=0;i<specs.length;i++){
+    v=state.rolls[specs[i].key];
+    if(v===undefined||v===null||v==='')return '';
+    out.push(v)
+  }
+  return out.join('/')
+}
 function addRecent(price){
   if(!state.slot)return;
   var p=Number(price),shown=Number.isFinite(p)?fmt(p):String(price);
@@ -7723,9 +7975,44 @@ function addRecent(price){
 function renderRecent(){
   var a=readRecent();$('histClear').hidden=!a.length;$('histEmpty').hidden=!!a.length;
   $('histList').innerHTML=a.map(function(x,i){
-    return '<button type="button" class="hist-item" data-recent="'+i+'"><span class="hist-in">'+esc(x.price)+'</span>'
-      +'<span class="hist-out">'+esc(x.item)+' · '+esc(x.roll)+' · '+esc(x.mode)+'</span></button>'
+    var colour=x.tier?RARITIES[x.tier-1].colour:'rgba(160,160,160,.4)';
+    var art=x.slot&&x.tier
+      ? '<i style="background-position:'+(sheetColumn(x.slot)*20)+'% '+((x.tier-1)/5*100)+'%"></i>'
+      : '<i style="background:none"></i>';
+    var label=(x.item||'')+(x.short&&x.roll?' \u00b7 '+x.roll:'')+
+      (x.inp?' \u00b7 priced against '+x.inp:'');
+    return '<div class="ptile" data-idx="'+i+'" style="--tier:'+colour+'">'+
+      '<button type="button" class="ptile-body" title="'+esc(label)+'">'+
+        '<span class="ptile-art">'+art+
+          (x.short?'<span class="ptile-roll">'+esc(x.short)+'</span>':'')+
+        '</span>'+
+        '<span class="ptile-price">'+esc(x.price)+'</span>'+
+      '</button>'+
+      '<button type="button" class="ptile-x" data-drop="'+i+'" aria-label="Remove '+
+        esc(label||x.price)+'">\u00d7</button>'+
+    '</div>'
   }).join('')
+}
+/* Dragging with pointer events rather than the HTML5 drag API, which a touch screen does
+   not fire at all. A few pixels of slop before it counts as a drag keeps a tap a tap, and
+   the tile being carried drops out of hit-testing so elementFromPoint names the one under
+   it rather than itself. */
+var dragTile=null,dragIdx=-1,dragX=0,dragY=0,dragging=false,dragBlockClick=false;
+function tileIndexAt(x,y){
+  var el=document.elementFromPoint(x,y);
+  var t=el&&el.closest?el.closest('.ptile'):null;
+  return t?Number(t.getAttribute('data-idx')):-1
+}
+function moveRecent(from,to){
+  var a=readRecent();
+  if(from<0||to<0||from>=a.length||to>=a.length||from===to)return;
+  a.splice(to,0,a.splice(from,1)[0]);
+  saveRecent(a);renderRecent()
+}
+function dropRecent(i){
+  var a=readRecent();
+  if(i<0||i>=a.length)return;
+  a.splice(i,1);saveRecent(a);renderRecent()
 }
 function copyText(s){
   if(navigator.clipboard&&navigator.clipboard.writeText)return navigator.clipboard.writeText(s).catch(function(){});
@@ -8206,9 +8493,63 @@ $('copyRawBtn').addEventListener('click',function(){
 
 $('histClear').addEventListener('click',function(){saveRecent([]);renderRecent()});
 $('histList').addEventListener('click',function(e){
-  var b=e.target.closest('[data-recent]');if(!b)return;
-  var x=readRecent()[Number(b.getAttribute('data-recent'))];if(x)copyTextSafe(x.price)
+  if(dragBlockClick)return;
+  var drop=e.target.closest('[data-drop]');
+  if(drop){dropRecent(Number(drop.getAttribute('data-drop')));return}
+  var b=e.target.closest('.ptile');if(!b)return;
+  var x=readRecent()[Number(b.getAttribute('data-idx'))];if(!x)return;
+  /* Tapping a tile is typing that price and pressing Enter: the card re-derives the
+     recommendation from the market price this piece was priced against, and the figure
+     lands on the clipboard the same way it would have the first time. Older tiles kept no
+     input price, so those fall back to handing back what they stored. */
+  if(x.inp){
+    var el=$('price');
+    el.value=x.inp;state.keyBuffer=x.inp;
+    el.dispatchEvent(new Event('input',{bubbles:true}));
+    recentQuiet=true;
+    try{coreCalc(true);copyCore()}finally{recentQuiet=false}
+    scrollToWork()
+  }else copyTextSafe(x.price)
 });
+$('histList').addEventListener('pointerdown',function(e){
+  if(e.button&&e.button!==0)return;
+  if(e.target.closest('[data-drop]'))return;
+  var t=e.target.closest('.ptile');if(!t)return;
+  dragTile=t;dragIdx=Number(t.getAttribute('data-idx'));
+  dragX=e.clientX;dragY=e.clientY;dragging=false;
+  try{t.setPointerCapture(e.pointerId)}catch(err){}
+});
+$('histList').addEventListener('pointermove',function(e){
+  if(!dragTile)return;
+  var dx=e.clientX-dragX,dy=e.clientY-dragY;
+  // Slop, so a tap that wobbles is still a tap.
+  if(!dragging){
+    if(Math.abs(dx)+Math.abs(dy)<8)return;
+    dragging=true;dragTile.classList.add('dragging')
+  }
+  e.preventDefault();
+  dragTile.style.transform='translate('+dx+'px,'+dy+'px)';
+  var over=tileIndexAt(e.clientX,e.clientY);
+  Array.prototype.forEach.call($('histList').children,function(el){
+    el.classList.toggle('over',over>=0&&Number(el.getAttribute('data-idx'))===over&&over!==dragIdx)
+  })
+});
+function endDrag(e){
+  if(!dragTile)return;
+  var was=dragging,to=was?tileIndexAt(e.clientX,e.clientY):-1;
+  try{if(e.pointerId!=null)dragTile.releasePointerCapture(e.pointerId)}catch(err){}
+  dragTile.classList.remove('dragging');dragTile.style.transform='';
+  Array.prototype.forEach.call($('histList').children,function(el){el.classList.remove('over')});
+  dragTile=null;dragging=false;
+  if(was){
+    // A drag that ends on a tile is a reorder; one that ends anywhere else just puts it back.
+    if(to>=0&&to!==dragIdx)moveRecent(dragIdx,to);
+    // The click that follows the release is the drag's own, not a tap on a tile.
+    dragBlockClick=true;setTimeout(function(){dragBlockClick=false},0)
+  }
+}
+$('histList').addEventListener('pointerup',endDrag);
+$('histList').addEventListener('pointercancel',endDrag);
 
 var awayAt=0;
 function markAway(){if(!awayAt)awayAt=Date.now()}
