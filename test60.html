@@ -3028,8 +3028,9 @@ h1 .title-word{white-space:nowrap}
       <div class="qbody" data-qof="price">
         <p style="margin:0 0 7px">Open the marketplace in game, find the <b>cheapest listing</b> of the item you are
         holding, and type that price here. Everything else on the page follows from it.</p>
-        <p style="margin:0 0 7px"><b>Tax</b> is your own country&rsquo;s market rate. It comes out of what you receive,
-        so only the gap between your rate and other sellers&rsquo; changes what you should list at.</p>
+        <p style="margin:0 0 7px"><b>Tax</b> is the market rate in your country. It is added on top of what you type,
+        so buyers see a higher figure than the one you receive. A rate above other sellers&rsquo; means typing less to
+        land at the same displayed price &mdash; which is the only way it changes what you should list at.</p>
         <p style="margin:0">Tap the keypad directly. <kbd>Enter</kbd> or <b>&#10003;</b> calculates, copies the figure,
         and fills in the flip and dismantle tiles below.</p>
       </div>
@@ -3042,8 +3043,8 @@ h1 .title-word{white-space:nowrap}
         <p class="docket-label"><span id="docketLabel">Type this to undercut them</span><button type="button" class="q" data-q="undercut" aria-expanded="false" aria-label="What this figure is">?</button></p>
         <p class="docket-figure" id="figure">&mdash;</p>
         <div class="qbody" data-qof="undercut">This is the figure to type into the game&rsquo;s sell box. It undercuts
-        the cheapest seller by the smallest step the market allows, and the tax you pay is already in it. Tap the card
-        to copy.</div>
+        the cheapest seller by the smallest step the market allows, with the market tax already worked in. You receive
+        what you type; the buyer sees it plus tax. Tap the card to copy.</div>
         <p class="docket-hint" id="docketHint">Enter a price above.</p>
         <span class="stamp" id="stamp" aria-hidden="true">Copied</span>
       </div>
@@ -4558,7 +4559,7 @@ var TOUR=[
    }},
   {sel:'#docket',tab:'price',title:'This is what you type',
    body:'Copy this into the game&rsquo;s sell box. It undercuts the cheapest seller by the '+
-        'smallest step the market allows, and the tax you pay is already taken out. Tap the '+
+        'smallest step the market allows, with the market tax already worked in. Tap the '+
         'card to copy it.'},
   {sel:'#quickScrap',tab:'price',title:'When not to sell at all',
    body:'Every piece breaks down into scraps. Below this figure the scraps are worth more '+
