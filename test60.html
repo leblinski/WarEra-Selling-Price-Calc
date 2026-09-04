@@ -2964,7 +2964,7 @@ h1 .title-word{white-space:nowrap}
         <div id="priceField">
           <label class="label" for="price" id="priceLabel">Price to beat</label><button type="button" class="q" data-q="price" aria-expanded="false" aria-label="What price goes here">?</button>
           <div class="inputwrap">
-            <input type="text" id="price" placeholder="e.g. 326.129" inputmode="decimal" autocomplete="off" spellcheck="false">
+            <input type="text" id="price" placeholder="their cheapest · e.g. 326.129" inputmode="decimal" autocomplete="off" spellcheck="false">
             <button type="button" class="gobtn" id="goBtn" aria-label="Calculate and copy">&#10003;</button>
           </div>
         </div>
@@ -3474,7 +3474,9 @@ h1 .title-word{white-space:nowrap}
         <p class="flip-label">Sell it or break it?<button type="button" class="q" data-q="sort" aria-expanded="false" aria-label="How to read these rows">?</button></p>
         <div class="qbody" data-qof="sort"><b>Sell</b> is the rule for keeping a roll &mdash; anything at or above it
         earns a listing. <b>Per 1,000</b> is how many of that slot&rsquo;s thousand possible rolls clear the rule.
-        <b>Gold</b> is what clearing it is worth on an average roll. Tap a row to see every roll behind it.</div>
+        <b>Gold</b> is what clearing it is worth on an average roll. Tap a row to see every roll behind it.
+        Figures on this tab are gold you receive, not the price the market shows &mdash; the two differ by your
+        market tax.</div>
         <p class="flip-lead" id="sortLead">Every roll, by rarity, against what its scraps are worth</p>
         <p class="flip-detail" id="sortDetail">Reading the collector's sale history…</p>
         <div class="rarity-btns sort-pick" id="sortPick" role="tablist" aria-label="Rarity to sort"></div>
@@ -4299,21 +4301,24 @@ function coreCalc(settled){
   $('docketLabel').textContent=beating?'Type this to undercut them':'Type this figure';
   paintFigure(entryText);$('docketHint').textContent='Displayed market price '+Number(shown).toFixed(3)+' · tap to copy';
   $('docket').classList.remove('blocked','success');
-  if(settled!==false){
-    flipCheckCore(shown);
-    var dismantle=paintScrap(Number(shown));
-    if(dismantle){
-      state.listFigure=entryText;
-      state.coreFigure='';
-      $('docket').classList.add('blocked');
-      $('docketLabel').textContent='Dismantle floor reached';
-      paintFigure('Dismantle it');
-      $('docketHint').textContent='Sale target '+Number(state.scrapComparedTarget).toFixed(3)+' is at/below dismantle floor '+state.scrapValue+'.';
-      $('listAnyway').textContent='Ignore floor and list using '+entryText;
-      $('listAnyway').hidden=false
-    }else{
-      $('listAnyway').hidden=true
-    }
+  /* These used to wait for the tick while the figure above them updated on every keystroke,
+     so the page taught you it was live and then left two em-dashes that never filled. They
+     follow the field now. Only the takeover - the card turning into "Dismantle it" - still
+     waits for a settled price, because a half-typed number passing under the floor should
+     not blockade the card mid-keystroke. */
+  flipCheckCore(shown);
+  var dismantle=paintScrap(Number(shown));
+  if(settled!==false&&dismantle){
+    state.listFigure=entryText;
+    state.coreFigure='';
+    $('docket').classList.add('blocked');
+    $('docketLabel').textContent='Dismantle floor reached';
+    paintFigure('Dismantle it');
+    $('docketHint').textContent='Sale target '+Number(state.scrapComparedTarget).toFixed(3)+' is at/below dismantle floor '+state.scrapValue+'.';
+    $('listAnyway').textContent='Ignore floor and list using '+entryText;
+    $('listAnyway').hidden=false
+  }else{
+    $('listAnyway').hidden=true
   }
 }
 var flipState={buy:0n,min:0n,max:0n,num:101n,den:100n};
@@ -6117,7 +6122,13 @@ function paintCutCard(){
   if(!known){card.hidden=true;return}
   card.hidden=false;
   var gated=sortMin.abs>0||sortMin.pct>0,bar=gated?'clear the bar':'beat their scraps';
-  var head=RARITIES[t-1].name+': break anything selling under '+(taxMul>0?(floor/taxMul).toFixed(3):'\u2014')+'. ';
+  /* "Selling under" is a price the market shows, and this figure was the one you receive -
+     a gold threshold labelled as a shop-window one, about a point of tax too low, which had
+     it recommending a listing for pieces that should have been broken. The dismantle tile
+     converts with the same factor; now the two differ only by the bar, which is the one
+     difference a reader can see the reason for. */
+  var frac=taxFrac(),shownMul=Number(frac.num)/Number(frac.den);
+  var head=RARITIES[t-1].name+': break anything selling under '+(floor*shownMul).toFixed(3)+'. ';
   var body=sell===0?'No '+RARITIES[t-1].name+' roll is worth listing right now \u2014 break them all.'
     :sell===known?'Every '+RARITIES[t-1].name+' roll '+(gated?'clears the bar':'beats its scraps')+' \u2014 all worth listing.'
     :sell+' of '+known+' rolls '+bar+(all.length?'. Cut lines: '+all.join(' \u00b7 ')+'.':'.');
