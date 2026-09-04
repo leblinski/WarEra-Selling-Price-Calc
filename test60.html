@@ -4664,6 +4664,18 @@ function cutRule(slot,t,r){
   flush();
   return {text:'crit '+out.join(' · '),kind:'sell'}
 }
+/* Zero here is not a scrap value, it is the absence of one, and every sell-or-break test
+   on the page reads it as "scraps are worthless" - so a book with no bid silently turned
+   `list above 4.19` into `list above 0.10`, flipped all 85 Uncommon rolls from break to
+   sell, and still printed a confident case edge. Nothing downstream can tell the two
+   apart from a number, so the cards ask first and decline to answer rather than answering
+   wrongly: without a scrap price there is no comparison to make. */
+function scrapKnown(){
+  var ob=craftBook('scraps');
+  return !!(ob&&ob.best_bid!=null&&Number(ob.best_bid)>0)
+}
+var NO_SCRAP='No scraps bid is resting, so a piece cannot be valued against its scraps and '+
+  'nothing here can say whether to list it or break it.';
 function craftDismantle(t){
   var ob=craftBook('scraps'),bid=ob&&ob.best_bid;
   return bid==null?0:SCRAP_YIELDS[t-1]*Number(bid)
@@ -4793,9 +4805,10 @@ function paintCraft(){
     craftTabPct=null;paintTabBadges();
     rowsEl.innerHTML='';footEl.textContent='';return
   }
-  if(!craftState.summary||!craftState.books){
+  if(!craftState.summary||!craftState.books||!scrapKnown()){
     $('craftVerdict').textContent='—';
-    $('craftDetail').textContent='Reading the collector’s order books and sale history…';
+    $('craftDetail').textContent=scrapKnown()
+      ?'Reading the collector’s order books and sale history…':NO_SCRAP;
     craftTabPct=null;paintTabBadges();
     rowsEl.innerHTML='';footEl.textContent='';return
   }
@@ -5183,10 +5196,11 @@ function paintCase(){
 
   var rowsEl=$('caseRows'),footEl=$('caseFoot'),noteEl=$('caseNote');
   var cost=craftState.books||craftState.live?craftAcquire('case1',n):null;
-  if(!craftState.summary||!cost){
+  if(!craftState.summary||!cost||!scrapKnown()){
     $('caseVerdict').textContent='\u2014';
     $('caseVerdict').className='flip-figure';
-    $('caseDetail').textContent=craftState.summary?'No case price available.':'Reading case prices\u2026';
+    $('caseDetail').textContent=!craftState.summary?'Reading case prices\u2026'
+      :!cost?'No case price available.':NO_SCRAP;
     rowsEl.innerHTML='';footEl.textContent='';noteEl.textContent='';
     $('caseBooks').innerHTML=bookPanel('case1','Case I','res-case',0,'cases');
     if($('caseSwing'))$('caseSwing').hidden=true;
@@ -5361,9 +5375,11 @@ function paintSort(){
            sortMin.abs,sortMin.pct,sortMin.join,sortShown()].join('|');
   if(sig===craftState.sortSig)return;
   craftState.sortSig=sig;
-  if(!craftState.summary||!craftState.books){
+  if(!craftState.summary||!craftState.books||!scrapKnown()){
     box.innerHTML='';
-    $('sortDetail').textContent=craftState.error||'Reading the collector\u2019s sale history\u2026';
+    $('sortDetail').textContent=!craftState.summary||!craftState.books
+      ?(craftState.error||'Reading the collector\u2019s sale history\u2026')
+      :NO_SCRAP;
     $('sortFoot').textContent='';return
   }
   var html='',anyKnown=0,anySpace=0,only=sortShown();
@@ -5611,7 +5627,7 @@ function paintSortGate(){
 // listing" is settled before anyone types a price for it.
 function paintCutCard(){
   var card=$('cutCard');if(!card)return;
-  if(!tierKnown()||!craftState.summary||!craftState.books){card.hidden=true;return}
+  if(!tierKnown()||!craftState.summary||!craftState.books||!scrapKnown()){card.hidden=true;return}
   var t=state.tier,taxMul=sortTax(),floor=sortNeed(t),sell=0,known=0,all=[];
   for(var i=0;i<SLOTS.length;i++){
     var slot=SLOTS[i].code,r=sortRolls(slot,t,taxMul);
