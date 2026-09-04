@@ -67,8 +67,16 @@ h1{
 .ptile{
   position:relative;width:78px;flex:none;border-radius:9px;
   border:1px solid var(--tier,rgba(var(--brass-rgb),.3));background:var(--panel);
-  overflow:hidden;transition:box-shadow .12s ease
+  overflow:hidden;transition:box-shadow .12s ease;
+  /* Without these a press on a phone starts selecting the page and then offers to lift the
+     tile out of it - a blue wash across everything and a ghost of the thing you pressed,
+     both drawn over the ring you were aiming at. */
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;
+  -webkit-tap-highlight-color:transparent
 }
+/* The piece is the aiming surface, so it cannot also be a place the page scrolls from; the
+   strip around it still scrolls, which is what pan-y on the list is for. */
+.ptile-art{touch-action:none}
 .ptile-body{
   display:block;width:100%;padding:0;border:0;background:none;color:inherit;font:inherit;
   cursor:pointer;text-align:center;-webkit-tap-highlight-color:transparent
@@ -108,8 +116,14 @@ h1{
    around it: what slot, then what roll. Point and release. The centre is the way out -
    a red target that abandons the whole assignment and leaves the price alone - which is
    also why the tile's own x stays in its corner and means something different. */
-.wheel-veil{position:fixed;inset:0;z-index:940;background:rgba(0,0,0,.72);touch-action:none}
-.wheel{position:fixed;z-index:941;pointer-events:none;overflow:visible}
+.wheel-veil{
+  position:fixed;inset:0;z-index:940;background:rgba(0,0,0,.72);touch-action:none;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none
+}
+.wheel{
+  position:fixed;z-index:941;pointer-events:none;overflow:visible;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none
+}
 .wheel-seg{
   fill:var(--panel-2);stroke:rgba(var(--brass-rgb),.35);stroke-width:1;
   transition:fill .08s linear
