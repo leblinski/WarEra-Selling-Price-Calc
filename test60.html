@@ -42,7 +42,12 @@ h1{
 }
 .wrap{max-width:860px;margin:0 auto}
 .layout{display:grid;grid-template-columns:minmax(0,1fr) 236px;gap:30px;align-items:start}
-@media(max-width:820px){.layout{grid-template-columns:1fr;gap:22px}}
+/* 1fr is minmax(auto,1fr), so the track's floor is its content's min-content width. The
+   heat grid sets min-width:max-content to scroll inside its own .heat box; with an auto
+   floor that width climbed the tree instead and scrolled the whole page sideways - tab
+   bar included - on anything narrower than about 370px. The wide rule above already
+   pins the floor at 0; this one had not been brought along. */
+@media(max-width:820px){.layout{grid-template-columns:minmax(0,1fr);gap:22px}}
 
 .history{position:sticky;top:20px}
 @media(max-width:820px){.history{position:static;border-top:1px solid var(--line);padding-top:18px}}
@@ -680,6 +685,16 @@ kbd{
    rather than wrapping "break the rest" onto two lines beside an empty cell. */
 .cut-row.rest .cut-slot{display:none}
 .cut-row.rest .cut-rule{grid-column:1 / 3}
+/* Four columns of monospace in the width a 320px phone leaves the card is not four columns.
+   The fixed three were sized for a 390px screen, so below that the rule column - the one
+   carrying the answer - was squeezed to 10px and set "crit 10 from 60" one character per
+   line, 229px tall. Narrow the fixed three instead and the answer gets its 60px back. */
+@media(max-width:389px){
+  .cut-row{grid-template-columns:50px minmax(0,1fr) 44px 38px;gap:5px;padding:3px 4px}
+  /* "Per 1,000" cannot fit 44px at any legible size, and it clips rather than wrapping. */
+  .cut-row.head .cut-share{font-size:0}
+  .cut-row.head .cut-share::after{content:'per 1k';font-size:10px;letter-spacing:.09em}
+}
 .cut-detail{margin:1px 0 5px;padding:5px 7px 6px 14px;border-left:2px solid var(--line)}
 /* A weapon is a hundred rolls of attack against crit, which is a hundred rows of text or one
    picture. The value it carries has a natural zero - the scrap floor - and the sign of it is
@@ -952,18 +967,104 @@ kbd{
 }
 .zone-row.head:hover{border-color:transparent;color:var(--dim)}
 .zone-note{margin:6px 0 0;font-size:10.5px;color:var(--dim);line-height:1.45}
-/* The caveats are one tap away rather than one scroll long. */
-.foot-more{
-  /* A full 44px target, because a finger is 44px whatever the control is for, but with the
-     weight of a link rather than a button - a bordered pill this size would outrank the
-     figure it explains. */
-  display:inline-flex;align-items:center;min-height:44px;padding:0 2px;margin-left:4px;
-  border:0;background:transparent;text-decoration:underline;text-underline-offset:3px;
-  text-decoration-color:rgba(var(--brass-rgb),.5);
-  color:var(--brass);cursor:pointer;font-family:"Saira Condensed",sans-serif;font-weight:600;
-  font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;vertical-align:middle
+/* One affordance for every explanation on the page. The ? sits in a section's own heading
+   and owns every block tagged to that section, wherever those blocks sit in the card - so an
+   explanation appears beside the figure it explains rather than collected into a footnote at
+   the bottom. Nothing shows until it is asked for, and the marks come off entirely from
+   Settings once someone knows their way around. */
+.q{
+  position:relative;display:inline-flex;align-items:center;justify-content:center;flex:none;
+  width:17px;height:17px;margin-left:7px;padding:0;vertical-align:middle;
+  border:1px solid rgba(var(--brass-rgb),.5);border-radius:50%;background:transparent;
+  color:var(--brass);cursor:pointer;font-family:"Saira Condensed",sans-serif;
+  font-weight:700;font-size:11px;line-height:1;letter-spacing:0
 }
-.foot-rest[hidden]{display:none}
+/* A finger is 44px whatever the control is for, but a 44px circle beside a heading would
+   outrank the heading. The target grows; the mark does not. */
+.q::before{content:"";position:absolute;inset:-14px;border-radius:50%}
+.q:hover{border-color:var(--brass)}
+.q[aria-expanded=true]{background:var(--brass);border-color:var(--brass);color:var(--panel)}
+[data-qof]{display:none}
+[data-qof].q-on{display:block}
+.qbody{
+  margin:7px 0 3px;padding:8px 11px;border-left:2px solid rgba(var(--brass-rgb),.35);
+  border-radius:0 6px 6px 0;background:rgba(var(--brass-rgb),.05);
+  font-size:11.5px;line-height:1.5;color:var(--dim)
+}
+.qbody b{color:var(--ink);font-weight:600}
+.no-q .q{display:none}
+.no-q [data-qof]{display:none!important}
+
+/* ---- The walkthrough --------------------------------------------------------
+   Four steps, because the only things this page does not explain by looking at it are
+   where the input comes from, what the output is for, when not to sell at all, and what
+   the other three tabs answer. It does not draw a picture of the app: it fills the real
+   field with a real price so the whole page comes alive behind the dimmer, and hands that
+   state back at the end. Nothing here blocks the app - Skip carries the same weight as
+   Next, and once it has run it never opens itself again. */
+/* The veil is the ring's own outer shadow rather than a sheet over everything, so the step
+   being pointed at is genuinely lit instead of ringed and dimmed with the rest. The sheet
+   stays, transparent, to swallow taps meant for the page underneath. */
+.tour-dim{position:fixed;inset:0;background:transparent;z-index:900}
+.tour-ring{
+  position:fixed;z-index:901;pointer-events:none;border:2px solid var(--brass);border-radius:11px;
+  box-shadow:0 0 0 4px rgba(var(--brass-rgb),.22),0 0 22px rgba(var(--brass-rgb),.35),
+             0 0 0 9999px rgba(0,0,0,.72);
+  transition:top .22s ease,left .22s ease,width .22s ease,height .22s ease
+}
+.tour-bubble{
+  position:fixed;z-index:902;width:max-content;max-width:min(330px,calc(100vw - 20px));
+  padding:15px 16px 13px;
+  border:1px solid var(--brass-deep);border-radius:var(--radius);background:var(--panel-2);
+  box-shadow:0 14px 40px rgba(0,0,0,.55);animation:tourIn .18s ease-out
+}
+@keyframes tourIn{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){
+  .tour-bubble{animation:none}
+  .tour-ring{transition:none}
+}
+.tour-step{
+  font-family:"Saira Condensed",sans-serif;font-weight:600;font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--dim);margin:0 0 5px
+}
+.tour-title{
+  font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:16px;letter-spacing:.03em;
+  color:var(--brass);margin:0 0 6px
+}
+.tour-body{margin:0 0 13px;font-size:13px;line-height:1.5;color:var(--ink)}
+.tour-body b{color:var(--brass)}
+.tour-btns{display:flex;align-items:center;gap:9px}
+.tour-next{
+  flex:1 1 auto;min-height:44px;padding:0 15px;border:1px solid var(--brass);border-radius:10px;
+  background:var(--brass);color:var(--panel);cursor:pointer;
+  font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:13px;letter-spacing:.08em;
+  text-transform:uppercase
+}
+/* Skip is as easy to hit as Next. A walkthrough you cannot leave is a modal, not an offer. */
+.tour-skip{
+  flex:none;min-height:44px;padding:0 12px;border:1px solid var(--line);border-radius:10px;
+  background:transparent;color:var(--dim);cursor:pointer;
+  font-family:"Saira Condensed",sans-serif;font-weight:600;font-size:12px;letter-spacing:.08em;
+  text-transform:uppercase
+}
+.tip-card{
+  position:fixed;z-index:902;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:max-content;max-width:min(340px,calc(100vw - 24px));padding:17px 18px 15px;
+  border:1px solid var(--brass-deep);border-radius:var(--radius);background:var(--panel-2);
+  box-shadow:0 16px 44px rgba(0,0,0,.6);animation:tourIn .18s ease-out
+}
+@media (prefers-reduced-motion:reduce){.tip-card{animation:none}}
+.tip-card .tour-title{margin-bottom:7px}
+.tip-gold{
+  display:inline-block;margin:0 0 11px;font-family:"IBM Plex Mono",monospace;font-size:11px;
+  letter-spacing:.06em;color:var(--brass);opacity:.85
+}
+.tour-open{
+  display:inline-flex;align-items:center;gap:7px;min-height:44px;margin-top:2px;padding:0 14px;
+  border:1px solid rgba(var(--brass-rgb),.5);border-radius:999px;background:transparent;
+  color:var(--brass);cursor:pointer;font-family:"Saira Condensed",sans-serif;font-weight:700;
+  font-size:11.5px;letter-spacing:.09em;text-transform:uppercase
+}
 .zone-note b{color:var(--ink);font-weight:500}
 .book-need b{color:var(--ink);font-weight:500}
 /* The variance caveat was sentence four of six and is the one that changes behaviour. */
@@ -2814,6 +2915,11 @@ h1 .title-word{white-space:nowrap}
         <input type="checkbox" id="sound" checked>
         <span><strong>Copy sound</strong><span>Plays a short confirmation when the figure reaches the clipboard.</span></span>
       </label>
+      <button type="button" class="tour-open" id="tourAgain" style="margin-bottom:12px">Show the walkthrough</button>
+      <label class="settings-toggle on" id="qWrap">
+        <input type="checkbox" id="qMarks" checked>
+        <span><strong>Help marks</strong><span>A small ? beside each heading opens that section&rsquo;s explanation. Switch it off once you know your way around and the marks go entirely.</span></span>
+      </label>
 
       <p class="settings-head">Copy sound</p>
       <div class="soundpick"><div class="soundpick-btns" id="soundBtns"></div></div>
@@ -2855,8 +2961,8 @@ h1 .title-word{white-space:nowrap}
       <div class="tabpane" id="paneprice">
       <section class="pinzone" id="pinZone">
       <div class="fields">
-        <div>
-          <label class="label" for="price" id="priceLabel">Price to beat</label>
+        <div id="priceField">
+          <label class="label" for="price" id="priceLabel">Price to beat</label><button type="button" class="q" data-q="price" aria-expanded="false" aria-label="What price goes here">?</button>
           <div class="inputwrap">
             <input type="text" id="price" placeholder="e.g. 326.129" inputmode="decimal" autocomplete="off" spellcheck="false">
             <button type="button" class="gobtn" id="goBtn" aria-label="Calculate and copy">&#10003;</button>
@@ -2919,15 +3025,25 @@ h1 .title-word{white-space:nowrap}
         </div>
       </div>
 
-      <p class="hint" id="hint">Tap the keypad directly. <kbd>Enter</kbd> calculates and copies the exact figure to type.</p>
+      <div class="qbody" data-qof="price">
+        <p style="margin:0 0 7px">Open the marketplace in game, find the <b>cheapest listing</b> of the item you are
+        holding, and type that price here. Everything else on the page follows from it.</p>
+        <p style="margin:0 0 7px"><b>Tax</b> is your own country&rsquo;s market rate. It comes out of what you receive,
+        so only the gap between your rate and other sellers&rsquo; changes what you should list at.</p>
+        <p style="margin:0">Tap the keypad directly. <kbd>Enter</kbd> or <b>&#10003;</b> calculates, copies the figure,
+        and fills in the flip and dismantle tiles below.</p>
+      </div>
 
       <div class="docket" id="docket">
         <div class="pills">
           <span class="pill" id="confidence" hidden>—</span>
           <span class="pill" id="floorSignal" hidden>—</span>
         </div>
-        <p class="docket-label" id="docketLabel">Type this to undercut them</p>
+        <p class="docket-label"><span id="docketLabel">Type this to undercut them</span><button type="button" class="q" data-q="undercut" aria-expanded="false" aria-label="What this figure is">?</button></p>
         <p class="docket-figure" id="figure">&mdash;</p>
+        <div class="qbody" data-qof="undercut">This is the figure to type into the game&rsquo;s sell box. It undercuts
+        the cheapest seller by the smallest step the market allows, and the tax you pay is already in it. Tap the card
+        to copy.</div>
         <p class="docket-hint" id="docketHint">Enter a price above.</p>
         <span class="stamp" id="stamp" aria-hidden="true">Copied</span>
       </div>
@@ -2942,6 +3058,8 @@ h1 .title-word{white-space:nowrap}
           <span class="quick-val" id="quickScrapVal">—</span>
         </button>
       </div>
+
+      <button type="button" class="tour-open" id="tourOpen" hidden>First time? Walk me through it &rarr;</button>
 
       <button type="button" class="listanyway" id="listAnyway" hidden></button>
 
@@ -3199,7 +3317,9 @@ h1 .title-word{white-space:nowrap}
 
       <div class="flip-pair">
       <div class="flip" id="flip" hidden>
-        <p class="flip-label">Flip it?</p>
+        <p class="flip-label">Flip it?<button type="button" class="q" data-q="flip" aria-expanded="false" aria-label="What flipping means">?</button></p>
+        <div class="qbody" data-qof="flip">Buying someone&rsquo;s listing to relist it higher only pays if the next
+        offer up sits far enough above what you paid to cover the tax on the resale. This is where that starts.</div>
         <p class="flip-lead" id="flipLead">Worth flipping only if the second offer is</p>
         <p class="flip-figure" id="flipFigure">—</p>
         <p class="flip-detail" id="flipDetail">or higher</p>
@@ -3213,7 +3333,9 @@ h1 .title-word{white-space:nowrap}
       </div>
 
       <div class="flip" id="scrapBox" hidden>
-        <p class="flip-label"><i aria-hidden="true" class="res res-scrap res-in"></i>Dismantle it?</p>
+        <p class="flip-label"><i aria-hidden="true" class="res res-scrap res-in"></i>Dismantle it?<button type="button" class="q" data-q="dismantle" aria-expanded="false" aria-label="When to break a piece">?</button></p>
+        <div class="qbody" data-qof="dismantle">Any piece can be broken into scraps. Below this price the scraps are
+        worth more than the sale, so breaking it beats listing it. The floor moves with the scrap market.</div>
         <p class="flip-lead" id="scrapLead">Scrap value for this rarity</p>
         <p class="flip-figure" id="scrapVerdict">—</p>
         <p class="flip-detail" id="scrapDetail"></p>
@@ -3221,7 +3343,7 @@ h1 .title-word{white-space:nowrap}
           <button type="button" class="soundbtn" data-view="listed" aria-pressed="true">As listed</button>
           <button type="button" class="soundbtn" data-view="typed">To type</button>
         </div>
-        <p class="scrap-tabnote" id="scrapTabNote"></p>
+        <p class="scrap-tabnote" id="scrapTabNote" data-qof="dismantle"></p>
         <div class="scrap-rows" id="scrapRows"></div>
 
         <div class="scrap-src">
@@ -3245,14 +3367,17 @@ h1 .title-word{white-space:nowrap}
       <div class="tabpane" id="panecraft" hidden>
 
       <section class="flip" id="craftBox">
-        <p class="flip-label"><i aria-hidden="true" class="res res-scrap res-in"></i><i aria-hidden="true" class="res res-steel res-in"></i>Craft it instead?</p>
+        <p class="flip-label"><i aria-hidden="true" class="res res-scrap res-in"></i><i aria-hidden="true" class="res res-steel res-in"></i>Craft it instead?<button type="button" class="q" data-q="craft" aria-expanded="false" aria-label="How to read this table">?</button></p>
+        <div class="qbody" data-qof="craft"><b>Cost</b> is the scraps and steel a craft consumes, at the book prices
+        below. <b>Sells for</b> is what an average piece of that rarity fetches. <b>Break even</b> is the scrap price at
+        which the craft stops paying.</div>
         <p class="flip-lead" id="craftLead">Buy the inputs, craft one piece at random, sell it or break it</p>
         <p class="flip-figure" id="craftVerdict">—</p>
         <p class="flip-detail" id="craftDetail">Reading the collector's order books and sale history…</p>
         <div class="rarity-btns sort-pick" id="craftPick" role="tablist" aria-label="Rarity to craft"></div>
 
         <div class="craft-rows" id="craftRows"></div>
-        <p class="craft-foot" id="craftFoot"></p>
+        <p class="craft-foot" id="craftFoot" data-qof="craft"></p>
 
         <div class="scrap-src">
           <span class="scrap-src-label">Input prices</span>
@@ -3269,12 +3394,12 @@ h1 .title-word{white-space:nowrap}
           <div class="craft-fields">
             <label for="craftBar">Gold<input type="text" id="craftBar" value="0.1" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
           </div>
-          <p class="scrap-tabnote" id="craftBarNote"></p>
-          <p class="scrap-tabnote" id="craftNote"></p>
+          <p class="scrap-tabnote" id="craftBarNote" data-qof="craft"></p>
+          <p class="scrap-tabnote" id="craftNote" data-qof="craft"></p>
         </div>
 
         <div class="scrap-src">
-          <span class="scrap-src-label">Try your luck</span>
+          <span class="scrap-src-label">Try your luck<button type="button" class="q" data-q="craftsim" aria-expanded="false" aria-label="What the simulator does">?</button></span>
           <div class="sim-btns" id="craftSimBtns">
             <button type="button" class="soundbtn" data-craftsim="1">Craft 1</button>
             <button type="button" class="soundbtn" data-craftsim="10">10</button>
@@ -3287,7 +3412,7 @@ h1 .title-word{white-space:nowrap}
             <p class="sim-result" id="craftSimResult"></p>
             <div class="sim-tally" id="craftSimTally"></div>
           </div>
-          <p class="scrap-tabnote" id="craftSimNote">A craft fixes the rarity and leaves the slot and the roll to chance, so this rolls those against collected prices. It settles on the row above, eventually.</p>
+          <p class="scrap-tabnote" id="craftSimNote" data-qof="craftsim">A craft fixes the rarity and leaves the slot and the roll to chance, so this rolls those against collected prices. It settles on the row above, eventually.</p>
         </div>
       </section>
 
@@ -3296,13 +3421,16 @@ h1 .title-word{white-space:nowrap}
 
       <div class="tabpane" id="panecases" hidden>
       <section class="flip" id="caseBox">
-        <p class="flip-label"><i aria-hidden="true" class="res res-case res-in"></i>Open a case?</p>
+        <p class="flip-label"><i aria-hidden="true" class="res res-case res-in"></i>Open a case?<button type="button" class="q" data-q="cases" aria-expanded="false" aria-label="How to read this table">?</button></p>
+        <div class="qbody" data-qof="cases"><b>Odds</b> are the game&rsquo;s own. <b>Worth</b> is what an average piece
+        of that rarity fetches. <b>Break</b> is how often that rarity is worth dismantling rather than listing.
+        <b>Adds</b> is that rarity&rsquo;s share of a case&rsquo;s value &mdash; the six add up to what a case holds.</div>
         <p class="flip-lead" id="caseLead">Buy a Case I, open it, sell what is worth selling and break the rest</p>
         <p class="flip-figure" id="caseVerdict">—</p>
         <p class="flip-detail" id="caseDetail">Reading case prices…</p>
         <div class="craft-rows" id="caseRows"></div>
         <p class="case-swing" id="caseSwing" hidden></p>
-        <p class="craft-foot" id="caseFoot"></p>
+        <p class="craft-foot" id="caseFoot" data-qof="cases"></p>
         <div class="scrap-src">
           <div class="craft-fields">
             <label for="caseCount">Cases<input type="number" id="caseCount" value="1" min="1" max="9999" step="1" inputmode="numeric" autocomplete="off"></label>
@@ -3313,13 +3441,13 @@ h1 .title-word{white-space:nowrap}
           <div class="craft-fields">
             <label for="caseBar">Gold<input type="text" id="caseBar" value="0.1" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
           </div>
-          <p class="scrap-tabnote" id="caseBarNote"></p>
+          <p class="scrap-tabnote" id="caseBarNote" data-qof="cases"></p>
           <div class="books" id="caseBooks"></div>
-          <p class="scrap-tabnote" id="caseNote"></p>
+          <p class="scrap-tabnote" id="caseNote" data-qof="cases"></p>
         </div>
 
         <div class="scrap-src">
-          <span class="scrap-src-label">Try your luck</span>
+          <span class="scrap-src-label">Try your luck<button type="button" class="q" data-q="casesim" aria-expanded="false" aria-label="What the simulator does">?</button></span>
           <div class="sim-btns" id="simBtns">
             <button type="button" class="soundbtn" data-sim="1">Open 1</button>
             <button type="button" class="soundbtn" data-sim="10">10</button>
@@ -3334,7 +3462,7 @@ h1 .title-word{white-space:nowrap}
             <p class="sim-result" id="simResult"></p>
             <div class="sim-tally" id="simTally"></div>
           </div>
-          <p class="scrap-tabnote" id="simNote">Rolls the real odds against collected prices. It settles on the same answer as the card above, eventually.</p>
+          <p class="scrap-tabnote" id="simNote" data-qof="casesim">Rolls the real odds against collected prices. It settles on the same answer as the card above, eventually.</p>
         </div>
       </section>
 
@@ -3342,7 +3470,10 @@ h1 .title-word{white-space:nowrap}
 
       <div class="tabpane" id="panesort" hidden>
       <section class="flip" id="sortBox">
-        <p class="flip-label">Sell it or break it?</p>
+        <p class="flip-label">Sell it or break it?<button type="button" class="q" data-q="sort" aria-expanded="false" aria-label="How to read these rows">?</button></p>
+        <div class="qbody" data-qof="sort"><b>Sell</b> is the rule for keeping a roll &mdash; anything at or above it
+        earns a listing. <b>Per 1,000</b> is how many of that slot&rsquo;s thousand possible rolls clear the rule.
+        <b>Gold</b> is what clearing it is worth on an average roll. Tap a row to see every roll behind it.</div>
         <p class="flip-lead" id="sortLead">Every roll, by rarity, against what its scraps are worth</p>
         <p class="flip-detail" id="sortDetail">Reading the collector's sale history…</p>
         <div class="rarity-btns sort-pick" id="sortPick" role="tablist" aria-label="Rarity to sort"></div>
@@ -3356,10 +3487,10 @@ h1 .title-word{white-space:nowrap}
             <button type="button" class="soundbtn" data-join="both" aria-pressed="true">Clear both</button>
             <button type="button" class="soundbtn" data-join="either" aria-pressed="false">Either will do</button>
           </div>
-          <p class="scrap-tabnote" id="sortGateNote"></p>
+          <p class="scrap-tabnote" id="sortGateNote" data-qof="sort"></p>
         </div>
         <div id="sortRows"></div>
-        <p class="cut-note" id="sortFoot"></p>
+        <p class="cut-note" id="sortFoot" data-qof="sort"></p>
       </section>
       </div>
 
@@ -3873,6 +4004,7 @@ function buildSounds(){
   }).join('')
 }
 function showStamp(ok,value){
+  if(ok)tipCountUse();
   $('stamp').textContent=ok?'Copied':'Hold to copy';
   $('docket').classList.remove('is-copied','is-failed');
   $('docket').classList.add(ok?'is-copied':'is-failed');
@@ -3934,10 +4066,16 @@ function updateTaxChip(){
 }
 
 function syncSettings(){
-  [['beatMode','beatWrap'],['quickInput','quickWrap'],['autoCopy','autoWrap'],['sound','soundWrap']].forEach(function(x){
-    $(x[1]).classList.toggle('on',$(x[0]).checked)
+  [['beatMode','beatWrap'],['quickInput','quickWrap'],['autoCopy','autoWrap'],['sound','soundWrap'],
+   ['qMarks','qWrap']].forEach(function(x){
+    if($(x[0])&&$(x[1]))$(x[1]).classList.toggle('on',$(x[0]).checked)
   })
 }
+if($('qMarks'))$('qMarks').addEventListener('change',function(){
+  try{localStorage.setItem('warera-calc-qmarks',$('qMarks').checked?'on':'off')}catch(e){}
+  applyQMarks();syncSettings()
+});
+applyQMarks();
 function scrollToWork(){
   try{var a=document.querySelector('.fields'),y=a.getBoundingClientRect().top+window.pageYOffset-12;window.scrollTo(0,Math.max(0,y))}catch(e){}
 }
@@ -4361,27 +4499,152 @@ function footSplit(text,budget){
   if(!lead)lead=text;
   return {lead:lead,rest:text.slice(lead.length).replace(/^\s+/,'')}
 }
+/* The foot is now one of the blocks a section's ? owns, so it carries its whole text and
+   decides nothing about what to show. */
 function paintFoot(id,text){
   var el=$(id);if(!el)return;
-  if(!text){el.textContent='';return}
-  var sp=footSplit(text,150);
-  if(!sp.rest){el.textContent=text;return}
-  var open=!!footOpen[id];
-  el.innerHTML=esc(sp.lead)+
-    ' <button type="button" class="foot-more" data-foot="'+id+'" aria-expanded="'+
-    (open?'true':'false')+'">'+(open?'Less':'Why this number')+'</button>'+
-    '<span class="foot-rest"'+(open?'':' hidden')+'> '+esc(sp.rest)+'</span>'
+  el.textContent=text||''
+}
+var qOpen={};
+function qMarksOn(){
+  try{return localStorage.getItem('warera-calc-qmarks')!=='off'}catch(e){return true}
+}
+function applyQMarks(){
+  var on=qMarksOn();
+  document.documentElement.classList.toggle('no-q',!on);
+  if($('qMarks'))$('qMarks').checked=on;
+  if($('qWrap'))$('qWrap').classList.toggle('on',on)
+}
+/* Book panels and pickers are rebuilt by innerHTML on every repaint, which drops the open
+   state with the old nodes. Repainting from qOpen after a rebuild is what keeps an opened
+   explanation open while the numbers under it move. */
+function paintQ(key){
+  var open=!!qOpen[key],i,els;
+  els=document.querySelectorAll('[data-qof="'+key+'"]');
+  for(i=0;i<els.length;i++)els[i].classList.toggle('q-on',open);
+  els=document.querySelectorAll('.q[data-q="'+key+'"]');
+  for(i=0;i<els.length;i++)els[i].setAttribute('aria-expanded',open?'true':'false')
+}
+function paintQAll(){
+  var els=document.querySelectorAll('.q[data-q]'),seen={},i,k;
+  for(i=0;i<els.length;i++){
+    k=els[i].getAttribute('data-q');
+    if(!seen[k]){seen[k]=1;paintQ(k)}
+  }
+}
+/* Capture, because these marks sit inside a label and inside the copy-on-tap docket, and a
+   question is not a request to focus the field or copy the figure. */
+document.addEventListener('click',function(e){
+  var b=e.target&&e.target.closest?e.target.closest('.q[data-q]'):null;
+  if(!b)return;
+  e.preventDefault();e.stopPropagation();
+  var key=b.getAttribute('data-q');
+  qOpen[key]=!qOpen[key];
+  paintQ(key)
+},true);
+/* ---- Walkthrough -------------------------------------------------------------
+   Anchored to the real controls rather than to a picture of them, so it cannot drift out of
+   date with the layout. Step one types a real price and commits it, which is also the only
+   honest way to show what the ✓ does: everything below the answer stays blank until it is
+   pressed. The demo price is cleared on the way out. */
+var TOUR=[
+  {sel:'#priceField',tab:'price',title:'Start with their price',
+   body:'Open the marketplace in game, find the <b>cheapest listing</b> of the item you are '+
+        'holding, and type that price here. Everything else follows from this one number.',
+   next:'Try it with 51.500',
+   run:function(){
+     var el=$('price');el.value='51.500';el.dispatchEvent(new Event('input',{bubbles:true}));
+     if($('goBtn'))$('goBtn').click()
+   }},
+  {sel:'#docket',tab:'price',title:'This is what you type',
+   body:'Copy this into the game&rsquo;s sell box. It undercuts the cheapest seller by the '+
+        'smallest step the market allows, and the tax you pay is already taken out. Tap the '+
+        'card to copy it.'},
+  {sel:'#quickScrap',tab:'price',title:'When not to sell at all',
+   body:'Every piece breaks down into scraps. Below this figure the scraps are worth more '+
+        'than the sale, so breaking it beats listing it.'},
+  {sel:'#tabBar',tab:'price',title:'The other three tabs',
+   body:'<b>Price</b> and <b>Sort</b> are for things you already have. <b>Craft</b> and '+
+        '<b>Cases</b> say whether buying in pays &mdash; the figure on the tab is the edge '+
+        'right now. Every heading has a <b>?</b> when you want the detail behind a number.',
+   next:'Done'}
+];
+var tourAt=-1,tourDim=null,tourRing=null,tourBubble=null;
+function tourSeen(){try{return localStorage.getItem('warera-calc-tour')==='done'}catch(e){return true}}
+function tourMark(){try{localStorage.setItem('warera-calc-tour','done')}catch(e){}}
+function tourPlace(){
+  if(tourAt<0)return;
+  var el=document.querySelector(TOUR[tourAt].sel);
+  if(!el||!tourRing)return;
+  var r=el.getBoundingClientRect(),pad=6;
+  tourRing.style.top=(r.top-pad)+'px';tourRing.style.left=(r.left-pad)+'px';
+  tourRing.style.width=(r.width+pad*2)+'px';tourRing.style.height=(r.height+pad*2)+'px';
+  // Below the ring where there is room, above it where there is not; never off-screen.
+  var bh=tourBubble.offsetHeight,bw=tourBubble.offsetWidth,gap=14;
+  var top=r.bottom+gap;
+  if(top+bh>window.innerHeight-10)top=Math.max(10,r.top-gap-bh);
+  var left=Math.max(10,Math.min(r.left,window.innerWidth-bw-10));
+  tourBubble.style.top=top+'px';tourBubble.style.left=left+'px'
+}
+function tourShow(i){
+  var step=TOUR[i];
+  if(step.tab)setTab(step.tab,false);
+  var el=document.querySelector(step.sel);
+  if(el)el.scrollIntoView({block:'center',behavior:'auto'});
+  tourBubble.innerHTML='<p class="tour-step">Step '+(i+1)+' of '+TOUR.length+'</p>'+
+    '<p class="tour-title">'+step.title+'</p>'+
+    '<p class="tour-body">'+step.body+'</p>'+
+    '<div class="tour-btns">'+
+      '<button type="button" class="tour-next" id="tourNext">'+(step.next||'Next')+'</button>'+
+      '<button type="button" class="tour-skip" id="tourSkip">'+
+      (i===TOUR.length-1?'Close':'Skip')+'</button>'+
+    '</div>';
+  tourPlace();
+  // A step that changes the page has to let the paint land before the ring is measured again.
+  setTimeout(tourPlace,60)
+}
+function tourStart(){
+  if(tourAt>=0)return;
+  if($('settingsPanel'))$('settingsPanel').hidden=true;
+  tourDim=document.createElement('div');tourDim.className='tour-dim';
+  tourRing=document.createElement('div');tourRing.className='tour-ring';
+  tourBubble=document.createElement('div');tourBubble.className='tour-bubble';
+  tourBubble.setAttribute('role','dialog');tourBubble.setAttribute('aria-label','Walkthrough');
+  document.body.appendChild(tourDim);document.body.appendChild(tourRing);
+  document.body.appendChild(tourBubble);
+  window.addEventListener('resize',tourPlace);window.addEventListener('scroll',tourPlace,true);
+  tourAt=0;tourShow(0);
+  if($('tourOpen'))$('tourOpen').hidden=true
+}
+function tourEnd(){
+  if(tourAt<0)return;
+  tourAt=-1;tourMark();
+  window.removeEventListener('resize',tourPlace);window.removeEventListener('scroll',tourPlace,true);
+  [tourDim,tourRing,tourBubble].forEach(function(e){if(e&&e.parentNode)e.parentNode.removeChild(e)});
+  tourDim=tourRing=tourBubble=null;
+  // Hand the page back the way it was found, so the first real price is typed into an empty field.
+  var el=$('price');
+  if(el&&el.value==='51.500'){el.value='';el.dispatchEvent(new Event('input',{bubbles:true}))}
+  if($('tourOpen'))$('tourOpen').hidden=true;
+  window.scrollTo(0,0)
 }
 document.addEventListener('click',function(e){
-  var b=e.target&&e.target.closest?e.target.closest('[data-foot]'):null;
-  if(!b)return;
-  var id=b.getAttribute('data-foot'),open=!footOpen[id];
-  footOpen[id]=open;
-  var el=$(id),rest=el&&el.querySelector('.foot-rest');
-  if(rest)rest.hidden=!open;
-  b.setAttribute('aria-expanded',open?'true':'false');
-  b.textContent=open?'Less':'Why this number'
+  var t=e.target&&e.target.closest?e.target.closest('#tourNext,#tourSkip,#tourOpen,#tourAgain'):null;
+  if(!t)return;
+  e.preventDefault();
+  var id=t.id;
+  if(id==='tourOpen'||id==='tourAgain'){tourStart();return}
+  if(id==='tourSkip'){tourEnd();return}
+  var step=TOUR[tourAt];
+  if(step&&step.run)step.run();
+  if(tourAt>=TOUR.length-1){tourEnd();return}
+  tourAt++;tourShow(tourAt)
 });
+document.addEventListener('keydown',function(e){
+  if(tourAt>=0&&e.key==='Escape'){e.preventDefault();tourEnd()}
+});
+if(!tourSeen()&&$('tourOpen'))$('tourOpen').hidden=false;
+
 function entrySig(){
   var e=craftState.entry,out=[],k;
   for(k in e)if(Object.prototype.hasOwnProperty.call(e,k)&&e[k]!=null)out.push(k+':'+e[k]);
@@ -4482,13 +4745,19 @@ function bookPanel(code,name,icon,need,unit,gross){
     for(var z=0;z<zones.length;z++)
       ladder+=row(zones[z].entry,'',zones[z].wall,zones[z].ahead,
                   dflt!=null&&Math.abs(zones[z].entry-dflt)<1e-9);
-    ladder+='</div><p class="zone-note">Resting one tick above a wall is the cheapest entry '+
-      'that still fills before it. <b>Ahead</b> is what must fill first; deeper is cheaper '+
-      'and slower, and a wall can be pulled.</p>'
+    ladder+='</div><p class="zone-note" data-qof="book">Resting one tick above a wall is the '+
+      'cheapest entry that still fills before it. <b>Ahead</b> is what must fill first; deeper '+
+      'is cheaper and slower, and a wall can be pulled.</p>'
   }
   return '<div class="book">'+
     '<p class="book-head"><i aria-hidden="true" class="res '+icon+' res-in"></i>'+esc(name)+
+    '<button type="button" class="q" data-q="book" aria-expanded="false" '+
+    'aria-label="How to read an order book">?</button>'+
     '<span class="book-spread">'+spread+(bookIsLive(code)?' \u00b7 live':'')+'</span></p>'+
+    '<div class="qbody" data-qof="book"><b>Buy orders</b> are what people will pay; '+
+    '<b>sell orders</b> what they are asking. A <b>wall</b> is a large order others must clear '+
+    'before yours. Resting a bid one step above a wall is the cheapest way in that still fills '+
+    'before it.</div>'+
     '<div class="book-grid">'+
       side(bids,'buy','Buy orders',0)+
       side(asks,'sell','Sell orders',at==null?need:0)+
@@ -5043,7 +5312,7 @@ function paintCraft(){
     ' at once will push that down by an amount this cannot see.';
   foot+=untradedNote(mine.exp);
   foot+=taxGapNote();
-  paintFoot(footEl.id,foot)
+  paintFoot(footEl.id,foot);paintQAll()
 }
 
 // A case is the same bet as a craft with the tier left to chance, so it reuses the per-tier
@@ -5441,7 +5710,8 @@ function paintCase(){
   $('caseBooks').innerHTML=bookPanel('case1','Case I','res-case',n,n===1?'case':'cases',gross);
   paintCaseBid();
   noteEl.textContent=bookIsLive('case1')?'Cheapest case sell orders lifted in order, on a live Gateway book.'
-    :'Cheapest case sell orders lifted in order, on the collector\u2019s book.'
+    :'Cheapest case sell orders lifted in order, on the collector\u2019s book.';
+  paintQAll()
 }
 /* Two states now, and the second is an escape hatch rather than a peer: the book, or a
    price you typed to test something. The one button says which way it takes you. */
@@ -5605,7 +5875,7 @@ function paintSort(){
     anySpace+' of '+anyKnown+' rolls with sale history clear the bar. Right-hand figure is how many of that '+
     'slot\u2019s seen rolls do. Open a slot and \u201clist at\u201d is the median of that roll\u2019s own recent '+
     'sales, dimmed where fewer than '+THIN_SALES+' of them set it.'+taxGapNote());
-  paintSortGate()
+  paintSortGate();paintQAll()
 }
 /* A rule people cannot check is a rule they have to take on faith. Opening a slot shows
    every roll it can produce on the same terms as the summary above it, so the ones left out
@@ -7271,6 +7541,84 @@ function paintTip(id){
   el.textContent=done?TIP_DONE:TIP_ASK;
   el.classList.toggle('thanked',done)
 }
+/* ---- The tip ask -------------------------------------------------------------
+   The header link has carried this on its own, where "TIP · NEW ARTICLE" reads as a hint
+   rather than a request and gets skimmed past. The state it already tracks is enough to ask
+   properly: the last article id the reader tipped. A different id means a new article, and
+   whether they have ever tipped decides which of the two things there is to say.
+
+   Two rules stop it becoming a nag. It asks once per article - a skip is remembered against
+   that id, so the next ask waits for the next article - and it will not ask someone who has
+   not used the app yet, because "find the app useful?" is not a question you put to a person
+   on their first visit. Nor will it open over the walkthrough or over a price being worked
+   on; it simply waits for the next visit. */
+var TIP_MIN_USES=3;
+function tipUses(){
+  var n=0;try{n=Number(localStorage.getItem('warera-calc-uses'))||0}catch(e){}
+  return n
+}
+function tipCountUse(){
+  try{localStorage.setItem('warera-calc-uses',String(tipUses()+1))}catch(e){}
+}
+function tipRead(k){try{return localStorage.getItem(k)||''}catch(e){return ''}}
+function tipShouldAsk(id){
+  if(!id)return false;
+  if(tipRead('warera-tipped-article')===id)return false;   // already tipped this one
+  if(tipRead('warera-tip-skipped')===id)return false;      // already waved this one away
+  if(tourAt>=0)return false;                               // never over the walkthrough
+  if($('tourOpen')&&!$('tourOpen').hidden)return false;     // nor before it has been offered
+  if($('price')&&$('price').value)return false;             // nor over a price being worked on
+  return tipUses()>=(tipRead('warera-tipped-article')?1:TIP_MIN_USES)
+}
+function tipClose(){
+  var c=$('tipCard'),d=$('tipVeil');
+  if(c&&c.parentNode)c.parentNode.removeChild(c);
+  if(d&&d.parentNode)d.parentNode.removeChild(d)
+}
+function tipAsk(id){
+  if($('tipCard'))return;
+  var back=!!tipRead('warera-tipped-article'),href='https://app.warera.io/article/'+id;
+  var veil=document.createElement('div');veil.className='tour-dim';veil.id='tipVeil';
+  veil.style.background='rgba(0,0,0,.68)';
+  var card=document.createElement('div');card.className='tip-card';card.id='tipCard';
+  card.setAttribute('role','dialog');card.setAttribute('aria-label','Support the creator');
+  card.innerHTML=(back
+    ? '<p class="tour-title">Thank you for your ongoing support</p>'+
+      '<p class="tour-body">There is a new article up. Tipping it is what keeps the collector '+
+      'reading the market every fifteen minutes. No pressure either way.</p>'
+    : '<p class="tour-title">Find the app useful?</p>'+
+      '<p class="tour-body">Support the creator with a 5 gold tip. It goes through a WarEra '+
+      'article, which opens in a new tab.</p>')+
+    '<p class="tip-gold">5 gold · once · opens in a new tab</p>'+
+    '<div class="tour-btns">'+
+      '<a class="tour-next" id="tipGo" href="'+href+'" target="_blank" rel="noopener" '+
+      'style="display:inline-flex;align-items:center;justify-content:center;text-decoration:none">'+
+      (back?'Tip 5 gold':'Tip the article')+' ↗</a>'+
+      '<button type="button" class="tour-skip" id="tipSkip">Skip</button>'+
+    '</div>';
+  document.body.appendChild(veil);document.body.appendChild(card);
+  var done=function(key){
+    try{localStorage.setItem(key,id)}catch(e){}
+    tipClose();paintTip(id)
+  };
+  $('tipGo').addEventListener('click',function(){done('warera-tipped-article')});
+  $('tipSkip').addEventListener('click',function(){done('warera-tip-skipped')});
+  veil.addEventListener('click',function(){done('warera-tip-skipped')})
+}
+/* The article id arrives with the profile, which lands after the page does, so the ask is
+   deferred rather than raced - and re-checked at that moment, because the reader may have
+   started typing in the meantime. */
+function maybeTipAsk(id){
+  if(!tipShouldAsk(id))return;
+  setTimeout(function(){if(tipShouldAsk(id))tipAsk(id)},1400)
+}
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'&&$('tipCard')){
+    e.preventDefault();
+    try{localStorage.setItem('warera-tip-skipped',$('tipGo').href.split('/').pop())}catch(err){}
+    tipClose()
+  }
+});
 function paintProfile(data){
   if(!data||!data.name)return;
   $('profileName').textContent=data.name;
@@ -7355,7 +7703,7 @@ function loadLocalProfile(){
         $('tipLink').href='https://app.warera.io/article/'+m[0];
         $('tipLink').hidden=false;
         $('tipLink').dataset.article=m[0];
-        paintTip(m[0])
+        paintTip(m[0]);maybeTipAsk(m[0])
       }
       return {hasArticle:!!m}
     })
