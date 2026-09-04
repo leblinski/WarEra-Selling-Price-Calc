@@ -1357,7 +1357,13 @@ kbd{
     box-shadow:0 8px 28px rgba(0,0,0,.35)
   }
   .tax-editor[hidden]{display:none!important}
-  .tax-editor #tax{width:86px;height:44px;font-size:17px}
+  .tax-editor #tax,.tax-editor #mktTax{width:74px;height:44px;font-size:17px}
+  .tax-pair{display:flex;flex-direction:column;gap:2px}
+  .tax-pair label{
+    font-family:"Saira Condensed",sans-serif;font-size:9px;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--dim)
+  }
+  .tax-editor{align-items:flex-end}
   .tax-done{
     display:block;min-width:58px;height:44px;border:1px solid var(--brass-deep);border-radius:7px;
     background:var(--panel-2);color:var(--brass);font-family:"Saira Condensed",sans-serif;font-weight:700
@@ -1485,11 +1491,18 @@ kbd{
 
 
 @media(min-width:621px){
+  /* Desktop keeps the field open rather than behind a chip; the two rates sit side by side
+     so the one you are compared against is never out of sight of your own. */
   .tax-editor,.tax-editor[hidden]{
-    display:block!important;position:static!important;padding:0!important;border:0!important;
-    background:transparent!important;box-shadow:none!important
+    display:flex!important;gap:8px;align-items:flex-end;position:static!important;
+    padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important
   }
-  .tax-editor #tax{display:block}
+  .tax-editor #tax,.tax-editor #mktTax{display:block;width:100%}
+  .tax-pair{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .tax-pair label{
+    font-family:"Saira Condensed",sans-serif;font-size:9px;letter-spacing:.11em;
+    text-transform:uppercase;color:var(--dim)
+  }
   .tax-done{display:none!important}
 }
 
@@ -2835,7 +2848,14 @@ h1 .title-word{white-space:nowrap}
           <label class="label" for="tax">Tax %</label>
           <button type="button" class="tax-chip" id="taxChip" aria-expanded="false">Tax 1%</button>
           <div class="tax-editor" id="taxEditor" hidden>
-            <input type="number" id="tax" min="0" step="0.1" value="1" inputmode="decimal" aria-label="Tax percentage">
+            <div class="tax-pair">
+              <label for="tax">Yours</label>
+              <input type="number" id="tax" min="0" step="0.1" value="1" inputmode="decimal" aria-label="Your tax percentage">
+            </div>
+            <div class="tax-pair">
+              <label for="mktTax">Rivals</label>
+              <input type="number" id="mktTax" min="0" step="0.1" value="1" inputmode="decimal" aria-label="Typical seller tax percentage">
+            </div>
             <button type="button" class="tax-done" id="taxDone">Done</button>
           </div>
         </div>
@@ -3889,7 +3909,8 @@ function buildThemes(){
   var id='gunmetal';try{id=localStorage.getItem('warera-calc-theme')||id}catch(e){}applyTheme(id)
 }
 function updateTaxChip(){
-  $('taxChip').textContent='Tax '+String($('tax').value||'0')+'%'
+  var mine=String($('tax').value||'0'),mkt=String(($('mktTax')||{}).value||'0');
+  $('taxChip').textContent='Tax '+mine+'%'+(mine!==mkt?' vs '+mkt+'%':'')
 }
 
 function syncSettings(){
@@ -4190,9 +4211,13 @@ function paintScrap(shown){
     $('scrapRows').innerHTML='';
     return false
   }
+  /* Scraps are not taxed, so dismantling hands you yield x bid outright, and to receive
+     that from a sale you type exactly that - the marketplace then shows it a tick over.
+     This divided by 1.01 to get the shown figure and divided again for the typed one,
+     which put the floor about 2% below the point where dismantling actually wins. */
   for(var i=0;i<RARITIES.length;i++){
-    var value=SCRAP_YIELDS[i]*p*Number(frac.den)/Number(frac.num);
-    var typed=value*Number(frac.den)/Number(frac.num);
+    var typed=SCRAP_YIELDS[i]*p;
+    var value=typed*Number(frac.num)/Number(frac.den);
     if(i===state.tier-1)mine=value;
     rows+='<div class="scrap-row'+(i===state.tier-1?' hit':'')+'"><span>'+RARITIES[i].name+'</span><span>'+
       (scrapView==='typed'?typed:value).toFixed(3)+'</span></div>'
@@ -4777,7 +4802,7 @@ function paintCraft(){
   if(!$('craftBox'))return;
   // Before any early return: the rarity is choosable whether or not prices have loaded.
   paintCraftPick();
-  var sig=[state.tier,tierKnown()?'k':'',$('tax').value,craftState.src,$('craftCount').value,
+  var sig=[state.tier,tierKnown()?'k':'',$('tax').value,$('mktTax').value,craftState.src,$('craftCount').value,
     entrySig(),
     craftState.liveAt,craftState.liveLoading?'L':'',craftState.liveError||'',
     craftState.src==='own'?$('craftScrap').value+'/'+$('craftSteel').value:'',
@@ -4813,9 +4838,7 @@ function paintCraft(){
     rowsEl.innerHTML='';footEl.textContent='';return
   }
 
-  var taxPct=Number($('tax').value);
-  if(!isFinite(taxPct)||taxPct<0)taxPct=0;
-  var taxMul=1-taxPct/100,batch=craftCount();
+  var taxMul=resaleNet(),batch=craftCount();
   var rows='<div class="craft-row head"><span>Tier</span><span>Cost</span><span>Sells for</span><span>Profit</span><span>Break even</span></div>';
   var mine=null,thin=false,anySteel=null,anyScrap=null,known=tierKnown();
 
@@ -4877,7 +4900,7 @@ function paintCraft(){
     mine.sc.unit.toFixed(5)+' and '+mine.st.unit.toFixed(4)+'; '+
     (many?'the '+batch+' pieces sell for '+craftMoney(mine.gross)
          :'the average piece sells for '+mine.gross.toFixed(3))+
-    ' after '+taxPct+'% tax'+(many?', or '+craftSigned(mine.profit/batch,3)+' each':'')+'.';
+    ' to the seller'+(many?', or '+craftSigned(mine.profit/batch,3)+' each':'')+'.';
   // A break-even at or below zero means no input price rescues the tier: the piece is
   // worth less than the other input costs on its own.
   var head2=mine.beScrap<=0
@@ -4903,6 +4926,7 @@ function paintCraft(){
     ' that way: each piece is priced at its historical median, and selling '+batch+
     ' at once will push that down by an amount this cannot see.';
   if(cov<100)foot+=' Untraded rolls are assumed to price like the ones that did trade.';
+  foot+=taxGapNote();
   footEl.textContent=foot
 }
 
@@ -5006,9 +5030,7 @@ var simBusy=false,simToken=0;
 function simRun(n){
   if(simBusy)return;
   if(!craftState.summary){$('simResult').textContent='Collector prices are not loaded yet.';return}
-  var taxPct=Number($('tax').value);
-  if(!isFinite(taxPct)||taxPct<0)taxPct=0;
-  var taxMul=1-taxPct/100;
+  var taxMul=resaleNet();
   var cost=craftAcquire('case1',n);
   var results=[],i;
   for(i=0;i<n;i++)results.push(simOpenOne(taxMul));
@@ -5121,9 +5143,7 @@ function craftSimRun(n){
   if(!tierKnown())
     return stop('Pick a rarity first \u2014 a craft leaves you the slot and the roll, not the rarity.');
 
-  var t=state.tier,taxPct=Number($('tax').value);
-  if(!isFinite(taxPct)||taxPct<0)taxPct=0;
-  var taxMul=1-taxPct/100;
+  var t=state.tier,taxMul=resaleNet();
   var sc=craftInput('scraps',SCRAP_YIELDS[t-1]*n,'craftScrap'),
       st=craftInput('steel',CRAFT_STEEL[t-1]*n,'craftSteel');
   var results=[],i;
@@ -5186,9 +5206,7 @@ function paintCase(){
   if(!$('caseBox'))return;
   var n=Math.floor(Number($('caseCount').value));
   n=isFinite(n)&&n>0?Math.min(n,9999):1;
-  var taxPct=Number($('tax').value);
-  if(!isFinite(taxPct)||taxPct<0)taxPct=0;
-  var sig=[n,taxPct,craftState.src,craftState.liveAt,state.tier,entrySig(),
+  var sig=[n,$('tax').value,$('mktTax').value,craftState.src,craftState.liveAt,state.tier,entrySig(),
            sortMin.abs,sortMin.pct,sortMin.join,
            craftState.summary?'s':'',craftState.books?'b':''].join('|');
   if(sig===craftState.caseSig)return;
@@ -5206,7 +5224,7 @@ function paintCase(){
     if($('caseSwing'))$('caseSwing').hidden=true;
     return
   }
-  var taxMul=1-taxPct/100,gross=0,covered=0,space=0,samples=0,missing=0,parts=[];
+  var taxMul=resaleNet(),gross=0,covered=0,space=0,samples=0,missing=0,parts=[];
   for(var t=1;t<=6;t++){
     var exp=craftExpected(t,taxMul),odds=CASE_TIER_ODDS[t-1];
     if(!exp){missing++;parts.push(null);continue}
@@ -5255,7 +5273,7 @@ function paintCase(){
                   'wall'+(cost.wall?' at '+cost.wall.wallPrice.toFixed(3):''))+
         ' rather than lifting the '+(cost.lift!=null?cost.lift.toFixed(5):'ask')
        :', lifting the cheapest offers')+
-    '; the average case holds '+gross.toFixed(4)+' after '+taxPct+'% tax'+
+    '; the average case holds '+gross.toFixed(4)+' to the seller'+
     (many?', or '+craftSigned(profit/n,4)+' each':'')+
     '. Break even at a case price of '+gross.toFixed(4)+' ('+
     craftSigned((gross/cost.unit-1)*100,2)+'% from what you would pay now).';
@@ -5269,6 +5287,7 @@ function paintCase(){
     'Each piece counts at whichever is worth more, under the same bar the Sort tab uses, '+
     'so this assumes you sort every piece rather than listing all of them.';
   if(missing)foot+=' '+missing+' tier(s) have no sale data and are treated as worthless, so this is a floor.';
+  foot+=taxGapNote();
   if(cost.thin)foot+=' The case order book could not fill the whole purchase, so the cost shown is a floor.';
   foot+=cost.posted
     ? ' Cost assumes a buy order resting at '+cost.unit.toFixed(3)+
@@ -5363,15 +5382,51 @@ function sortGold(v){
   if(!(v>0))return '\u2014';
   return v*SORT_BATCH>=10?Math.round(v*SORT_BATCH).toLocaleString():(v*SORT_BATCH).toFixed(1)
 }
-function sortTax(){
-  var t=Number($('tax').value);
-  return 1-((isFinite(t)&&t>0?t:0)/100)
+/* What a collected median is worth to the seller who took it, as a multiplier.
+   It is 1, and the reason is worth writing down because three tabs assumed otherwise.
+
+   The tax sits on top of the seller's price rather than coming out of it: you type E, the
+   marketplace shows E x 1.01, and E is what lands in your wallet. So the `money` the
+   collector records is already the seller's proceeds - 100% of 95,140 sales sit exactly
+   on the 0.001 grid a seller types on, while only 1.10% of money/1.01 do, which is chance.
+   Multiplying the median by (1 - tax) charged the seller a tax nobody charges them, and
+   understated every listing against a scrap value that was never taxed either: only
+   equipment is taxed at all.
+
+   What competes, though, is the displayed price, and the tax on it is the seller's own. To
+   sit where a recent seller sat you have to show what they showed, so you keep
+
+       their typed price x (1 + their tax) / (1 + your tax)
+
+   and only the ratio bites. Taxed like your rivals, it is 1 and the median stands as it is;
+   taxed four points above them you undercut yourself to stay level and the case edge falls
+   from +5.0% to about +3.8%. The old (1 - your tax) was wrong under every reading: it
+   charged your rate against a baseline of zero, penalising a 1% seller in a 1% market.
+
+   The collector cannot supply the rival rate - it records what each seller typed, never
+   where they typed it from - so it is a stated assumption sitting beside your own rate. */
+function pctField(id,dflt){
+  var v=Number($(id)&&$(id).value);
+  return isFinite(v)&&v>=0?v:dflt
 }
+function marketTax(){return pctField('mktTax',1)}
+/* Silence here would be the card asserting the gap does not exist. Said once, plainly,
+   and only when there is a gap to report. */
+function taxGapNote(){
+  var mine=pctField('tax',1),mkt=marketTax();
+  if(Math.abs(mine-mkt)<1e-9)return '';
+  var gap=Math.abs(mine-mkt),swing=Math.abs(resaleNet()-1)*100;
+  return ' You are taxed '+gap.toFixed(gap%1?1:0)+' point'+(gap===1?'':'s')+
+    (mine>mkt?' above':' below')+' the '+mkt+'% assumed for the sellers you compete with, '+
+    'so showing what they show leaves you '+swing.toFixed(2)+'% '+
+    (mine>mkt?'less':'more')+' per sale.'
+}
+function resaleNet(){return (1+marketTax()/100)/(1+pctField('tax',1)/100)}
 function paintSort(){
   var box=$('sortRows');if(!box)return;
-  var taxMul=sortTax();
+  var taxMul=resaleNet();
   var sig=[craftState.summary?'s':'',craftState.books?'b':'',craftState.live?'l':'',
-           $('tax').value,craftState.src,craftState.liveAt,state.tier,state.slot,
+           $('tax').value,$('mktTax').value,craftState.src,craftState.liveAt,state.tier,state.slot,
            sortMin.abs,sortMin.pct,sortMin.join,sortShown()].join('|');
   if(sig===craftState.sortSig)return;
   craftState.sortSig=sig;
@@ -5427,7 +5482,7 @@ function paintSort(){
   $('sortFoot').textContent='Cut lines move with the scrap price, so they are computed fresh, not written down. '+
     anySpace+' of '+anyKnown+' rolls with sale history clear the bar. Right-hand figure is how many of that '+
     'slot\u2019s seen rolls do. Open a slot and \u201clist at\u201d is the median of that roll\u2019s own recent '+
-    'sales, dimmed where fewer than '+THIN_SALES+' of them set it.';
+    'sales, dimmed where fewer than '+THIN_SALES+' of them set it.'+taxGapNote();
   paintSortGate()
 }
 /* A rule people cannot check is a rule they have to take on faith. Opening a slot shows
@@ -5515,8 +5570,13 @@ function sortHeat(r,t,id){
       var k=i+'/'+j,x=by[k],cls='heat-cell',fill='transparent';
       if(!x||(x.net==null&&!x.wide&&!x.from)){cls+=' none'}
       else{
-        var m=x.net!=null?x.margin:(x.wide?x.wide.price*0.99-r.scrap:null),sells;
-        if(m!=null){sells=m>=0;fill=heatFill(m,peak)}
+        /* The colour has to answer the same question the row does. Judging on margin over
+           scrap while the list judges against the bar painted a cell green and then said
+           "break" when it was tapped. Shade still reads the margin; the verdict reads the
+           bar, so a roll that clears scraps but not the bar is warm and still marked. */
+        var m=x.net!=null?x.margin:(x.wide?x.wide.price*resaleNet()-r.scrap:null),sells;
+        if(m!=null){sells=x.net!=null?!!x.sell:(x.wide.price*resaleNet()>r.floor);
+                    fill=heatFill(m,peak)}
         else{sells=x.from.sell;cls+=' guess';fill=heatFill(sells?peak*0.12:-peak*0.12,peak)}
         if(!sells)cls+=' br'
       }
@@ -5559,9 +5619,14 @@ function sortRows(r,slot){
    recency-weighted median lands within 0.5% of the plain one on four rolls in five.
 
    Calling it a recommendation does oblige it to say how firm it is, and a median off two
-   sales is not a market. Those are dimmed rather than columned - a fifth column costs the
-   verdict its room on a phone, and half the roll space trades thinly enough to mark. */
-var THIN_SALES=5;
+   sales is not a market. Those are marked rather than columned - a fifth column costs the
+   verdict its room on a phone, and half the roll space trades thinly enough to mark.
+
+   Five was a guess. Subsampling the 386 rolls with thirty or more sales puts the p90 error
+   of a small-sample median at 5.5% for one sale, 6.2% for two, 2.7% for three, 2.2% for
+   five and 1.4% for ten: the knee is at three, and nothing distinguishes five from four or
+   six. Three it is, which also stops marking the 128 rolls that sit between. */
+var THIN_SALES=3;
 /* A price you have to wait two days for is not the same offer as one that clears in twenty
    minutes, and until now nothing on the page said which it was. Short units, because the
    column has to stay narrow enough to leave the verdict room. */
@@ -5628,7 +5693,7 @@ function paintSortGate(){
 function paintCutCard(){
   var card=$('cutCard');if(!card)return;
   if(!tierKnown()||!craftState.summary||!craftState.books||!scrapKnown()){card.hidden=true;return}
-  var t=state.tier,taxMul=sortTax(),floor=sortNeed(t),sell=0,known=0,all=[];
+  var t=state.tier,taxMul=resaleNet(),floor=sortNeed(t),sell=0,known=0,all=[];
   for(var i=0;i<SLOTS.length;i++){
     var slot=SLOTS[i].code,r=sortRolls(slot,t,taxMul);
     if(!r||!r.known)continue;
@@ -5850,7 +5915,10 @@ function fetchLiveSales(code){
 // colliding on all three would be indistinguishable anyway.
 function saleKey(it){
   var sk=(it.item&&it.item.skills)||{};
-  return [Number(it.money),Math.round(new Date(it.createdAt).getTime()/1000),
+  // The collector stores int(timestamp), a floor. Rounding here disagreed with it on every
+  // sale whose milliseconds reached 500 - half of them - so a live page re-added about
+  // fifty of its hundred rows as new, and the newest rows carry the most recency weight.
+  return [Number(it.money),Math.floor(new Date(it.createdAt).getTime()/1000),
           Object.keys(sk).sort().map(function(k){return k+':'+sk[k]}).join(',')].join('|')
 }
 function mergeSales(base,extra){
@@ -7421,6 +7489,13 @@ $('tax').addEventListener('input',function(){
   try{localStorage.setItem('warera-calc-tax',$('tax').value)}catch(e){}
   updateTaxChip();coreCalc(true)
 });
+/* Your own rate drives the Price tab's conversion; the rivals' rate drives nothing there,
+   only the gap the other three cards price against. */
+$('mktTax').addEventListener('input',function(){
+  try{localStorage.setItem('warera-calc-mkttax',$('mktTax').value)}catch(e){}
+  updateTaxChip();craftState.sig=null;craftState.caseSig=null;craftState.sortSig=null;
+  paintCraft();paintCase();paintSort();paintCutCard()
+});
 $('beatMode').addEventListener('change',function(){
   try{localStorage.setItem('warera-calc-beat',$('beatMode').checked?'1':'0')}catch(e){}
   coreCalc(true)
@@ -7618,7 +7693,9 @@ document.addEventListener('keydown',function(e){
 buildRarity();buildSlots();buildRolls();buildKeypad();buildQueuePad();renderRecent();updateSalesTabLabel();setViewLock(false);updateTaxChip();setChartTab('price');
 try{
   var h=localStorage.getItem('warera-calc-hand')||localStorage.getItem('etc-hand')||'right';setHand(h);
-  var t=localStorage.getItem('warera-calc-tax');if(t)$('tax').value=t;updateTaxChip();
+  var t=localStorage.getItem('warera-calc-tax');if(t)$('tax').value=t;
+  var mt=localStorage.getItem('warera-calc-mkttax');if(mt)$('mktTax').value=mt;
+  updateTaxChip();
   var beat=localStorage.getItem('warera-calc-beat');if(beat==='0')$('beatMode').checked=false;
   var q=localStorage.getItem('warera-calc-quick');if(q==='0')$('quickInput').checked=false;
   var au=localStorage.getItem('warera-calc-auto');if(au==='0')$('autoCopy').checked=false;
