@@ -4457,14 +4457,22 @@ function craftSlotValue(slot,t,taxMul){
      days: nobody wants them, and their value is their scraps. But a Mythic jet roll is
      absent because 800 rolls share 165 sales a week, not because it is unwanted.
 
-     Sales per roll separates the two without anyone naming a rarity. The knife sees 3.6
-     a roll and the jet 0.2, so a knife roll that never traded is a roll nobody wanted,
-     while a jet roll that never traded was simply never dealt. */
+     Sales per roll separates the two. The knife sees 3.6 a roll and the jet 0.2, so a
+     knife roll that never traded is a roll nobody wanted, while a jet roll that never
+     traded was simply never dealt.
+
+     Above Rare the rule does not apply at all, by the owner's decision. Throughput alone
+     would have caught the Legendary tank too - 285 of its 300 rolls are priced, so silence
+     there looks like a verdict on the numbers - but a tank is a rarer thing than a knife
+     in ways a week of sales does not show, and the cost of being wrong is asymmetric:
+     writing a Legendary roll down to its scraps on an absence is a much worse mistake than
+     leaving it at the tier's average. Common to Rare is where the volume is and where the
+     evidence is direct. */
   var perRoll=0;
   for(var c in seen)if(Object.prototype.hasOwnProperty.call(seen,c))
     perRoll+=(seen[c].fallback_48h||{}).count||0;
   perRoll=space.length?perRoll/space.length:0;
-  var absenceMeans=perRoll>=UNTRADED_IS_UNWANTED;
+  var absenceMeans=t<=UNTRADED_MAX_TIER&&perRoll>=UNTRADED_IS_UNWANTED;
   var wsum=0,vsum=0,covered=0,samples=0,broken=0,unwanted=0;
   for(var i=0;i<space.length;i++){
     var row=seen[space[i]];
@@ -5657,6 +5665,8 @@ var THIN_SALES=3;
    taken to be one nobody wants rather than one nobody was dealt. Two sits between the
    knife at 3.6 and the Mythic helmet at 1.8; the jet, at 0.2, is nowhere near it. */
 var UNTRADED_IS_UNWANTED=2;
+// Common, Uncommon and Rare only. Above that an absence is not read as a verdict.
+var UNTRADED_MAX_TIER=3;
 /* Both cards have to say which of the two things they did with a roll that never traded,
    because the answer changes the figure above them by points, not decimals. */
 function untradedNote(exp){
