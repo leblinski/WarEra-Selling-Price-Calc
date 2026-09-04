@@ -2941,7 +2941,7 @@ h1 .title-word{white-space:nowrap}
         <input type="checkbox" id="sound" checked>
         <span><strong>Copy sound</strong><span>Plays a short confirmation when the figure reaches the clipboard.</span></span>
       </label>
-      <button type="button" class="tour-open" id="tourAgain" style="margin-bottom:12px">Show the walkthrough</button>
+      <button type="button" class="tour-open" id="tourAgain" data-tour="here" style="margin-bottom:12px">Walk me through this tab</button>
       <label class="settings-toggle on" id="qWrap">
         <input type="checkbox" id="qMarks" checked>
         <span><strong>Help marks</strong><span>A small ? beside each heading opens that section&rsquo;s explanation. Switch it off once you know your way around and the marks go entirely.</span></span>
@@ -3086,7 +3086,7 @@ h1 .title-word{white-space:nowrap}
         </button>
       </div>
 
-      <button type="button" class="tour-open" id="tourOpen" hidden>First time? Walk me through it &rarr;</button>
+      <button type="button" class="tour-open" id="tourOpen-price" data-tour="price" hidden>First time? Walk me through it &rarr;</button>
 
       <button type="button" class="listanyway" id="listAnyway" hidden></button>
 
@@ -3401,6 +3401,7 @@ h1 .title-word{white-space:nowrap}
         <p class="flip-lead" id="craftLead">Buy the inputs, craft one piece at random, sell it or break it</p>
         <p class="flip-figure" id="craftVerdict">—</p>
         <p class="flip-detail" id="craftDetail">Reading the collector's order books and sale history…</p>
+        <button type="button" class="tour-open" id="tourOpen-craft" data-tour="craft" hidden>First time? Walk me through it &rarr;</button>
         <div class="rarity-btns sort-pick" id="craftPick" role="tablist" aria-label="Rarity to craft"></div>
 
         <div class="craft-rows" id="craftRows"></div>
@@ -3457,6 +3458,7 @@ h1 .title-word{white-space:nowrap}
         <p class="flip-lead" id="caseLead">Buy a Case I, open it, sell what is worth selling and break the rest</p>
         <p class="flip-figure" id="caseVerdict">—</p>
         <p class="flip-detail" id="caseDetail">Reading case prices…</p>
+        <button type="button" class="tour-open" id="tourOpen-cases" data-tour="cases" hidden>First time? Walk me through it &rarr;</button>
         <div class="craft-rows" id="caseRows"></div>
         <p class="case-swing" id="caseSwing" hidden></p>
         <p class="craft-foot" id="caseFoot" data-qof="cases"></p>
@@ -3508,6 +3510,7 @@ h1 .title-word{white-space:nowrap}
         market tax.</div>
         <p class="flip-lead" id="sortLead">Every roll, by rarity, against what its scraps are worth</p>
         <p class="flip-detail" id="sortDetail">Reading the collector's sale history…</p>
+        <button type="button" class="tour-open" id="tourOpen-sort" data-tour="sort" hidden>First time? Walk me through it &rarr;</button>
         <div class="rarity-btns sort-pick" id="sortPick" role="tablist" aria-label="Rarity to sort"></div>
         <div class="scrap-src" id="sortGate">
           <span class="scrap-src-label">Only worth listing if it beats scrap by</span>
@@ -4582,34 +4585,102 @@ document.addEventListener('click',function(e){
    date with the layout. Step one types a real price and commits it, which is also the only
    honest way to show what the ✓ does: everything below the answer stays blank until it is
    pressed. The demo price is cleared on the way out. */
-var TOUR=[
-  {sel:'#priceField',tab:'price',title:'Start with their price',
-   body:'Open the marketplace in game, find the <b>cheapest listing</b> of the item you are '+
-        'holding, and type that price here. Everything else follows from this one number.',
-   next:'Try it with 51.500',
-   run:function(){
-     var el=$('price');el.value='51.500';el.dispatchEvent(new Event('input',{bubbles:true}));
-     if($('goBtn'))$('goBtn').click()
-   }},
-  {sel:'#docket',tab:'price',title:'This is what you type',
-   body:'Copy this into the game&rsquo;s sell box. It undercuts the cheapest seller by the '+
-        'smallest step the market allows, with the market tax already worked in. Tap the '+
-        'card to copy it.'},
-  {sel:'#quickScrap',tab:'price',title:'When not to sell at all',
-   body:'Every piece breaks down into scraps. Below this figure the scraps are worth more '+
-        'than the sale, so breaking it beats listing it.'},
-  {sel:'#tabBar',tab:'price',title:'The other three tabs',
-   body:'<b>Price</b> and <b>Sort</b> are for things you already have. <b>Craft</b> and '+
-        '<b>Cases</b> say whether buying in pays &mdash; the figure on the tab is the edge '+
-        'right now. Every heading has a <b>?</b> when you want the detail behind a number.',
-   next:'Done'}
-];
-var tourAt=-1,tourDim=null,tourRing=null,tourBubble=null;
-function tourSeen(){try{return localStorage.getItem('warera-calc-tour')==='done'}catch(e){return true}}
-function tourMark(){try{localStorage.setItem('warera-calc-tour','done')}catch(e){}}
+/* One walkthrough per tab rather than one long tour across four. Each card answers its own
+   question and people arrive at them separately - somebody who came to price a piece may
+   never open Cases, and somebody who did should not have to sit through Price to be shown
+   it. Each is offered on its own tab, remembered on its own, and never mentions the others.
+   A step whose anchor is missing or not laid out is dropped rather than ringing nothing,
+   because these cards hide parts of themselves until the collector has answered. */
+var TOURS={
+  price:[
+    {sel:'#priceField',title:'Start with their price',
+     body:'Open the marketplace in game, find the <b>cheapest listing</b> of the item you are '+
+          'holding, and type that price here. Everything else follows from this one number.',
+     next:'Try it with 51.500',
+     run:function(){
+       var el=$('price');el.value='51.500';el.dispatchEvent(new Event('input',{bubbles:true}));
+       if($('goBtn'))$('goBtn').click()
+     }},
+    {sel:'#docket',title:'This is what you type',
+     body:'Copy this into the game&rsquo;s sell box. It undercuts the cheapest seller by the '+
+          'smallest step the market allows, with the market tax already worked in. Tap the '+
+          'card to copy it.'},
+    {sel:'#quickScrap',title:'When not to sell at all',
+     body:'Every piece breaks down into scraps. Below this figure the scraps are worth more '+
+          'than the sale, so breaking it beats listing it.'},
+    {sel:'#tabBar',title:'The other three tabs',
+     body:'<b>Price</b> and <b>Sort</b> are for things you already have. <b>Craft</b> and '+
+          '<b>Cases</b> say whether buying in pays &mdash; the figure on the tab is the edge '+
+          'right now. Each has a walkthrough of its own, and every heading has a <b>?</b> '+
+          'when you want the detail behind a number.',
+     next:'Done'}
+  ],
+  craft:[
+    {sel:'#craftRows',title:'Every rarity at once',
+     body:'Crafting spends scraps and steel on one piece of a rarity you pick. This prices '+
+          'all six: what the inputs cost, what the piece sells for, and how often that '+
+          'rarity is worth breaking instead.'},
+    {sel:'#craftBooks',title:'Where the input prices come from',
+     body:'Live order books. You are not obliged to pay the asking price &mdash; rest a buy '+
+          'order one step above a <b>wall</b> and you pay less, but you wait. The ladder '+
+          'shows what is ahead of you at each level.'},
+    {sel:'#craftSimBtns',title:'The average is not the experience',
+     body:'The table above is what a craft returns on average. This rolls real ones against '+
+          'the same odds and prices, so you can see how wide the spread around that average '+
+          'actually is.',
+     next:'Done'}
+  ],
+  cases:[
+    {sel:'#caseVerdict',title:'A case is a bet on six rarities',
+     body:'One Case I hands you a random piece. This is what the average case holds against '+
+          'what a case costs you right now &mdash; the whole tab exists to answer whether '+
+          'that gap is positive.'},
+    {sel:'#caseRows',title:'Where the number comes from',
+     body:'<b>Odds</b> are the game&rsquo;s own. <b>Worth</b> is what an average piece of that '+
+          'rarity fetches. <b>Adds</b> is that rarity&rsquo;s share of a case&rsquo;s value, '+
+          'and the six add up to what a case holds.'},
+    {sel:'#caseSwing',title:'Read this before you buy a hundred',
+     body:'The edge is small and a single case swings far wider than it. This says how many '+
+          'cases it takes before profit reliably beats the swing &mdash; below that, a losing '+
+          'run is normal rather than evidence the edge is wrong.'},
+    {sel:'#caseBid',title:'Price it at your own bid',
+     body:'You can set the price you would actually pay rather than the market&rsquo;s. Leave '+
+          'it empty and the card prices at the top of the book, or tap one of the resting '+
+          'places below it.',
+     next:'Done'}
+  ],
+  sort:[
+    {sel:'#sortPick',title:'One rarity at a time',
+     body:'Pick a rarity and every roll it can produce is measured against what that '+
+          'roll&rsquo;s own scraps fetch. This is the tab for a stack of pieces rather than '+
+          'one in your hand.'},
+    {sel:'#sortRows',title:'The rule for keeping a roll',
+     body:'<b>Sell</b> is the cut line for that slot &mdash; anything at or above it earns a '+
+          'listing and the rest is scrap. Tap a row to see every roll behind the rule.'},
+    {sel:'#sortGate',title:'How much better than scrap is worth it',
+     body:'A piece that only just beats its scraps is not worth the listing slot. This is how '+
+          'far ahead it has to be, and the Craft and Cases tabs use the same bar.',
+     next:'Done'}
+  ]
+};
+var TOUR_TABS=['price','craft','cases','sort'];
+var tourName='',tourSteps=[],tourAt=-1,tourDim=null,tourRing=null,tourBubble=null;
+function tourKey(name){return 'warera-calc-tour'+(name==='price'?'':'-'+name)}
+function tourSeen(name){
+  try{return localStorage.getItem(tourKey(name))==='done'}catch(e){return true}
+}
+function tourMark(name){try{localStorage.setItem(tourKey(name),'done')}catch(e){}}
+// A card can be mid-load with half its parts absent; ringing an element of no size points
+// at nothing, so those steps simply are not in this run.
+function tourLive(step){
+  var el=document.querySelector(step.sel);
+  if(!el)return false;
+  var r=el.getBoundingClientRect();
+  return r.width>0&&r.height>0
+}
 function tourPlace(){
   if(tourAt<0)return;
-  var el=document.querySelector(TOUR[tourAt].sel);
+  var el=document.querySelector(tourSteps[tourAt].sel);
   if(!el||!tourRing)return;
   var r=el.getBoundingClientRect(),pad=6;
   tourRing.style.top=(r.top-pad)+'px';tourRing.style.left=(r.left-pad)+'px';
@@ -4622,63 +4693,77 @@ function tourPlace(){
   tourBubble.style.top=top+'px';tourBubble.style.left=left+'px'
 }
 function tourShow(i){
-  var step=TOUR[i];
-  if(step.tab)setTab(step.tab,false);
+  var step=tourSteps[i],last=i===tourSteps.length-1;
   var el=document.querySelector(step.sel);
   if(el)el.scrollIntoView({block:'center',behavior:'auto'});
-  tourBubble.innerHTML='<p class="tour-step">Step '+(i+1)+' of '+TOUR.length+'</p>'+
+  tourBubble.innerHTML='<p class="tour-step">Step '+(i+1)+' of '+tourSteps.length+'</p>'+
     '<p class="tour-title">'+step.title+'</p>'+
     '<p class="tour-body">'+step.body+'</p>'+
     '<div class="tour-btns">'+
-      '<button type="button" class="tour-next" id="tourNext">'+(step.next||'Next')+'</button>'+
-      '<button type="button" class="tour-skip" id="tourSkip">'+
-      (i===TOUR.length-1?'Close':'Skip')+'</button>'+
+      '<button type="button" class="tour-next" id="tourNext">'+
+      (step.next||(last?'Done':'Next'))+'</button>'+
+      '<button type="button" class="tour-skip" id="tourSkip">'+(last?'Close':'Skip')+'</button>'+
     '</div>';
   tourPlace();
   // A step that changes the page has to let the paint land before the ring is measured again.
   setTimeout(tourPlace,60)
 }
-function tourStart(){
+function tourOffer(){
+  for(var i=0;i<TOUR_TABS.length;i++){
+    var b=$('tourOpen-'+TOUR_TABS[i]);
+    if(b)b.hidden=tourSeen(TOUR_TABS[i])||tourAt>=0
+  }
+}
+function tourStart(name){
   if(tourAt>=0)return;
+  if(!TOURS[name])return;
   if($('settingsPanel'))$('settingsPanel').hidden=true;
+  setTab(name,false);
+  tourSteps=TOURS[name].filter(tourLive);
+  if(!tourSteps.length){tourMark(name);tourOffer();return}
+  tourName=name;
   tourDim=document.createElement('div');tourDim.className='tour-dim';
   tourRing=document.createElement('div');tourRing.className='tour-ring';
   tourBubble=document.createElement('div');tourBubble.className='tour-bubble';
-  tourBubble.setAttribute('role','dialog');tourBubble.setAttribute('aria-label','Walkthrough');
+  tourBubble.setAttribute('role','dialog');
+  tourBubble.setAttribute('aria-label',name+' walkthrough');
   document.body.appendChild(tourDim);document.body.appendChild(tourRing);
   document.body.appendChild(tourBubble);
   window.addEventListener('resize',tourPlace);window.addEventListener('scroll',tourPlace,true);
-  tourAt=0;tourShow(0);
-  if($('tourOpen'))$('tourOpen').hidden=true
+  tourAt=0;tourShow(0);tourOffer()
 }
 function tourEnd(){
   if(tourAt<0)return;
-  tourAt=-1;tourMark();
+  tourAt=-1;tourMark(tourName);
   window.removeEventListener('resize',tourPlace);window.removeEventListener('scroll',tourPlace,true);
   [tourDim,tourRing,tourBubble].forEach(function(e){if(e&&e.parentNode)e.parentNode.removeChild(e)});
   tourDim=tourRing=tourBubble=null;
   // Hand the page back the way it was found, so the first real price is typed into an empty field.
   var el=$('price');
   if(el&&el.value==='51.500'){el.value='';el.dispatchEvent(new Event('input',{bubbles:true}))}
-  if($('tourOpen'))$('tourOpen').hidden=true;
+  tourName='';tourSteps=[];tourOffer();
   window.scrollTo(0,0)
 }
 document.addEventListener('click',function(e){
-  var t=e.target&&e.target.closest?e.target.closest('#tourNext,#tourSkip,#tourOpen,#tourAgain'):null;
+  var t=e.target&&e.target.closest?e.target.closest('#tourNext,#tourSkip,[data-tour]'):null;
   if(!t)return;
   e.preventDefault();
-  var id=t.id;
-  if(id==='tourOpen'||id==='tourAgain'){tourStart();return}
-  if(id==='tourSkip'){tourEnd();return}
-  var step=TOUR[tourAt];
+  var want=t.getAttribute&&t.getAttribute('data-tour');
+  if(want){tourStart(want==='here'?currentTab():want);return}
+  if(t.id==='tourSkip'){tourEnd();return}
+  var step=tourSteps[tourAt];
   if(step&&step.run)step.run();
-  if(tourAt>=TOUR.length-1){tourEnd();return}
+  if(tourAt>=tourSteps.length-1){tourEnd();return}
   tourAt++;tourShow(tourAt)
 });
 document.addEventListener('keydown',function(e){
   if(tourAt>=0&&e.key==='Escape'){e.preventDefault();tourEnd()}
 });
-if(!tourSeen()&&$('tourOpen'))$('tourOpen').hidden=false;
+function currentTab(){
+  var b=document.querySelector('#tabBar [aria-selected="true"]');
+  return b?b.getAttribute('data-tab'):'price'
+}
+tourOffer();
 
 function entrySig(){
   var e=craftState.entry,out=[],k;
@@ -7652,7 +7737,10 @@ function tipShouldAsk(id){
   if(tipRead('warera-tipped-article')===id)return false;   // already tipped this one
   if(tipRead('warera-tip-skipped')===id)return false;      // already waved this one away
   if(tourAt>=0)return false;                               // never over the walkthrough
-  if($('tourOpen')&&!$('tourOpen').hidden)return false;     // nor before it has been offered
+  // Nor before the first-run walkthrough has been taken up. Only the Price offer counts:
+  // the other three stand until someone visits those tabs, and Settings' own button never
+  // hides at all, so either would have blocked the ask for good.
+  if($('tourOpen-price')&&!$('tourOpen-price').hidden)return false;
   if($('price')&&$('price').value)return false;             // nor over a price being worked on
   return tipUses()>=(tipRead('warera-tipped-article')?1:TIP_MIN_USES)
 }
