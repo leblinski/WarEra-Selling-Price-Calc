@@ -367,8 +367,10 @@ input:focus{outline:none;border-color:var(--brass);box-shadow:0 0 0 3px rgba(var
 .soundpick-btns{display:flex;gap:6px;flex-wrap:wrap}
 .soundbtn{
   border:1px solid rgba(var(--brass-rgb),.30);border-radius:999px;background:transparent;
-  color:var(--dim);cursor:pointer;padding:5px 13px;font-family:"Saira Condensed",sans-serif;
-  font-weight:600;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase
+  color:var(--dim);cursor:pointer;padding:5px 15px;font-family:"Saira Condensed",sans-serif;
+  font-weight:600;font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;
+  /* 44px is the smallest a finger reliably hits. These were 28. */
+  display:inline-flex;align-items:center;min-height:44px
 }
 .soundbtn[aria-pressed=true]{border-color:var(--brass);color:var(--brass);background:var(--panel)}
 .debug{white-space:pre-wrap;font-family:"IBM Plex Mono",monospace;font-size:10px;color:var(--dim);margin-top:8px}
@@ -531,7 +533,7 @@ kbd{
 }
 .scrap-btns{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px}
 #scrapPrice{
-  width:120px;height:40px;padding:0 11px;font-size:16px;background:var(--panel);
+  width:120px;height:44px;padding:0 11px;font-size:16px;background:var(--panel);
   border:1px solid rgba(var(--brass-rgb),.38);border-radius:var(--radius);
   color:var(--ink);font-family:"IBM Plex Mono",monospace
 }
@@ -586,9 +588,10 @@ kbd{
 .soundpick-btns{display:flex;gap:6px;flex-wrap:wrap}
 .soundbtn{
   border:1px solid rgba(var(--brass-rgb),.30);border-radius:999px;background:transparent;
-  color:var(--dim);cursor:pointer;padding:5px 12px;
+  color:var(--dim);cursor:pointer;padding:5px 14px;
   font-family:"Saira Condensed",sans-serif;font-weight:600;font-size:11.5px;
-  letter-spacing:.07em;text-transform:uppercase
+  letter-spacing:.07em;text-transform:uppercase;
+  display:inline-flex;align-items:center;min-height:44px
 }
 .soundbtn[aria-pressed=true]{border-color:var(--brass);color:var(--brass);background:var(--panel)}
 .stamp{
@@ -801,6 +804,9 @@ kbd{
   color:var(--ink);font-family:"IBM Plex Mono",monospace
 }
 .craft-fields input[readonly]{opacity:.7}
+/* The hint is a sentence where the value is a number, so it needs less room per character
+   than the figure the box is sized for. At the field's own size "top of book" lost its k. */
+.craft-fields input::placeholder{font-size:12.5px;opacity:.75}
 .craft-foot{margin:9px 0 0;font-size:11.5px;color:var(--dim);line-height:1.45}
 .sim-reel{
   position:relative;height:78px;margin:12px 0 10px;overflow:hidden;min-width:0;max-width:100%;
@@ -934,7 +940,7 @@ kbd{
   /* Wrapping made the chosen row taller than the rest, so the ladder read as ragged
      rather than as one column of comparable choices. These are controls, so they also
      take a thumb rather than a cursor. */
-  white-space:nowrap;min-height:34px
+  white-space:nowrap;min-height:44px
 }
 .zone-row .z-p{text-align:left}
 .zone-row:not(.head):hover{border-color:var(--line);color:var(--ink)}
@@ -946,6 +952,18 @@ kbd{
 }
 .zone-row.head:hover{border-color:transparent;color:var(--dim)}
 .zone-note{margin:6px 0 0;font-size:10.5px;color:var(--dim);line-height:1.45}
+/* The caveats are one tap away rather than one scroll long. */
+.foot-more{
+  /* A full 44px target, because a finger is 44px whatever the control is for, but with the
+     weight of a link rather than a button - a bordered pill this size would outrank the
+     figure it explains. */
+  display:inline-flex;align-items:center;min-height:44px;padding:0 2px;margin-left:4px;
+  border:0;background:transparent;text-decoration:underline;text-underline-offset:3px;
+  text-decoration-color:rgba(var(--brass-rgb),.5);
+  color:var(--brass);cursor:pointer;font-family:"Saira Condensed",sans-serif;font-weight:600;
+  font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;vertical-align:middle
+}
+.foot-rest[hidden]{display:none}
 .zone-note b{color:var(--ink);font-weight:500}
 .book-need b{color:var(--ink);font-weight:500}
 /* The variance caveat was sentence four of six and is the one that changes behaviour. */
@@ -1370,7 +1388,7 @@ kbd{
   }
 
   .rarity-compact{
-    display:inline-flex;align-items:center;gap:6px;margin:8px 0 5px;padding:0 10px;min-height:34px;
+    display:inline-flex;align-items:center;gap:6px;margin:8px 0 5px;padding:0 10px;min-height:44px;
     border:1px solid rgba(var(--brass-rgb),.27);border-radius:999px;background:var(--panel);
     color:var(--tier,var(--brass));cursor:pointer;font-family:"Saira Condensed",sans-serif;
     font-size:11.5px;font-weight:700;letter-spacing:.08em;touch-action:manipulation
@@ -2258,7 +2276,7 @@ h1 .title-word{white-space:nowrap}
     gap:5px!important;
     width:auto!important;
     min-width:58px!important;
-    height:34px!important;
+    height:44px!important;
     padding:0 9px!important;
     border:0!important;
     border-radius:999px!important;
@@ -4320,6 +4338,50 @@ function bookLevels(orders,dir,n){
   return out.slice(0,n||5)
 }
 function bookQty(n){return Math.round(n).toLocaleString()}
+/* Every correction this session earned itself a sentence in a footnote and none of them
+   took one away, so the case card reached 395 words with a single 1,015-character
+   paragraph in it. All of it is true and almost none of it is read.
+
+   The answer is not to delete the caveats - each is the difference between a figure you can
+   trust and one you cannot - but to stop making them the price of admission. One sentence of
+   provenance stays visible and the rest waits behind a word. Split on sentence boundaries
+   rather than a character count so the visible part is never a fragment, and remember the
+   open state per element, because these repaint on every keystroke and a panel that shuts
+   under you is worse than one that never opened. */
+var footOpen={};
+function footSplit(text,budget){
+  var lead='',i=0,n=text.length;
+  while(i<n){
+    var dot=text.indexOf('. ',i),end=dot<0?n:dot+1;
+    if(lead&&end>budget)break;
+    lead=text.slice(0,end);
+    if(dot<0||lead.length>=budget)break;
+    i=end+1
+  }
+  if(!lead)lead=text;
+  return {lead:lead,rest:text.slice(lead.length).replace(/^\s+/,'')}
+}
+function paintFoot(id,text){
+  var el=$(id);if(!el)return;
+  if(!text){el.textContent='';return}
+  var sp=footSplit(text,150);
+  if(!sp.rest){el.textContent=text;return}
+  var open=!!footOpen[id];
+  el.innerHTML=esc(sp.lead)+
+    ' <button type="button" class="foot-more" data-foot="'+id+'" aria-expanded="'+
+    (open?'true':'false')+'">'+(open?'Less':'Why this number')+'</button>'+
+    '<span class="foot-rest"'+(open?'':' hidden')+'> '+esc(sp.rest)+'</span>'
+}
+document.addEventListener('click',function(e){
+  var b=e.target&&e.target.closest?e.target.closest('[data-foot]'):null;
+  if(!b)return;
+  var id=b.getAttribute('data-foot'),open=!footOpen[id];
+  footOpen[id]=open;
+  var el=$(id),rest=el&&el.querySelector('.foot-rest');
+  if(rest)rest.hidden=!open;
+  b.setAttribute('aria-expanded',open?'true':'false');
+  b.textContent=open?'Less':'Why this number'
+});
 function entrySig(){
   var e=craftState.entry,out=[],k;
   for(k in e)if(Object.prototype.hasOwnProperty.call(e,k)&&e[k]!=null)out.push(k+':'+e[k]);
@@ -4981,7 +5043,7 @@ function paintCraft(){
     ' at once will push that down by an amount this cannot see.';
   foot+=untradedNote(mine.exp);
   foot+=taxGapNote();
-  footEl.textContent=foot
+  paintFoot(footEl.id,foot)
 }
 
 // A case is the same bet as a craft with the tier left to chance, so it reuses the per-tier
@@ -5375,7 +5437,7 @@ function paintCase(){
     }else swingEl.hidden=true
   }
   foot+=' Selling what you open moves these prices, and the more you open at once the more it moves them.';
-  footEl.textContent=foot;
+  paintFoot(footEl.id,foot);
   $('caseBooks').innerHTML=bookPanel('case1','Case I','res-case',n,n===1?'case':'cases',gross);
   paintCaseBid();
   noteEl.textContent=bookIsLive('case1')?'Cheapest case sell orders lifted in order, on a live Gateway book.'
@@ -5495,7 +5557,7 @@ function paintSort(){
     $('sortDetail').textContent=!craftState.summary||!craftState.books
       ?(craftState.error||'Reading the collector\u2019s sale history\u2026')
       :NO_SCRAP;
-    $('sortFoot').textContent='';return
+    paintFoot('sortFoot','');return
   }
   var html='',anyKnown=0,anySpace=0,only=sortShown();
   paintSortPick();
@@ -5539,10 +5601,10 @@ function paintSort(){
   box.innerHTML=html;
   $('sortDetail').textContent='A roll only earns a listing if it beats what its own scraps fetch. '+
     'Below the cut line, breaking it is worth more than selling it.';
-  $('sortFoot').textContent='Cut lines move with the scrap price, so they are computed fresh, not written down. '+
+  paintFoot('sortFoot','Cut lines move with the scrap price, so they are computed fresh, not written down. '+
     anySpace+' of '+anyKnown+' rolls with sale history clear the bar. Right-hand figure is how many of that '+
     'slot\u2019s seen rolls do. Open a slot and \u201clist at\u201d is the median of that roll\u2019s own recent '+
-    'sales, dimmed where fewer than '+THIN_SALES+' of them set it.'+taxGapNote();
+    'sales, dimmed where fewer than '+THIN_SALES+' of them set it.'+taxGapNote());
   paintSortGate()
 }
 /* A rule people cannot check is a rule they have to take on faith. Opening a slot shows
