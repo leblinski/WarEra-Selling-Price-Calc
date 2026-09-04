@@ -58,7 +58,53 @@ h1{
   letter-spacing:.1em;text-transform:uppercase;color:var(--dim)
 }
 .hist-clear:hover{color:var(--rust)}
-.hist-list{display:grid;gap:6px}
+/* ---- Priced pieces ------------------------------------------------------------
+   The game gives you no way to sort your own equipment, so pricing a stack means holding
+   the order in your head. Each piece you price becomes a tile instead: its icon, its roll
+   and its price, laid out so a glance finds the one you want. Tapping loads it back;
+   dragging groups them however you are actually working; the x drops one. */
+.hist-list{display:flex;flex-wrap:wrap;gap:7px;touch-action:pan-y}
+.ptile{
+  position:relative;width:78px;flex:none;border-radius:9px;
+  border:1px solid var(--tier,rgba(var(--brass-rgb),.3));background:var(--panel);
+  overflow:hidden;transition:box-shadow .12s ease
+}
+.ptile-body{
+  display:block;width:100%;padding:0;border:0;background:none;color:inherit;font:inherit;
+  cursor:pointer;text-align:center;-webkit-tap-highlight-color:transparent
+}
+.ptile-art{position:relative;display:block;width:100%;aspect-ratio:1/1}
+.ptile-art i{
+  position:absolute;inset:0;background-image:url('items.png');
+  background-size:600% 600%;background-repeat:no-repeat
+}
+/* The roll is the thing you are choosing between, so it sits on the piece rather than under
+   it - a caption below would push the tile past the size that lets six fit a phone. */
+.ptile-roll{
+  position:absolute;left:0;right:0;bottom:0;padding:2px 3px;
+  background:linear-gradient(to top,rgba(0,0,0,.82),rgba(0,0,0,0));
+  font-family:"IBM Plex Mono",monospace;font-size:10px;line-height:1.25;color:#fff;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis
+}
+.ptile-price{
+  display:block;padding:3px 2px 4px;font-family:"IBM Plex Mono",monospace;font-size:11px;
+  font-variant-numeric:tabular-nums;color:var(--brass);white-space:nowrap;overflow:hidden
+}
+.ptile-x{
+  position:absolute;top:0;right:0;width:22px;height:22px;padding:0;line-height:1;
+  border:0;border-radius:0 8px 0 8px;background:rgba(0,0,0,.55);color:var(--dim);
+  font-size:13px;cursor:pointer;opacity:0;transition:opacity .12s ease
+}
+.ptile:hover .ptile-x,.ptile:focus-within .ptile-x{opacity:1}
+.ptile-x:hover{background:var(--rust);color:#fff}
+/* A finger has no hover, so the control is simply there on a touch screen. */
+@media (hover:none){.ptile-x{opacity:.85}}
+.ptile.dragging{
+  pointer-events:none;z-index:5;opacity:.9;
+  box-shadow:0 10px 26px rgba(0,0,0,.5);border-color:var(--brass)
+}
+.ptile.over{box-shadow:0 0 0 2px var(--brass) inset}
+@media (prefers-reduced-motion:reduce){.ptile,.ptile-x{transition:none}}
 .hist-item{
   position:relative;width:100%;text-align:left;font:inherit;color:inherit;
   background:var(--panel);border:1px solid rgba(var(--brass-rgb),.26);border-radius:8px;
@@ -2979,9 +3025,9 @@ h1 .title-word{white-space:nowrap}
     <main>
       <div class="tabbar" role="tablist" id="tabBar">
         <button type="button" class="tabbtn" role="tab" data-tab="price" aria-selected="true">Price</button>
+        <button type="button" class="tabbtn" role="tab" data-tab="sort" aria-selected="false">Sort</button>
         <button type="button" class="tabbtn" role="tab" data-tab="craft" aria-selected="false">Craft <span class="tabdot"></span><b id="tabCraftVal"></b></button>
         <button type="button" class="tabbtn" role="tab" data-tab="cases" aria-selected="false">Cases <span class="tabdot"></span><b id="tabCaseVal"></b></button>
-        <button type="button" class="tabbtn" role="tab" data-tab="sort" aria-selected="false">Sort</button>
       </div>
 
       <div class="tabpane" id="paneprice">
@@ -3545,7 +3591,7 @@ h1 .title-word{white-space:nowrap}
         <button type="button" class="hist-clear" id="histClear" hidden>Clear</button>
       </div>
       <div class="hist-list" id="histList"></div>
-      <p class="hist-empty" id="histEmpty">Your recent recommendations will collect here. Tap one to copy the recommended price.</p>
+      <p class="hist-empty" id="histEmpty">Every piece you price lands here as a tile. Tap one to load it back, drag to group them, &times; to drop one.</p>
     </aside>
   </div>
 
@@ -4605,14 +4651,22 @@ var TOURS={
      body:'Copy this into the game&rsquo;s sell box. It undercuts the cheapest seller by the '+
           'smallest step the market allows, with the market tax already worked in. Tap the '+
           'card to copy it.'},
+    {sel:'#goBtn',title:'It is already copied',
+     body:'You never have to select that number. <b>Enter</b> on the keypad, or this tick, '+
+          'calculates and puts the figure straight on your clipboard &mdash; switch to the '+
+          'game and paste.'},
     {sel:'#quickScrap',title:'When not to sell at all',
      body:'Every piece breaks down into scraps. Below this figure the scraps are worth more '+
           'than the sale, so breaking it beats listing it.'},
     {sel:'#tabBar',title:'The other three tabs',
-     body:'<b>Price</b> and <b>Sort</b> are for things you already have. <b>Craft</b> and '+
-          '<b>Cases</b> say whether buying in pays &mdash; the figure on the tab is the edge '+
-          'right now. Each has a walkthrough of its own, and every heading has a <b>?</b> '+
-          'when you want the detail behind a number.',
+     body:'The first two, <b>Price</b> and <b>Sort</b>, are for things you already have. The '+
+          'last two, <b>Craft</b> and <b>Cases</b>, say whether buying in pays &mdash; the '+
+          'figure on the tab is the edge right now. Each has a walkthrough of its own, and every heading has a <b>?</b> '+
+          'when you want the detail behind a number.'},
+    {sel:'.history',title:'Everything you priced stays here',
+     body:'Each piece you price becomes a tile with its icon, its roll and its price. Tap one '+
+          'to load it back and copy the figure again, drag them into whatever groups you like, '+
+          'and use the &times; to drop one.',
      next:'Done'}
   ],
   craft:[
@@ -4663,7 +4717,7 @@ var TOURS={
      next:'Done'}
   ]
 };
-var TOUR_TABS=['price','craft','cases','sort'];
+var TOUR_TABS=['price','sort','craft','cases'];
 var tourName='',tourSteps=[],tourAt=-1,tourDim=null,tourRing=null,tourBubble=null;
 function tourKey(name){return 'warera-calc-tour'+(name==='price'?'':'-'+name)}
 function tourSeen(name){
@@ -5907,7 +5961,7 @@ var dataStampHold=0;
    The craft and case cards were half the page and sat in the way of the thing done every
    time. They keep their answers on the tab itself, so moving them out of the scroll path
    does not mean losing sight of whether either is currently worth doing. */
-var TABS=['price','craft','cases','sort'];
+var TABS=['price','sort','craft','cases'];
 function currentTab(){
   try{var t=localStorage.getItem('warera-calc-tab');return TABS.indexOf(t)>=0?t:'price'}
   catch(e){return 'price'}
@@ -6416,8 +6470,22 @@ function copyCore(){
   copyTextSafe(value);
   addRecentCore(state.lastPrice,value)
 }
+/* Loading a tile back runs the same calculate-and-copy an Enter does, which would file the
+   result as a new piece. It is the piece that is already there, so nothing is filed and the
+   group the reader arranged stays as they arranged it. */
+var recentQuiet=false;
 function addRecentCore(inp,out){
-  var a=readRecent(),entry={price:out,item:'Calculator',roll:'from '+inp,mode:$('beatMode').checked?'beat':'convert',t:Date.now()};
+  if(recentQuiet)return;
+  var a=readRecent(),entry={
+    price:out,inp:inp==null?'':String(inp),
+    item:itemName()||(tierKnown()?tier().name:'Calculator'),
+    roll:state.slot?describeRoll():'',short:state.slot?compactRoll():'',
+    tier:tierKnown()?state.tier:0,slot:state.slot||'',
+    mode:$('beatMode').checked?'beat':'convert',t:Date.now()};
+  // The same piece priced twice is one tile, kept where it already sits in the group.
+  a=a.filter(function(x){
+    return !(x.price===entry.price&&x.item===entry.item&&x.roll===entry.roll)
+  });
   a.unshift(entry);saveRecent(a);renderRecent()
 }
 function scrollToCard(el){
@@ -7885,7 +7953,18 @@ function loadLocalProfile(){
 
 /* recent recommendations */
 function readRecent(){try{return JSON.parse(sessionStorage.getItem('warera-calc-history-v60')||'[]')}catch(e){return []}}
-function saveRecent(a){try{sessionStorage.setItem('warera-calc-history-v60',JSON.stringify(a.slice(0,14)))}catch(e){}}
+function saveRecent(a){try{sessionStorage.setItem('warera-calc-history-v60',JSON.stringify(a.slice(0,30)))}catch(e){}}
+/* The roll is what you are choosing between, and on a tile there is room for the numbers
+   but not their names: a weapon is attack/crit, everything else is its one stat. */
+function compactRoll(){
+  var specs=rollSpecs(),out=[],i,v;
+  for(i=0;i<specs.length;i++){
+    v=state.rolls[specs[i].key];
+    if(v===undefined||v===null||v==='')return '';
+    out.push(v)
+  }
+  return out.join('/')
+}
 function addRecent(price){
   if(!state.slot)return;
   var p=Number(price),shown=Number.isFinite(p)?fmt(p):String(price);
@@ -7896,9 +7975,44 @@ function addRecent(price){
 function renderRecent(){
   var a=readRecent();$('histClear').hidden=!a.length;$('histEmpty').hidden=!!a.length;
   $('histList').innerHTML=a.map(function(x,i){
-    return '<button type="button" class="hist-item" data-recent="'+i+'"><span class="hist-in">'+esc(x.price)+'</span>'
-      +'<span class="hist-out">'+esc(x.item)+' · '+esc(x.roll)+' · '+esc(x.mode)+'</span></button>'
+    var colour=x.tier?RARITIES[x.tier-1].colour:'rgba(160,160,160,.4)';
+    var art=x.slot&&x.tier
+      ? '<i style="background-position:'+(sheetColumn(x.slot)*20)+'% '+((x.tier-1)/5*100)+'%"></i>'
+      : '<i style="background:none"></i>';
+    var label=(x.item||'')+(x.short&&x.roll?' \u00b7 '+x.roll:'')+
+      (x.inp?' \u00b7 priced against '+x.inp:'');
+    return '<div class="ptile" data-idx="'+i+'" style="--tier:'+colour+'">'+
+      '<button type="button" class="ptile-body" title="'+esc(label)+'">'+
+        '<span class="ptile-art">'+art+
+          (x.short?'<span class="ptile-roll">'+esc(x.short)+'</span>':'')+
+        '</span>'+
+        '<span class="ptile-price">'+esc(x.price)+'</span>'+
+      '</button>'+
+      '<button type="button" class="ptile-x" data-drop="'+i+'" aria-label="Remove '+
+        esc(label||x.price)+'">\u00d7</button>'+
+    '</div>'
   }).join('')
+}
+/* Dragging with pointer events rather than the HTML5 drag API, which a touch screen does
+   not fire at all. A few pixels of slop before it counts as a drag keeps a tap a tap, and
+   the tile being carried drops out of hit-testing so elementFromPoint names the one under
+   it rather than itself. */
+var dragTile=null,dragIdx=-1,dragX=0,dragY=0,dragging=false,dragBlockClick=false;
+function tileIndexAt(x,y){
+  var el=document.elementFromPoint(x,y);
+  var t=el&&el.closest?el.closest('.ptile'):null;
+  return t?Number(t.getAttribute('data-idx')):-1
+}
+function moveRecent(from,to){
+  var a=readRecent();
+  if(from<0||to<0||from>=a.length||to>=a.length||from===to)return;
+  a.splice(to,0,a.splice(from,1)[0]);
+  saveRecent(a);renderRecent()
+}
+function dropRecent(i){
+  var a=readRecent();
+  if(i<0||i>=a.length)return;
+  a.splice(i,1);saveRecent(a);renderRecent()
 }
 function copyText(s){
   if(navigator.clipboard&&navigator.clipboard.writeText)return navigator.clipboard.writeText(s).catch(function(){});
@@ -8379,9 +8493,63 @@ $('copyRawBtn').addEventListener('click',function(){
 
 $('histClear').addEventListener('click',function(){saveRecent([]);renderRecent()});
 $('histList').addEventListener('click',function(e){
-  var b=e.target.closest('[data-recent]');if(!b)return;
-  var x=readRecent()[Number(b.getAttribute('data-recent'))];if(x)copyTextSafe(x.price)
+  if(dragBlockClick)return;
+  var drop=e.target.closest('[data-drop]');
+  if(drop){dropRecent(Number(drop.getAttribute('data-drop')));return}
+  var b=e.target.closest('.ptile');if(!b)return;
+  var x=readRecent()[Number(b.getAttribute('data-idx'))];if(!x)return;
+  /* Tapping a tile is typing that price and pressing Enter: the card re-derives the
+     recommendation from the market price this piece was priced against, and the figure
+     lands on the clipboard the same way it would have the first time. Older tiles kept no
+     input price, so those fall back to handing back what they stored. */
+  if(x.inp){
+    var el=$('price');
+    el.value=x.inp;state.keyBuffer=x.inp;
+    el.dispatchEvent(new Event('input',{bubbles:true}));
+    recentQuiet=true;
+    try{coreCalc(true);copyCore()}finally{recentQuiet=false}
+    scrollToWork()
+  }else copyTextSafe(x.price)
 });
+$('histList').addEventListener('pointerdown',function(e){
+  if(e.button&&e.button!==0)return;
+  if(e.target.closest('[data-drop]'))return;
+  var t=e.target.closest('.ptile');if(!t)return;
+  dragTile=t;dragIdx=Number(t.getAttribute('data-idx'));
+  dragX=e.clientX;dragY=e.clientY;dragging=false;
+  try{t.setPointerCapture(e.pointerId)}catch(err){}
+});
+$('histList').addEventListener('pointermove',function(e){
+  if(!dragTile)return;
+  var dx=e.clientX-dragX,dy=e.clientY-dragY;
+  // Slop, so a tap that wobbles is still a tap.
+  if(!dragging){
+    if(Math.abs(dx)+Math.abs(dy)<8)return;
+    dragging=true;dragTile.classList.add('dragging')
+  }
+  e.preventDefault();
+  dragTile.style.transform='translate('+dx+'px,'+dy+'px)';
+  var over=tileIndexAt(e.clientX,e.clientY);
+  Array.prototype.forEach.call($('histList').children,function(el){
+    el.classList.toggle('over',over>=0&&Number(el.getAttribute('data-idx'))===over&&over!==dragIdx)
+  })
+});
+function endDrag(e){
+  if(!dragTile)return;
+  var was=dragging,to=was?tileIndexAt(e.clientX,e.clientY):-1;
+  try{if(e.pointerId!=null)dragTile.releasePointerCapture(e.pointerId)}catch(err){}
+  dragTile.classList.remove('dragging');dragTile.style.transform='';
+  Array.prototype.forEach.call($('histList').children,function(el){el.classList.remove('over')});
+  dragTile=null;dragging=false;
+  if(was){
+    // A drag that ends on a tile is a reorder; one that ends anywhere else just puts it back.
+    if(to>=0&&to!==dragIdx)moveRecent(dragIdx,to);
+    // The click that follows the release is the drag's own, not a tap on a tile.
+    dragBlockClick=true;setTimeout(function(){dragBlockClick=false},0)
+  }
+}
+$('histList').addEventListener('pointerup',endDrag);
+$('histList').addEventListener('pointercancel',endDrag);
 
 var awayAt=0;
 function markAway(){if(!awayAt)awayAt=Date.now()}
