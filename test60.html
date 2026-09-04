@@ -215,7 +215,7 @@ input:focus{outline:none;border-color:var(--brass);box-shadow:0 0 0 3px rgba(var
 .docket{
   position:relative;display:block;width:100%;text-align:left;background:var(--panel-2);
   border:1px solid var(--brass-deep);border-radius:var(--radius);
-  padding:18px 20px 20px;margin-bottom:10px;overflow:hidden;color:inherit
+  padding:14px 18px 15px;margin-bottom:10px;overflow:hidden;color:inherit
 }
 .docket::before{
   content:"";position:absolute;left:0;top:0;bottom:0;width:5px;
@@ -225,8 +225,11 @@ input:focus{outline:none;border-color:var(--brass);box-shadow:0 0 0 3px rgba(var
   font-family:"Saira Condensed",sans-serif;font-weight:600;font-size:12.5px;
   letter-spacing:.14em;text-transform:uppercase;color:var(--brass);margin:0 0 2px
 }
+/* It is the answer, so it has to be findable at a glance - but at 46px it was larger than
+   anything else on the page by half again, and read as a banner rather than a figure. The
+   phone already used 34; the wide layout was the outlier. */
 .docket-figure{
-  font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:46px;line-height:1.12;
+  font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:34px;line-height:1.14;
   letter-spacing:-.02em;font-variant-numeric:tabular-nums;margin:0;word-break:break-all
 }
 .docket-hint{font-size:13px;color:var(--dim);margin:4px 0 0}
@@ -1009,6 +1012,22 @@ kbd{
 .books:not(.pair){max-width:430px}
 @media(min-width:560px){.books.pair{grid-template-columns:1fr 1fr}}
 .book{border:1px solid var(--line);border-radius:9px;background:var(--panel);padding:9px 11px 10px}
+/* The books are the one thing on these cards that moves minute to minute, and the only way
+   to pull them again was a strip two screens down that talks about sale prices. Same size and
+   weight as the ? beside it, because it is the same kind of control - a small thing you reach
+   for on purpose, not a call to action. */
+.book-refresh{
+  position:relative;display:inline-flex;align-items:center;justify-content:center;flex:none;
+  width:17px;height:17px;margin-left:6px;padding:0;vertical-align:middle;
+  border:1px solid rgba(var(--brass-rgb),.5);border-radius:50%;background:transparent;
+  color:var(--brass);cursor:pointer;font-size:11px;line-height:1
+}
+.book-refresh::before{content:"";position:absolute;inset:-14px;border-radius:50%}
+.book-refresh:hover{border-color:var(--brass)}
+.book-refresh[disabled]{opacity:.5;cursor:default}
+.book-refresh.spin-now{animation:bookspin .9s linear infinite}
+@keyframes bookspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.book-refresh.spin-now{animation:none;opacity:.6}}
 .book-head{
   display:flex;align-items:center;gap:0;margin:0 0 7px;
   font-family:"Saira Condensed",sans-serif;font-weight:600;font-size:11.5px;
@@ -1460,6 +1479,24 @@ kbd{
 
 @media(min-width:821px){
   .workrail{display:none}
+  .trend-toolbar{position:static;background:transparent}
+}
+/* The keypad exists because a phone's own keyboard covers the page it is typing into. Half a
+   desktop screen is narrow for the same reason a phone is, but it still has a real keyboard
+   and no such problem - so the width was never the right question, the pointer is. Anything
+   driven by a mouse gets the desktop work row at any width. */
+@media (hover:hover) and (pointer:fine){
+  .workrail{display:none}
+  .salestab{display:none}
+  .workrow{display:block;margin-top:18px}
+  .workpane{height:auto}
+  .keypad{display:none!important}
+  .salespane{
+    display:flex!important;height:auto;overflow:visible;
+    border:1px solid rgba(var(--brass-rgb),.22);
+    border-radius:var(--radius);padding:18px;background:rgba(var(--brass-rgb),.025)
+  }
+  .workrow.queue-open .salespane{display:none!important}
   .trend-toolbar{position:static;background:transparent}
 }
 @media(max-width:820px){
@@ -4950,6 +4987,8 @@ function bookPanel(code,name,icon,need,unit,gross){
     '<p class="book-head"><i aria-hidden="true" class="res '+icon+' res-in"></i>'+esc(name)+
     '<button type="button" class="q" data-q="book" aria-expanded="false" '+
     'aria-label="How to read an order book">?</button>'+
+    '<button type="button" class="book-refresh'+(bookBusy?' spin-now':'')+'" data-bookrefresh'+
+    (bookBusy?' disabled':'')+' aria-label="Read the order books again">\u21bb</button>'+
     '<span class="book-spread">'+spread+(bookIsLive(code)?' \u00b7 live':'')+'</span></p>'+
     '<div class="qbody" data-qof="book"><b>Buy orders</b> are what people will pay; '+
     '<b>sell orders</b> what they are asking. A <b>wall</b> is a large order others must clear '+
@@ -5070,11 +5109,11 @@ function gatewayBook(code){
 // each visitor's own browser against their own key, so nobody is spending anyone else's
 // allowance on it.
 function loadGatewayBooks(force){
-  if(craftState.liveLoading)return;
-  if(!apiKey()){craftState.live=null;craftState.liveError='No API key set.';return}
-  if(!force&&craftState.live&&Date.now()-craftState.liveAt<GATEWAY_TTL)return;
+  if(craftState.liveLoading)return Promise.resolve();
+  if(!apiKey()){craftState.live=null;craftState.liveError='No API key set.';return Promise.resolve()}
+  if(!force&&craftState.live&&Date.now()-craftState.liveAt<GATEWAY_TTL)return Promise.resolve();
   craftState.liveLoading=true;
-  Promise.all(['scraps','steel','case1'].map(function(c){
+  return Promise.all(['scraps','steel','case1'].map(function(c){
     return gatewayBook(c).then(function(b){return [c,b]},function(e){return [c,null,e]})
   })).then(function(res){
     craftState.liveLoading=false;
@@ -5086,6 +5125,35 @@ function loadGatewayBooks(force){
     paintCraft();paintCase();paintSort();paintCutCard();paintRollFacts()
   })
 }
+/* Whichever source the books are actually coming from is the one the button pulls: a live
+   Gateway read where there is a key for it, the collector's own commodities file otherwise.
+   The busy latch lives outside the panels because they are rebuilt by innerHTML on every
+   repaint, so the spinning state has to survive being redrawn. */
+var bookBusy=false;
+function refreshBooks(){
+  if(bookBusy)return;
+  bookBusy=true;paintBooksNow();
+  var done=function(){
+    bookBusy=false;
+    craftState.sig=null;craftState.caseSig=null;craftState.sortSig=null;
+    paintCraft();paintCase();paintSort();paintCutCard();paintDataStamp()
+  };
+  var job=apiKey()
+    ? loadGatewayBooks(true)
+    : loadBooks(true).then(function(b){if(b)craftState.books=b},function(){});
+  Promise.resolve(job).then(done,done)
+}
+// Only the panels need redrawing to show the button turning; the figures have not moved yet.
+function paintBooksNow(){
+  craftState.sig=null;craftState.caseSig=null;
+  paintCraft();paintCase()
+}
+document.addEventListener('click',function(e){
+  var b=e.target&&e.target.closest?e.target.closest('[data-bookrefresh]'):null;
+  if(!b)return;
+  e.preventDefault();e.stopPropagation();
+  refreshBooks()
+},true);
 /* Sorting a pile of loot is a different question from pricing one item: not "what is this
    worth" but "is it worth listing at all". A roll whose sale price clears what its scraps
    fetch is worth a listing; the rest are scrap however the market moves. Both answers come
