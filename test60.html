@@ -857,6 +857,33 @@ kbd{
 @keyframes simpop{from{opacity:0;transform:scale(.68)}to{opacity:1;transform:none}}
 .sim-grid .sim-tile{animation:simpop 240ms cubic-bezier(.2,1.25,.4,1) both}
 @media (prefers-reduced-motion:reduce){.sim-grid .sim-tile{animation:none}}
+/* A batch small enough to have opened in the game deserves the same reveal one case gets.
+   Each tile is its own little reel: a column of decoys with the real pull at the bottom,
+   wound past the window and stopped on it, left to right. Percentages on translateY are
+   of the column's own height, which is one cell, so the distance is just how many decoys
+   there are - the whole thing is CSS with two inline custom properties. */
+@keyframes simspin{from{transform:translateY(0)}to{transform:translateY(var(--end))}}
+.sim-grid .sim-tile.spin{animation:none;overflow:hidden}
+.sim-grid .sim-tile.spin .sim-col{
+  position:absolute;left:0;right:0;top:0;height:100%;display:flex;flex-direction:column;
+  will-change:transform;
+  animation:simspin var(--dur,1050ms) cubic-bezier(.11,.78,.14,1) var(--delay,0ms) both
+}
+.sim-grid .sim-tile.spin .sim-col>i{
+  flex:0 0 100%;height:100%;display:block;background-image:url('items.png');
+  background-size:600% 600%;background-repeat:no-repeat
+}
+/* The line the tile settles on, so a stopped reel reads as stopped. */
+.sim-grid .sim-tile.spin::after{
+  content:"";position:absolute;left:0;right:0;top:50%;height:1px;margin-top:-1px;
+  background:rgba(var(--brass-rgb),.55);pointer-events:none;
+  animation:simfade var(--dur,1050ms) linear var(--delay,0ms) both
+}
+@keyframes simfade{0%{opacity:.9}80%{opacity:.9}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){
+  .sim-grid .sim-tile.spin .sim-col{animation:none;transform:translateY(var(--end))}
+  .sim-grid .sim-tile.spin::after{animation:none;opacity:0}
+}
 /* A piece you broke is not a piece you sold, and a haul that does not say which is a haul
    you cannot read. Same two channels the roll grid uses: dimmed, and hatched. */
 .sim-tile.blank{opacity:.32}
@@ -866,18 +893,17 @@ kbd{
   background:repeating-linear-gradient(45deg,transparent 0 3px,rgba(0,0,0,.5) 3px 6px)
 }
 .sim-count{margin:0 0 2px;font-size:11.5px;color:var(--dim)}
-/* Ten tiles sit under the answer happily. A hundred is a screenful, and the answer ends up
-   below it, which means scrolling away from the thing you pressed the button for. Past a
-   batch you could have opened in the game, the answer leads and the tiles fill in under it. */
+/* The answer used to sit under the haul for ten and over it for a hundred, so the figure
+   you pressed the button for moved when you changed the batch size. It leads at every size
+   now. Nothing is given away by the position: the headline is only written when the run
+   finishes, and it holds an empty box of its own height until then so the haul underneath
+   does not jump when the number lands. */
 .sim-out{display:flex;flex-direction:column}
-.sim-out .sim-haul{order:1}
-.sim-out .sim-headline{order:2}
-.sim-out .sim-result{order:3}
-.sim-out .sim-tally{order:4}
-.sim-out.lead .sim-headline{order:1}
-.sim-out.lead .sim-result{order:2}
-.sim-out.lead .sim-tally{order:3}
-.sim-out.lead .sim-haul{order:4;margin-top:12px}
+.sim-out .sim-headline{order:1}
+.sim-out .sim-result{order:2}
+.sim-out .sim-tally{order:3}
+.sim-out .sim-haul{order:4;margin-top:12px}
+.sim-headline.waiting{visibility:hidden}
 /* The marker the strip settles under, same idea as the game's own panel. */
 .sim-reel::after{
   content:"";position:absolute;left:50%;top:4px;bottom:4px;width:2px;margin-left:-1px;
@@ -3403,10 +3429,12 @@ h1 .title-word{white-space:nowrap}
           <span class="scrap-src-label">Try your luck<button type="button" class="q" data-q="craftsim" aria-expanded="false" aria-label="What the simulator does">?</button></span>
           <div class="sim-btns" id="craftSimBtns">
             <button type="button" class="soundbtn" data-craftsim="1">Craft 1</button>
+            <button type="button" class="soundbtn" data-craftsim="5">5</button>
             <button type="button" class="soundbtn" data-craftsim="10">10</button>
             <button type="button" class="soundbtn" data-craftsim="100">100</button>
             <button type="button" class="soundbtn" data-craftsim="count">Use the number above</button>
           </div>
+          <div class="sim-reel" id="craftSimReel" hidden><div class="sim-strip" id="craftSimStrip"></div></div>
           <div class="sim-out" id="craftSimOut">
             <div class="sim-haul" id="craftSimHaul"></div>
             <p class="sim-headline" id="craftSimHeadline" hidden></p>
@@ -3451,6 +3479,7 @@ h1 .title-word{white-space:nowrap}
           <span class="scrap-src-label">Try your luck<button type="button" class="q" data-q="casesim" aria-expanded="false" aria-label="What the simulator does">?</button></span>
           <div class="sim-btns" id="simBtns">
             <button type="button" class="soundbtn" data-sim="1">Open 1</button>
+            <button type="button" class="soundbtn" data-sim="5">5</button>
             <button type="button" class="soundbtn" data-sim="10">10</button>
             <button type="button" class="soundbtn" data-sim="100">100</button>
             <button type="button" class="soundbtn" data-sim="1000">1000</button>
@@ -5389,13 +5418,19 @@ var SIM_TILES=100;
 // The size past which a haul stops being something you look at and starts being something
 // you scroll past - the same ten the grid uses for its big tiles.
 var SIM_LEAD=10;
-function simLead(box,n){var el=$(box);if(el)el.classList.toggle('lead',n>SIM_LEAD)}
+/* The batch sizes that get the reel treatment - the ones you could have opened in the game
+   in one go and would actually watch. Past this a run is a result, not an opening. */
+var SPIN_MAX=10,SPIN_DUR=1050,SPIN_STAGGER=95;
+function spinMs(count){return SPIN_DUR+SPIN_STAGGER*(count-1)+140}
+/* Kept so a run can park the headline's box while it is in flight; the order no longer
+   depends on the count. */
+function simWait(id,on){var el=$(id);if(el){el.hidden=false;el.classList.toggle('waiting',!!on)}}
 /* The whole reveal fits a fixed budget rather than a fixed step, so ten cases land
    deliberately and a hundred still finish inside a second. */
 var SIM_REVEAL=1100;
 function simStep(count){return count<2?0:Math.min(70,SIM_REVEAL/count)}
 function simRevealMs(count){return count<2?0:simStep(count)*(count-1)+240}
-function simHaul(results,label){
+function simHaul(results,label,pick){
   var n=results.length,show=results,note='';
   if(n>SIM_TILES){
     // Truncating in draw order would show a hundred Commons and hide every rare, which is
@@ -5407,15 +5442,37 @@ function simHaul(results,label){
   // Big tiles for a batch you could have opened in the game in one go; past that they
   // shrink to fit, and the cap keeps even the largest haul inside one screen.
   var size=show.length<=10?'big':'mid',out=note+'<div class="sim-grid '+size+'">';
+  // A batch you could have opened in the game gets reels; a hundred gets the staggered pop,
+  // because a hundred reels is not a reveal, it is a screen of noise.
+  var spin=!!pick&&show.length<=SPIN_MAX;
   var step=simStep(show.length);
   for(var i=0;i<show.length;i++){
     var r=show[i],name=RARITIES[r.tier-1].name+' '+slotName(r.slot);
-    out+=simTile(r.tier,r.slot,r.broke,r.unpriced,
-      name+' \u00b7 '+(r.unpriced?'no collected sales'
-                                 :(r.broke?'broken for ':'sold for ')+r.net.toFixed(3)),
-      Math.round(i*step))
+    var title=name+' \u00b7 '+(r.unpriced?'no collected sales'
+                                 :(r.broke?'broken for ':'sold for ')+r.net.toFixed(3));
+    out+=spin?simSpinTile(r,title,pick,i):simTile(r.tier,r.slot,r.broke,r.unpriced,title,
+                                                  Math.round(i*step))
   }
-  return {html:out+'</div>',ms:simRevealMs(show.length)}
+  return {html:out+'</div>',ms:spin?spinMs(show.length):simRevealMs(show.length)}
+}
+/* One tile, wound past a column of decoys onto the real pull. The decoys come from the same
+   odds the run itself drew from, so a reel that stops on a Legendary has been showing the
+   kind of thing that could plausibly have stopped there. */
+var SPIN_DECOYS=9;
+function simSpinTile(r,title,pick,i){
+  var col='',j,d;
+  for(j=0;j<SPIN_DECOYS;j++){
+    d=pick();
+    col+='<i style="background-position:'+(sheetColumn(d.slot)*20)+'% '+((d.tier-1)/5*100)+'%"></i>'
+  }
+  col+='<i style="background-position:'+(sheetColumn(r.slot)*20)+'% '+((r.tier-1)/5*100)+'%"></i>';
+  return '<div class="sim-tile spin'+(r.broke?' broke':'')+(r.unpriced?' blank':'')+
+    '" style="--tier:'+RARITIES[r.tier-1].colour+
+    ';--end:-'+(SPIN_DECOYS*100)+'%;--dur:'+SPIN_DUR+'ms;--delay:'+(i*SPIN_STAGGER)+'ms"'+
+    ' title="'+esc(title)+'"><div class="sim-col">'+col+'</div></div>'
+}
+function casePick(){
+  return {tier:simPick(CASE_TIER_ODDS)+1,slot:SLOTS[Math.floor(Math.random()*SLOTS.length)].code}
 }
 var simBusy=false,simToken=0;
 function simRun(n){
@@ -5472,30 +5529,31 @@ function simRun(n){
   var reel=$('simReel'),strip=$('simStrip');
   var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
   if(n>1){
-    var h=simHaul(results,'cases');
-    simLead('simOut',n);
+    var h=simHaul(results,'cases',reduce?null:casePick);
     $('simHaul').innerHTML=h.html;
     reel.hidden=true;strip.style.transition='none';
-    // With the answer above the tiles there is nothing left to give away, so a big batch
-    // reads its number straight away and watches the haul fill in underneath.
     if(n>SIM_LEAD||reduce){finish();return}
     // Clear last run's answer first: leaving it up while the new tiles land reads as
-    // though the new haul has already been counted.
-    $('simHeadline').hidden=true;$('simResult').textContent='';$('simTally').innerHTML='';
+    // though the new haul has already been counted. The box stays, so nothing jumps.
+    simWait('simHeadline',true);$('simResult').textContent='';$('simTally').innerHTML='';
     var tok=++simToken;
     setTimeout(function(){if(tok===simToken)finish()},h.ms);
     return
   }
-  simLead('simOut',1);
   $('simHaul').innerHTML='';
   if(reduce){reel.hidden=true;strip.style.transition='none';finish();return}
-
-  simBusy=true;
   $('simResult').textContent='';$('simTally').innerHTML='';
-  var WIN=42,TOTAL=52,tiles='';
+  simWait('simHeadline',true);
+  spinWideReel(reel,strip,results[0],casePick,finish)
+}
+/* The one-at-a-time reel, which was the case simulator's alone. A single craft is the same
+   moment - one pull, watched - so it is a function now and both cards call it. */
+function spinWideReel(reel,strip,result,pick,done){
+  simBusy=true;
+  var WIN=42,TOTAL=52,tiles='',i,d;
   for(i=0;i<TOTAL;i++){
-    if(i===WIN)tiles+=simTile(results[0].tier,results[0].slot);
-    else tiles+=simTile(simPick(CASE_TIER_ODDS)+1,SLOTS[Math.floor(Math.random()*SLOTS.length)].code)
+    if(i===WIN)tiles+=simTile(result.tier,result.slot);
+    else{d=pick();tiles+=simTile(d.tier,d.slot)}
   }
   strip.innerHTML=tiles;
   reel.hidden=false;
@@ -5508,7 +5566,7 @@ function simRun(n){
     requestAnimationFrame(function(){
       strip.style.transition='transform 3.1s cubic-bezier(.11,.75,.13,1)';
       strip.style.transform='translateX('+(-target)+'px)';
-      setTimeout(finish,3200)
+      setTimeout(done,3200)
     })
   })
 }
@@ -5526,6 +5584,7 @@ function slotNameAt(code,t){return code==='weapon'?WEAPON_NAMES[t-1]:slotName(co
    rarity is the whole story. Same draw, prices and sell-or-break rule as the card,
    so a long run lands on the row it sits under. */
 function craftSimRun(n){
+  if(simBusy)return;
   var res=$('craftSimResult'),head=$('craftSimHeadline'),
       haul=$('craftSimHaul'),tal=$('craftSimTally'),note=$('craftSimNote');
   var stop=function(msg){haul.innerHTML='';head.hidden=true;tal.innerHTML='';res.textContent=msg};
@@ -5547,12 +5606,18 @@ function craftSimRun(n){
     tally[r.slot]=(tally[r.slot]||0)+1
   }
   var spend=sc&&st?sc.cost+st.cost:null;
-  var h=simHaul(results,'crafts');
-  simLead('craftSimOut',n);
+  var reduce0=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
+  // A craft fixes the rarity, so only the slot is in doubt - and that is what the reel
+  // should be seen to be deciding.
+  var craftPickRoll=function(){
+    return {tier:t,slot:SLOTS[Math.floor(Math.random()*SLOTS.length)].code}
+  };
+  var h=simHaul(results,'crafts',reduce0?null:craftPickRoll);
   haul.innerHTML=h.html;
 
   var one=results[0],name=RARITIES[t-1].name+' '+slotNameAt(one.slot,t);
   var settle=function(){
+  simBusy=false;
   res.innerHTML=n===1
     ? 'Crafted <span class="tier" style="color:'+RARITIES[t-1].colour+'">'+esc(name)+
       '</span>'+(one.label?' ('+esc(one.label)+')':'')+
@@ -5586,9 +5651,18 @@ function craftSimRun(n){
     : 'A craft fixes the rarity and leaves the slot and the roll to chance, so this rolls '+
       'those against collected prices. It settles on the row above, eventually.'
   };
-  var reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion:reduce)').matches;
-  if(n>SIM_LEAD||reduce||!h.ms){settle();return}
-  head.hidden=true;res.textContent='';tal.innerHTML='';
+  var creel=$('craftSimReel'),cstrip=$('craftSimStrip');
+  if(n>SIM_LEAD||reduce0||!h.ms){
+    if(creel){creel.hidden=true;cstrip.style.transition='none'}
+    settle();return
+  }
+  simWait('craftSimHeadline',true);res.textContent='';tal.innerHTML='';
+  if(n===1&&creel){
+    haul.innerHTML='';
+    spinWideReel(creel,cstrip,results[0],craftPickRoll,settle);
+    return
+  }
+  if(creel){creel.hidden=true;cstrip.style.transition='none'}
   var tok=++simToken;
   setTimeout(function(){if(tok===simToken)settle()},h.ms)
 }
