@@ -80,6 +80,16 @@ h1{
 }
 /* The roll is the thing you are choosing between, so it sits on the piece rather than under
    it - a caption below would push the tile past the size that lets six fit a phone. */
+/* A price can be worked out from the price alone - no slot, no roll - and most are. Those
+   tiles held nothing but a number. The rarity is always known, so it is what the tile shows:
+   its colour as the ground and its name across the plate. */
+.ptile-plate{position:absolute;inset:0;background:var(--tier);opacity:.16}
+.ptile-name{
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  padding:0 3px;font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:12px;
+  letter-spacing:.05em;text-transform:uppercase;color:var(--tier);text-align:center;
+  line-height:1.15
+}
 .ptile-roll{
   position:absolute;left:0;right:0;bottom:0;padding:2px 3px;
   background:linear-gradient(to top,rgba(0,0,0,.82),rgba(0,0,0,0));
@@ -89,6 +99,12 @@ h1{
 .ptile-price{
   display:block;padding:3px 2px 4px;font-family:"IBM Plex Mono",monospace;font-size:11px;
   font-variant-numeric:tabular-nums;color:var(--brass);white-space:nowrap;overflow:hidden
+}
+/* Below its floor there is no list price worth carrying, only the verdict - and the sentence
+   the clipboard gets does not fit 78px. */
+.ptile-price.scrap{
+  color:var(--rust);font-family:"Saira Condensed",sans-serif;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase
 }
 .ptile-x{
   position:absolute;top:0;right:0;width:22px;height:22px;padding:0;line-height:1;
@@ -3684,7 +3700,10 @@ function rollSpecs(){
   return s?[{key:s.key,label:s.label,band:s.tiers[state.tier-1]}]:[]
 }
 function hasAllRolls(){var s=rollSpecs();return s.length&&s.every(function(x){return Number.isFinite(Number(state.rolls[x.key]))})}
-function describeRoll(){return rollSpecs().map(function(s){return s.label+' '+state.rolls[s.key]}).join(' · ')}
+function describeRoll(){
+  return rollSpecs().filter(function(s){return Number.isFinite(Number(state.rolls[s.key]))})
+    .map(function(s){return s.label+' '+state.rolls[s.key]}).join(' · ')
+}
 function singleStatTarget(){if(state.slot==='weapon')return null;var s=rollSpecs()[0];return s?Number(state.rolls[s.key]):null}
 function maxSingleStat(){if(state.slot==='weapon')return null;var s=rollSpecs()[0];return s?s.band[1]:null}
 function hasPossibleBetterRoll(){var a=singleStatTarget(),b=maxSingleStat();return a!==null&&b!==null&&a<b}
@@ -6475,20 +6494,23 @@ function loadCraftData(bust){
 }
 
 function copyCore(){
-  var value=state.listFigure?'DO NOT LIST - DISMANTLE THIS FOR SCRAPS':state.coreFigure;
+  var scrap=!!state.listFigure;
+  var value=scrap?'DO NOT LIST - DISMANTLE THIS FOR SCRAPS':state.coreFigure;
   if(!value)return;
   copyTextSafe(value);
-  addRecentCore(state.lastPrice,value)
+  // The clipboard wants the sentence; a 78px tile wants the figure and a mark.
+  addRecentCore(state.lastPrice,scrap?state.listFigure:state.coreFigure,scrap)
 }
 /* Loading a tile back runs the same calculate-and-copy an Enter does, which would file the
    result as a new piece. It is the piece that is already there, so nothing is filed and the
    group the reader arranged stays as they arranged it. */
 var recentQuiet=false;
-function addRecentCore(inp,out){
+function addRecentCore(inp,out,scrap){
   if(recentQuiet)return;
   var a=readRecent(),entry={
-    price:out,inp:inp==null?'':String(inp),
+    price:out,scrap:!!scrap,inp:inp==null?'':String(inp),
     item:itemName()||(tierKnown()?tier().name:'Calculator'),
+    sname:state.slot?slotNameAt(state.slot,state.tier):'',
     roll:state.slot?describeRoll():'',short:state.slot?compactRoll():'',
     tier:tierKnown()?state.tier:0,slot:state.slot||'',
     mode:$('beatMode').checked?'beat':'convert',t:Date.now()};
@@ -7988,15 +8010,21 @@ function renderRecent(){
     var colour=x.tier?RARITIES[x.tier-1].colour:'rgba(160,160,160,.4)';
     var art=x.slot&&x.tier
       ? '<i style="background-position:'+(sheetColumn(x.slot)*20)+'% '+((x.tier-1)/5*100)+'%"></i>'
-      : '<i style="background:none"></i>';
+      : '<i class="ptile-plate"></i><span class="ptile-name">'+
+        esc(x.tier?RARITIES[x.tier-1].name:'?')+'</span>';
+    // Roll numbers where they were chosen, the piece's name where they were not; where there
+    // is no piece either, the plate is already carrying the rarity.
+    var cap=x.short||(x.slot?x.sname||'':'');
     var label=(x.item||'')+(x.short&&x.roll?' \u00b7 '+x.roll:'')+
+      (x.scrap?' \u00b7 below its dismantle floor; the list price would be '+x.price:'')+
       (x.inp?' \u00b7 priced against '+x.inp:'');
     return '<div class="ptile" data-idx="'+i+'" style="--tier:'+colour+'">'+
       '<button type="button" class="ptile-body" title="'+esc(label)+'">'+
         '<span class="ptile-art">'+art+
-          (x.short?'<span class="ptile-roll">'+esc(x.short)+'</span>':'')+
+          (cap?'<span class="ptile-roll">'+esc(cap)+'</span>':'')+
         '</span>'+
-        '<span class="ptile-price">'+esc(x.price)+'</span>'+
+        '<span class="ptile-price'+(x.scrap?' scrap':'')+'">'+
+          (x.scrap?'scrap':esc(x.price))+'</span>'+
       '</button>'+
       '<button type="button" class="ptile-x" data-drop="'+i+'" aria-label="Remove '+
         esc(label||x.price)+'">\u00d7</button>'+
