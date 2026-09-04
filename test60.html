@@ -3288,7 +3288,9 @@ h1 .title-word{white-space:nowrap}
         <div class="scrap-src">
           <div class="craft-fields">
             <label for="caseCount">Cases<input type="number" id="caseCount" value="1" min="1" max="9999" step="1" inputmode="numeric" autocomplete="off"></label>
+            <label for="caseBid">Your price<input type="text" id="caseBid" placeholder="top of book" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
           </div>
+          <p class="scrap-tabnote" id="caseBidNote"></p>
           <span class="scrap-src-label" style="margin-top:10px">Only counts as sold if it beats scrap by</span>
           <div class="craft-fields">
             <label for="caseBar">Gold<input type="text" id="caseBar" value="0.1" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
@@ -4409,6 +4411,9 @@ function bookPanel(code,name,icon,need,unit,gross){
     ladder='<div class="zones"><div class="zone-row head"><span class="z-p">Rest at</span>'+
       '<span class="z-w">Wall</span><span class="z-a">Ahead</span>'+
       '<span class="z-e">'+(gross?'Edge':'')+'</span></div>';
+    if(entryIsTyped(code))
+      ladder+=row(chosen,'yours',null,(function(){var a=0;for(var k=0;k<bids.length;k++)
+        if(bids[k].price>=chosen-1e-9)a+=bids[k].qty;return a})(),false);
     if(dflt!=null&&!zones.some(function(z){return Math.abs(z.entry-dflt)<1e-9}))
       ladder+=row(dflt,'top of book',null,(function(){var a=0;for(var k=0;k<bids.length;k++)
         if(bids[k].price>=dflt-1e-9)a+=bids[k].qty;return a})(),true);
@@ -4792,9 +4797,27 @@ function craftPost(code){
   var pick=craftState.entry[code];
   if(pick!=null){
     var ob=craftBook(code),ask=ob&&ob.best_ask;
-    if(ask==null||pick<Number(ask)-1e-9)return pick
+    // A bid at or above the offer is not an order that rests, it is a purchase: it matches
+    // straight away, and at the offer's price rather than the one you typed. Returning null
+    // hands it to the walk, which is what actually happens.
+    if(ask==null||pick<Number(ask)-1e-9)return pick;
+    return null
   }
   return craftDefaultEntry(code)
+}
+// Whether the resting price in force is one somebody typed rather than one the book suggested.
+function entryIsTyped(code){
+  var pick=craftState.entry[code];
+  if(pick==null)return false;
+  // A price that crosses the spread is a purchase, not a place to rest, so the ladder does
+  // not offer it as one - it would quote an edge the card is not using.
+  var ob=craftBook(code),ask=ob&&ob.best_ask;
+  if(ask!=null&&pick>=Number(ask)-1e-9)return false;
+  var dflt=craftDefaultEntry(code);
+  if(dflt!=null&&Math.abs(pick-dflt)<1e-9)return false;
+  var zs=bookZones(code,4);
+  for(var i=0;i<zs.length;i++)if(Math.abs(zs[i].entry-pick)<1e-9)return false;
+  return true
 }
 /* What a unit actually costs to acquire, and which way you got it. */
 function craftAcquire(code,qty){
@@ -5252,6 +5275,7 @@ function paintCase(){
       :!cost?'No case price available.':NO_SCRAP;
     rowsEl.innerHTML='';footEl.textContent='';noteEl.textContent='';
     $('caseBooks').innerHTML=bookPanel('case1','Case I','res-case',0,'cases');
+    paintCaseBid();
     if($('caseSwing'))$('caseSwing').hidden=true;
     return
   }
@@ -5302,8 +5326,9 @@ function paintCase(){
         :'A case costs '+cost.unit.toFixed(5))+
     (cost.posted
        ?(cost.top?', resting a tick above the best bid'
-                 :', resting a tick above the '+(cost.wall?bookQty(cost.wall.wall)+'-deep ':'')+
-                  'wall'+(cost.wall?' at '+cost.wall.wallPrice.toFixed(3):''))+
+         :cost.wall?', resting a tick above the '+bookQty(cost.wall.wall)+'-deep wall at '+
+                     cost.wall.wallPrice.toFixed(3)
+         :', resting where you put it')+
         ' rather than lifting the '+(cost.lift!=null?cost.lift.toFixed(5):'ask')
        :', lifting the cheapest offers')+
     '; the average case holds '+gross.toFixed(4)+' to the seller'+
@@ -5352,6 +5377,7 @@ function paintCase(){
   foot+=' Selling what you open moves these prices, and the more you open at once the more it moves them.';
   footEl.textContent=foot;
   $('caseBooks').innerHTML=bookPanel('case1','Case I','res-case',n,n===1?'case':'cases',gross);
+  paintCaseBid();
   noteEl.textContent=bookIsLive('case1')?'Cheapest case sell orders lifted in order, on a live Gateway book.'
     :'Cheapest case sell orders lifted in order, on the collector\u2019s book.'
 }
@@ -7455,9 +7481,38 @@ $('dataRefresh').addEventListener('click',function(){
 function pickEntry(code,px){
   var cur=craftState.entry[code];
   craftState.entry[code]=(cur!=null&&Math.abs(cur-px)<1e-9)?null:px;
+  // The ladder and the box are two ways of setting one thing, so they show one thing.
+  if(code==='case1'&&$('caseBid'))
+    $('caseBid').value=craftState.entry[code]==null?'':craftState.entry[code].toFixed(3);
   craftState.sig=null;craftState.caseSig=null;
   syncCraftInputs();paintCraft();paintCase()
 }
+/* Says what the typed price will actually do, because a bid is a hope and the book decides
+   which kind. Silence here would let someone read a resting price as a purchase. */
+function paintCaseBid(){
+  var note=$('caseBidNote');if(!note)return;
+  var v=extractNumber($('caseBid').value),ob=craftBook('case1');
+  var bid=ob&&ob.best_bid,ask=ob&&ob.best_ask;
+  if(v===null||!(Number(v)>0)){
+    note.textContent=ob
+      ? 'Leave it empty and the card prices at the top of the book, or tap a resting place below.'
+      : '';
+    return
+  }
+  var px=Number(v);
+  note.textContent=ask!=null&&px>=Number(ask)-1e-9
+    ? 'At or above the '+Number(ask).toFixed(3)+' offer, so this fills now at the offer, not at '+
+      px.toFixed(3)+' \u2014 the card prices it as a purchase.'
+    : bid!=null&&px<=Number(bid)-1e-9
+      ? 'Below the '+Number(bid).toFixed(3)+' best bid, so it rests behind everything above it '+
+        'and waits for the market to come down to you.'
+      : 'Rests at the front of the book and fills when someone sells into it.'
+}
+$('caseBid').addEventListener('input',function(){
+  var v=extractNumber($('caseBid').value);
+  craftState.entry.case1=(v===null||!(Number(v)>0))?null:Number(v);
+  craftState.caseSig=null;paintCase()
+});
 ['craftBooks','caseBooks'].forEach(function(id){
   var box=$(id);if(!box)return;
   box.addEventListener('click',function(e){
