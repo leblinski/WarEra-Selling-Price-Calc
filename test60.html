@@ -4288,10 +4288,17 @@ function bookPanel(code,name,icon,need,unit){
     }
     return out+'</div>'
   };
-  var foot='';
-  if(need>0){
-    var eaten=0,levels=0,all=bookLevels(ob.sell_orders,'ask',999),left=need;
-    for(var j=0;j<all.length&&left>0;j++){var t=Math.min(left,all[j].qty);left-=t;eaten+=t;levels++}
+  /* Which side of the book the quoted cost actually comes from. Marking consumed offers
+     under a figure that never touches them was the panel telling one story while the card
+     told another. */
+  var at=craftPost(code),foot='';
+  if(need>0&&at!=null){
+    foot='<p class="book-need">Your order rests at <b>'+at.toFixed(3)+'</b>, a tick above the '+
+         'best bid, for <b>'+bookQty(need)+'</b> '+esc(unit||name)+
+         '. It joins the book rather than taking from it, so it waits.</p>'
+  }else if(need>0){
+    var levels=0,all=bookLevels(ob.sell_orders,'ask',999),left=need;
+    for(var j=0;j<all.length&&left>0;j++){var t=Math.min(left,all[j].qty);left-=t;levels++}
     foot='<p class="book-need">Your order lifts <b>'+bookQty(need)+'</b> '+esc(unit||name)+
          (left>0?', more than the whole book holds \u2014 the rest is priced at the deepest offer.'
                 :' from <b>'+levels+'</b> price '+(levels===1?'level':'levels')+'.')+'</p>'
@@ -4301,7 +4308,7 @@ function bookPanel(code,name,icon,need,unit){
     '<span class="book-spread">'+spread+(bookIsLive(code)?' \u00b7 live':'')+'</span></p>'+
     '<div class="book-grid">'+
       side(bids,'buy','Buy orders',0)+
-      side(asks,'sell','Sell orders',need)+
+      side(asks,'sell','Sell orders',at==null?need:0)+
     '</div>'+foot+'</div>'
 }
 function craftRollKey(slot,skills){
@@ -4595,12 +4602,42 @@ function craftWalk(code,qty){
   if(need>0)return {unit:(cost+need*last)/qty,cost:cost+need*last,thin:true};
   return {unit:cost/qty,cost:cost,thin:false}
 }
+/* Lifting the ask is not how anybody buying to resell actually buys. You post a bid one
+   tick above the best one and wait, because the whole trade is worth a few percent and the
+   spread is a chunk of it. You only cross the spread when crossing it costs nothing.
+
+   That gives one rule rather than a per-commodity table, and on a live book the three
+   commodities sort themselves exactly the way a player would sort them: cases quote four
+   ticks wide and steel two, so posting wins and you wait; scraps quote one tick wide, so
+   a posted bid would sit at the ask anyway and you simply lift - which is what everyone
+   does with scraps, and why their price feels rigid.
+
+   Posting does not walk the book: you add liquidity rather than consume it, so the unit
+   price is flat in quantity. That is the real reason a batch is cheaper this way, and the
+   reason the cost of a batch is no longer a floor that rises with its size. */
+var TICK=0.001;
+function craftPost(code){
+  var ob=craftBook(code);if(!ob)return null;
+  var bid=ob.best_bid,ask=ob.best_ask;
+  if(bid==null)return null;
+  var at=Number(bid)+TICK;
+  // A one-tick spread leaves nothing to win, so lifting is the honest model.
+  if(ask!=null&&at>=Number(ask)-1e-9)return null;
+  return at
+}
+/* What a unit actually costs to acquire, and which way you got it. */
+function craftAcquire(code,qty){
+  var walk=craftWalk(code,qty),at=craftPost(code);
+  if(at==null)return walk?{unit:walk.unit,cost:walk.cost,thin:walk.thin,posted:false}:null;
+  return {unit:at,cost:at*qty,thin:false,posted:true,
+          lift:walk?walk.unit:null}
+}
 function craftInput(code,qty,field){
   if(craftState.src==='own'){
     var v=extractNumber($(field).value);
     return v===null?null:{unit:Number(v),cost:Number(v)*qty,thin:false}
   }
-  return craftWalk(code,qty)
+  return craftAcquire(code,qty)
 }
 function craftCount(){
   var n=Math.floor(Number($('craftCount').value));
@@ -4738,9 +4775,11 @@ function paintCraft(){
     'what a craft hands you.';
   if(mine.exp.missingSlots)foot+=' '+mine.exp.missingSlots+' slot(s) have no data and are assumed to price like the rest.';
   if(thin)foot+=' One order book could not fill the whole order, so the cost shown is a floor.';
-  if(many)foot+=' Input cost walks the book for all '+batch+' crafts, so it accounts for'+
-    ' clearing the cheap orders. Resale does not: each piece is priced at its historical'+
-    ' median, and selling '+batch+' at once will push that down by an amount this cannot see.';
+  if(many)foot+=' Inputs are bought the cheaper way for each one - posted a tick above the'+
+    ' best bid where that beats the offer, lifted where the spread is a single tick - so a'+
+    ' posted input costs the same per craft however many you make. Resale is not modelled'+
+    ' that way: each piece is priced at its historical median, and selling '+batch+
+    ' at once will push that down by an amount this cannot see.';
   if(cov<100)foot+=' Untraded rolls are assumed to price like the ones that did trade.';
   footEl.textContent=foot
 }
@@ -4848,7 +4887,7 @@ function simRun(n){
   var taxPct=Number($('tax').value);
   if(!isFinite(taxPct)||taxPct<0)taxPct=0;
   var taxMul=1-taxPct/100;
-  var cost=craftWalk('case1',n);
+  var cost=craftAcquire('case1',n);
   var results=[],i;
   for(i=0;i<n;i++)results.push(simOpenOne(taxMul));
   var got=results.reduce(function(a,r){return a+r.net},0);
@@ -5034,7 +5073,7 @@ function paintCase(){
   craftState.caseSig=sig;
 
   var rowsEl=$('caseRows'),footEl=$('caseFoot'),noteEl=$('caseNote');
-  var cost=craftState.books||craftState.live?craftWalk('case1',n):null;
+  var cost=craftState.books||craftState.live?craftAcquire('case1',n):null;
   if(!craftState.summary||!cost){
     $('caseVerdict').textContent='\u2014';
     $('caseVerdict').className='flip-figure';
@@ -5085,8 +5124,10 @@ function paintCase(){
   $('caseVerdict').textContent=craftSigned(profit,3);
   $('caseVerdict').className='flip-figure '+(profit>=0?'up':'down');
   $('caseDetail').textContent=craftSigned(pct,2)+'% '+(many?'over '+n+' cases':'per case')+'. '+
-    (many?n+' cases cost '+craftMoney(cost.cost)+' at an average '+cost.unit.toFixed(5)
+    (many?n+' cases cost '+craftMoney(cost.cost)+' at '+cost.unit.toFixed(5)+' each'
         :'A case costs '+cost.unit.toFixed(5))+
+    (cost.posted?', posted a tick above the best bid rather than lifting the '+
+        (cost.lift!=null?cost.lift.toFixed(5):'ask'):', lifting the cheapest offers')+
     '; the average case holds '+gross.toFixed(4)+' after '+taxPct+'% tax'+
     (many?', or '+craftSigned(profit/n,4)+' each':'')+
     '. Break even at a case price of '+gross.toFixed(4)+' ('+
@@ -5102,6 +5143,13 @@ function paintCase(){
     'so this assumes you sort every piece rather than listing all of them.';
   if(missing)foot+=' '+missing+' tier(s) have no sale data and are treated as worthless, so this is a floor.';
   if(cost.thin)foot+=' The case order book could not fill the whole purchase, so the cost shown is a floor.';
+  foot+=cost.posted
+    ? ' Cost assumes you post a buy order a tick above the best bid and wait, which is how'+
+      ' anyone buying to resell buys - so it does not walk the book, and it is not a price'+
+      ' you are guaranteed to get filled at. Lifting the offers instead costs '+
+      (cost.lift!=null?cost.lift.toFixed(5):'more')+' a case and fills now.'
+    : ' The spread is one tick, so a posted bid would rest at the offer anyway and the cost'+
+      ' shown simply lifts it.';
   var edge=gross-cost.unit;
   var swingEl=$('caseSwing');
   if(swingEl){
@@ -5142,7 +5190,7 @@ function setCraftSource(src){
 }
 function syncCraftInputs(){
   if(craftState.src==='own')return;
-  var sc=craftWalk('scraps',1),st=craftWalk('steel',1);
+  var sc=craftAcquire('scraps',1),st=craftAcquire('steel',1);
   if(sc)$('craftScrap').value=sc.unit.toFixed(5);
   if(st)$('craftSteel').value=st.unit.toFixed(4)
 }
