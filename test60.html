@@ -5570,8 +5570,13 @@ function sortHeat(r,t,id){
       var k=i+'/'+j,x=by[k],cls='heat-cell',fill='transparent';
       if(!x||(x.net==null&&!x.wide&&!x.from)){cls+=' none'}
       else{
-        var m=x.net!=null?x.margin:(x.wide?x.wide.price*0.99-r.scrap:null),sells;
-        if(m!=null){sells=m>=0;fill=heatFill(m,peak)}
+        /* The colour has to answer the same question the row does. Judging on margin over
+           scrap while the list judges against the bar painted a cell green and then said
+           "break" when it was tapped. Shade still reads the margin; the verdict reads the
+           bar, so a roll that clears scraps but not the bar is warm and still marked. */
+        var m=x.net!=null?x.margin:(x.wide?x.wide.price*resaleNet()-r.scrap:null),sells;
+        if(m!=null){sells=x.net!=null?!!x.sell:(x.wide.price*resaleNet()>r.floor);
+                    fill=heatFill(m,peak)}
         else{sells=x.from.sell;cls+=' guess';fill=heatFill(sells?peak*0.12:-peak*0.12,peak)}
         if(!sells)cls+=' br'
       }
@@ -5614,9 +5619,14 @@ function sortRows(r,slot){
    recency-weighted median lands within 0.5% of the plain one on four rolls in five.
 
    Calling it a recommendation does oblige it to say how firm it is, and a median off two
-   sales is not a market. Those are dimmed rather than columned - a fifth column costs the
-   verdict its room on a phone, and half the roll space trades thinly enough to mark. */
-var THIN_SALES=5;
+   sales is not a market. Those are marked rather than columned - a fifth column costs the
+   verdict its room on a phone, and half the roll space trades thinly enough to mark.
+
+   Five was a guess. Subsampling the 386 rolls with thirty or more sales puts the p90 error
+   of a small-sample median at 5.5% for one sale, 6.2% for two, 2.7% for three, 2.2% for
+   five and 1.4% for ten: the knee is at three, and nothing distinguishes five from four or
+   six. Three it is, which also stops marking the 128 rolls that sit between. */
+var THIN_SALES=3;
 /* A price you have to wait two days for is not the same offer as one that clears in twenty
    minutes, and until now nothing on the page said which it was. Short units, because the
    column has to stay narrow enough to leave the verdict room. */
@@ -5905,7 +5915,10 @@ function fetchLiveSales(code){
 // colliding on all three would be indistinguishable anyway.
 function saleKey(it){
   var sk=(it.item&&it.item.skills)||{};
-  return [Number(it.money),Math.round(new Date(it.createdAt).getTime()/1000),
+  // The collector stores int(timestamp), a floor. Rounding here disagreed with it on every
+  // sale whose milliseconds reached 500 - half of them - so a live page re-added about
+  // fifty of its hundred rows as new, and the newest rows carry the most recency weight.
+  return [Number(it.money),Math.floor(new Date(it.createdAt).getTime()/1000),
           Object.keys(sk).sort().map(function(k){return k+':'+sk[k]}).join(',')].join('|')
 }
 function mergeSales(base,extra){
