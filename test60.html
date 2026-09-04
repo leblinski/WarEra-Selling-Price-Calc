@@ -923,6 +923,30 @@ kbd{
 .book-row.taken{background:rgba(194,112,63,.18);color:var(--ink)}
 .book-none{font-size:11px;color:var(--dim);padding:2px 4px}
 .book-need{margin:7px 0 0;font-size:10.5px;color:var(--dim);line-height:1.45}
+/* The resting places a buy order can take. Rows are the control, so they carry the
+   affordance; the chosen one takes the brass the rest of the page reserves for a choice. */
+.zones{margin:9px 0 0;border-top:1px solid var(--line);padding-top:7px}
+.zone-row{
+  display:grid;grid-template-columns:1fr 1fr .8fr .8fr;gap:8px;width:100%;align-items:center;
+  padding:3px 4px;border:1px solid transparent;border-radius:4px;background:transparent;
+  font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--dim);
+  font-variant-numeric:tabular-nums;text-align:right;cursor:pointer;
+  /* Wrapping made the chosen row taller than the rest, so the ladder read as ragged
+     rather than as one column of comparable choices. These are controls, so they also
+     take a thumb rather than a cursor. */
+  white-space:nowrap;min-height:34px
+}
+.zone-row .z-p{text-align:left}
+.zone-row:not(.head):hover{border-color:var(--line);color:var(--ink)}
+.zone-row.on{border-color:var(--brass);color:var(--ink);background:rgba(var(--brass-rgb),.10)}
+.zone-row.on .z-p{color:var(--brass)}
+.zone-row.head{
+  cursor:default;font-family:"Saira Condensed",sans-serif;font-size:9.5px;letter-spacing:.1em;
+  text-transform:uppercase;opacity:.7;padding-bottom:2px;min-height:0
+}
+.zone-row.head:hover{border-color:transparent;color:var(--dim)}
+.zone-note{margin:6px 0 0;font-size:10.5px;color:var(--dim);line-height:1.45}
+.zone-note b{color:var(--ink);font-weight:500}
 .book-need b{color:var(--ink);font-weight:500}
 /* The variance caveat was sentence four of six and is the one that changes behaviour. */
 .case-swing{
@@ -4227,6 +4251,7 @@ var CRAFT_SLOT_WEIGHT={weapon:0.30,helmet:0.14,chest:0.14,boots:0.14,gloves:0.14
 var CASE_TIER_ODDS=[0.62,0.30,0.071,0.0085,0.0004,0.0001];
 var CRAFT_STEEL=[1,2,4,8,16,32];
 var craftState={summary:null,books:null,error:null,loading:false,src:'book',
+                entry:{},
                 live:null,liveAt:0,liveError:null,liveLoading:false};
 try{
   // 'live' and 'ask' were choices before the book became unconditional; read them forward
@@ -4268,10 +4293,51 @@ function bookLevels(orders,dir,n){
   return out.slice(0,n||5)
 }
 function bookQty(n){return Math.round(n).toLocaleString()}
+function entrySig(){
+  var e=craftState.entry,out=[],k;
+  for(k in e)if(Object.prototype.hasOwnProperty.call(e,k)&&e[k]!=null)out.push(k+':'+e[k]);
+  return out.sort().join(',')
+}
 /* One commodity's depth. `need` is how many units the current order lifts, which marks
    the levels it consumes - the difference between being told the book was walked and
    watching it happen. */
-function bookPanel(code,name,icon,need,unit){
+/* Where a buy order can actually rest. Beating the best bid by a tick is only meaningful
+   when the best bid is a wall; on the case book it is routinely four units, a token order
+   somebody parked to be top of book, and beating it wins nothing but a worse price. The
+   levels worth beating are the ones carrying real size, because those are what has to be
+   eaten before a falling market reaches you - and sitting one tick above such a level is
+   the cheapest entry that still fills first.
+
+   A level counts as support when it is large against the median level near the touch and
+   is a real share of visible depth; either test alone lets through noise on the thin books
+   and misses the walls on the deep ones. Everything here is only as good as the snapshot -
+   walls move, and a level that vanishes takes its protection with it. */
+function bookZones(code,maxn){
+  var ob=craftBook(code);if(!ob)return [];
+  var lv=bookLevels(ob.buy_orders,'bid',999);
+  if(!lv.length)return [];
+  var best=lv[0].price,tot=0,near=[],i;
+  for(i=0;i<lv.length;i++){tot+=lv[i].qty;if(lv[i].price>=best*0.97)near.push(lv[i])}
+  if(!near.length)return [];
+  var qs=near.map(function(x){return x.qty}).sort(function(a,b){return a-b});
+  var med=qs[Math.floor(qs.length/2)]||1;
+  var floorQty=Math.max(3*med,0.02*tot);
+  var cand=near.filter(function(x){return x.qty>=floorQty})
+               .sort(function(a,b){return b.qty-a.qty});
+  var out=[];
+  for(i=0;i<cand.length&&out.length<(maxn||4);i++){
+    var p=cand[i].price,clash=false;
+    for(var j=0;j<out.length;j++)if(Math.abs(p-out[j].price)<=TICK*1.5)clash=true;
+    if(!clash)out.push(cand[i])
+  }
+  out.sort(function(a,b){return b.price-a.price});
+  return out.map(function(z){
+    var entry=z.price+TICK,ahead=0;
+    for(var k=0;k<lv.length;k++)if(lv[k].price>=entry-1e-9)ahead+=lv[k].qty;
+    return {entry:entry,wall:z.qty,wallPrice:z.price,ahead:ahead}
+  })
+}
+function bookPanel(code,name,icon,need,unit,gross){
   var ob=craftBook(code);
   if(!ob)return '';
   var bids=bookLevels(ob.buy_orders,'bid',5),asks=bookLevels(ob.sell_orders,'ask',5);
@@ -4293,9 +4359,9 @@ function bookPanel(code,name,icon,need,unit){
      told another. */
   var at=craftPost(code),foot='';
   if(need>0&&at!=null){
-    foot='<p class="book-need">Your order rests at <b>'+at.toFixed(3)+'</b>, a tick above the '+
-         'best bid, for <b>'+bookQty(need)+'</b> '+esc(unit||name)+
-         '. It joins the book rather than taking from it, so it waits.</p>'
+    // The ladder below already explains resting; this line only has to carry the size.
+    foot='<p class="book-need">Order size <b>'+bookQty(need)+'</b> '+esc(unit||name)+
+         ', resting at <b>'+at.toFixed(3)+'</b>.</p>'
   }else if(need>0){
     var levels=0,all=bookLevels(ob.sell_orders,'ask',999),left=need;
     for(var j=0;j<all.length&&left>0;j++){var t=Math.min(left,all[j].qty);left-=t;levels++}
@@ -4303,13 +4369,38 @@ function bookPanel(code,name,icon,need,unit){
          (left>0?', more than the whole book holds \u2014 the rest is priced at the deepest offer.'
                 :' from <b>'+levels+'</b> price '+(levels===1?'level':'levels')+'.')+'</p>'
   }
+  var zones=bookZones(code,4),chosen=craftState.entry[code],ladder='';
+  if(zones.length){
+    var dflt=craftDefaultEntry(code);
+    var row=function(px,label,wall,ahead,isDflt){
+      var on=chosen==null?!!isDflt:Math.abs(chosen-px)<1e-9;
+      return '<button type="button" class="zone-row'+(on?' on':'')+'" data-entry="'+code+'|'+
+        px.toFixed(3)+'" aria-pressed="'+(on?'true':'false')+'">'+
+        '<span class="z-p">'+px.toFixed(3)+'</span>'+
+        '<span class="z-w">'+(wall==null?esc(label):bookQty(wall))+'</span>'+
+        '<span class="z-a">'+bookQty(ahead)+'</span>'+
+        '<span class="z-e">'+(gross?craftSigned((gross/px-1)*100,2)+'%':'')+'</span></button>'
+    };
+    ladder='<div class="zones"><div class="zone-row head"><span class="z-p">Rest at</span>'+
+      '<span class="z-w">Wall</span><span class="z-a">Ahead</span>'+
+      '<span class="z-e">'+(gross?'Edge':'')+'</span></div>';
+    if(dflt!=null&&!zones.some(function(z){return Math.abs(z.entry-dflt)<1e-9}))
+      ladder+=row(dflt,'top of book',null,(function(){var a=0;for(var k=0;k<bids.length;k++)
+        if(bids[k].price>=dflt-1e-9)a+=bids[k].qty;return a})(),true);
+    for(var z=0;z<zones.length;z++)
+      ladder+=row(zones[z].entry,'',zones[z].wall,zones[z].ahead,
+                  dflt!=null&&Math.abs(zones[z].entry-dflt)<1e-9);
+    ladder+='</div><p class="zone-note">Resting one tick above a wall is the cheapest entry '+
+      'that still fills before it. <b>Ahead</b> is what must fill first; deeper is cheaper '+
+      'and slower, and a wall can be pulled.</p>'
+  }
   return '<div class="book">'+
     '<p class="book-head"><i aria-hidden="true" class="res '+icon+' res-in"></i>'+esc(name)+
     '<span class="book-spread">'+spread+(bookIsLive(code)?' \u00b7 live':'')+'</span></p>'+
     '<div class="book-grid">'+
       side(bids,'buy','Buy orders',0)+
       side(asks,'sell','Sell orders',at==null?need:0)+
-    '</div>'+foot+'</div>'
+    '</div>'+ladder+foot+'</div>'
 }
 function craftRollKey(slot,skills){
   if(!skills)return null;
@@ -4616,7 +4707,8 @@ function craftWalk(code,qty){
    price is flat in quantity. That is the real reason a batch is cheaper this way, and the
    reason the cost of a batch is no longer a floor that rises with its size. */
 var TICK=0.001;
-function craftPost(code){
+// Top of book: a tick above the best bid, when that still beats crossing the spread.
+function craftDefaultEntry(code){
   var ob=craftBook(code);if(!ob)return null;
   var bid=ob.best_bid,ask=ob.best_ask;
   if(bid==null)return null;
@@ -4625,11 +4717,27 @@ function craftPost(code){
   if(ask!=null&&at>=Number(ask)-1e-9)return null;
   return at
 }
+/* A chosen resting price outranks the default, but only while the book still makes it a
+   resting price: books move under a pinned choice, and an entry at or above the offer is
+   not an order any more, it is just a worse way to lift. */
+function craftPost(code){
+  var pick=craftState.entry[code];
+  if(pick!=null){
+    var ob=craftBook(code),ask=ob&&ob.best_ask;
+    if(ask==null||pick<Number(ask)-1e-9)return pick
+  }
+  return craftDefaultEntry(code)
+}
 /* What a unit actually costs to acquire, and which way you got it. */
 function craftAcquire(code,qty){
   var walk=craftWalk(code,qty),at=craftPost(code);
   if(at==null)return walk?{unit:walk.unit,cost:walk.cost,thin:walk.thin,posted:false}:null;
-  return {unit:at,cost:at*qty,thin:false,posted:true,
+  var dflt=craftDefaultEntry(code),top=dflt!=null&&Math.abs(at-dflt)<1e-9,wall=null;
+  if(!top){
+    var zs=bookZones(code,4);
+    for(var i=0;i<zs.length;i++)if(Math.abs(zs[i].entry-at)<1e-9)wall=zs[i]
+  }
+  return {unit:at,cost:at*qty,thin:false,posted:true,top:top,wall:wall,
           lift:walk?walk.unit:null}
 }
 function craftInput(code,qty,field){
@@ -4658,6 +4766,7 @@ function paintCraft(){
   // Before any early return: the rarity is choosable whether or not prices have loaded.
   paintCraftPick();
   var sig=[state.tier,tierKnown()?'k':'',$('tax').value,craftState.src,$('craftCount').value,
+    entrySig(),
     craftState.liveAt,craftState.liveLoading?'L':'',craftState.liveError||'',
     craftState.src==='own'?$('craftScrap').value+'/'+$('craftSteel').value:'',
     craftState.summary?'s':'',craftState.books?'b':'',craftState.loading?'L':'',
@@ -5066,7 +5175,7 @@ function paintCase(){
   n=isFinite(n)&&n>0?Math.min(n,9999):1;
   var taxPct=Number($('tax').value);
   if(!isFinite(taxPct)||taxPct<0)taxPct=0;
-  var sig=[n,taxPct,craftState.src,craftState.liveAt,state.tier,
+  var sig=[n,taxPct,craftState.src,craftState.liveAt,state.tier,entrySig(),
            sortMin.abs,sortMin.pct,sortMin.join,
            craftState.summary?'s':'',craftState.books?'b':''].join('|');
   if(sig===craftState.caseSig)return;
@@ -5126,8 +5235,12 @@ function paintCase(){
   $('caseDetail').textContent=craftSigned(pct,2)+'% '+(many?'over '+n+' cases':'per case')+'. '+
     (many?n+' cases cost '+craftMoney(cost.cost)+' at '+cost.unit.toFixed(5)+' each'
         :'A case costs '+cost.unit.toFixed(5))+
-    (cost.posted?', posted a tick above the best bid rather than lifting the '+
-        (cost.lift!=null?cost.lift.toFixed(5):'ask'):', lifting the cheapest offers')+
+    (cost.posted
+       ?(cost.top?', resting a tick above the best bid'
+                 :', resting a tick above the '+(cost.wall?bookQty(cost.wall.wall)+'-deep ':'')+
+                  'wall'+(cost.wall?' at '+cost.wall.wallPrice.toFixed(3):''))+
+        ' rather than lifting the '+(cost.lift!=null?cost.lift.toFixed(5):'ask')
+       :', lifting the cheapest offers')+
     '; the average case holds '+gross.toFixed(4)+' after '+taxPct+'% tax'+
     (many?', or '+craftSigned(profit/n,4)+' each':'')+
     '. Break even at a case price of '+gross.toFixed(4)+' ('+
@@ -5144,9 +5257,13 @@ function paintCase(){
   if(missing)foot+=' '+missing+' tier(s) have no sale data and are treated as worthless, so this is a floor.';
   if(cost.thin)foot+=' The case order book could not fill the whole purchase, so the cost shown is a floor.';
   foot+=cost.posted
-    ? ' Cost assumes you post a buy order a tick above the best bid and wait, which is how'+
-      ' anyone buying to resell buys - so it does not walk the book, and it is not a price'+
-      ' you are guaranteed to get filled at. Lifting the offers instead costs '+
+    ? ' Cost assumes a buy order resting at '+cost.unit.toFixed(3)+
+      (cost.wall?', a tick above the '+bookQty(cost.wall.wall)+' resting at '+
+        cost.wall.wallPrice.toFixed(3)+', with '+bookQty(cost.wall.ahead)+
+        ' ahead of it to fill first':' at the top of the book')+
+      '. It adds liquidity rather than taking it, so it does not walk the book and the'+
+      ' price does not move with size - but it is a price you wait for, not one you are'+
+      ' guaranteed. Lifting the offers instead costs '+
       (cost.lift!=null?cost.lift.toFixed(5):'more')+' a case and fills now.'
     : ' The spread is one tick, so a posted bid would rest at the offer anyway and the cost'+
       ' shown simply lifts it.';
@@ -5167,7 +5284,7 @@ function paintCase(){
   }
   foot+=' Selling what you open moves these prices, and the more you open at once the more it moves them.';
   footEl.textContent=foot;
-  $('caseBooks').innerHTML=bookPanel('case1','Case I','res-case',n,n===1?'case':'cases');
+  $('caseBooks').innerHTML=bookPanel('case1','Case I','res-case',n,n===1?'case':'cases',gross);
   noteEl.textContent=bookIsLive('case1')?'Cheapest case sell orders lifted in order, on a live Gateway book.'
     :'Cheapest case sell orders lifted in order, on the collector\u2019s book.'
 }
@@ -7172,6 +7289,23 @@ $('dataRefresh').addEventListener('click',function(){
   // Pressed because the strip says the data is old, so it must not be the press that gets
   // ignored: clear a lock left behind by a fetch that never came back.
   refreshStartedAt=0;refreshCollector()
+});
+/* Choosing where to rest re-prices both cards, so it repaints both rather than only the
+   one that was tapped - the lesson the weighting toggle taught. Tapping the chosen row
+   again clears back to the default. */
+function pickEntry(code,px){
+  var cur=craftState.entry[code];
+  craftState.entry[code]=(cur!=null&&Math.abs(cur-px)<1e-9)?null:px;
+  craftState.sig=null;craftState.caseSig=null;
+  syncCraftInputs();paintCraft();paintCase()
+}
+['craftBooks','caseBooks'].forEach(function(id){
+  var box=$(id);if(!box)return;
+  box.addEventListener('click',function(e){
+    var b=e.target.closest('[data-entry]');if(!b)return;
+    var bits=b.getAttribute('data-entry').split('|');
+    pickEntry(bits[0],Number(bits[1]))
+  })
 });
 $('craftSrcBtns').addEventListener('click',function(e){
   var b=e.target.closest('[data-craftsrc]');if(b)setCraftSource(b.getAttribute('data-craftsrc'))
