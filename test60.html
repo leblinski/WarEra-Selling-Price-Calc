@@ -3976,18 +3976,23 @@ function legacyCopy(text){
   }
   return ok
 }
+/* The stamp is confirmation of a press, so it belongs on the press. legacyCopy has
+   already succeeded or failed by this line - waiting on the async clipboard to agree
+   only buys a beat of nothing where the confirmation should be. */
 function copyTextSafe(text){
   if(!text)return;
-  var ok=legacyCopy(text);
+  var ok=legacyCopy(text),stamped=false;
+  if(ok){showStamp(true,text);stamped=true}
   if(navigator.clipboard&&navigator.clipboard.writeText){
     try{
       var p=navigator.clipboard.writeText(text);
-      if(p&&p.then)p.then(function(){showStamp(true,text)},function(){showStamp(ok,text)})
-      else showStamp(ok,text);
-      return
+      if(p&&p.then){
+        p.then(function(){if(!stamped)showStamp(true,text)},function(){if(!stamped)showStamp(ok,text)});
+        return
+      }
     }catch(e){}
   }
-  showStamp(ok,text)
+  if(!stamped)showStamp(ok,text)
 }
 var THEMES=[
  {id:'gunmetal',ground:'#0E1A20',panel:'#15252D',p2:'#1C3039',line:'#2A4553',ink:'#EAF0F2',dim:'#8FA8B3',accent:'#C89B3C',deep:'#7A5E22',rgb:'200,155,60'},
@@ -6380,12 +6385,17 @@ function copyCoreQuiet(){
   if(!value)return;
   if(navigator.clipboard&&navigator.clipboard.writeText){
     try{
+      // Issue the write, then paint. Safari can take a moment to settle the promise and
+      // there is nothing in it worth waiting for: only a rejection changes the stamp.
       var pr=navigator.clipboard.writeText(value);
-      if(pr&&pr.then)pr.then(function(){showStamp(true,value)},function(){showStamp(false,value)});
-      else showStamp(true,value)
+      showStamp(true,value);
+      if(pr&&pr['catch'])pr['catch'](function(){showStamp(false,value)})
     }catch(e){showStamp(false,value)}
   }else showStamp(legacyCopy(value),value);
-  addRecentCore(state.lastPrice,scrap?state.listFigure:state.coreFigure,scrap)
+  // Re-rendering the whole history is not what the press is waiting on, so let the
+  // stamp land first and rebuild the list on the next frame.
+  var last=state.lastPrice,fig=scrap?state.listFigure:state.coreFigure;
+  setTimeout(function(){addRecentCore(last,fig,scrap)},0)
 }
 function copyCore(){
   var scrap=!!state.listFigure;
