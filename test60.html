@@ -306,44 +306,18 @@ input:focus{outline:none;border-color:var(--brass);box-shadow:0 0 0 3px rgba(var
 .pill.medium,.pill.watch{border-color:var(--brass);color:var(--brass)}
 .pill.low,.pill.stale{border-color:var(--rust);color:var(--rust)}
 
-.workrow{display:flex;gap:8px;align-items:stretch;margin:10px 0 14px}
-.workrow.lefty{flex-direction:row-reverse}
-.workpane{flex:1 1 auto;min-width:0;height:344px}
-.keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;height:100%}
-.key{
-  min-height:48px;cursor:pointer;border-radius:var(--radius);
-  border:1px solid rgba(var(--brass-rgb),.30);background:var(--panel);color:var(--ink);
-  font-family:"IBM Plex Mono",monospace;font-size:21px;font-weight:500;padding:0;
-  -webkit-user-select:none;user-select:none
-}
-.key:active,.key.pressed{background:var(--panel-2);border-color:var(--brass);transform:scale(.97)}
-.key.enter{
-  grid-column:span 2;border-color:var(--brass-deep);background:var(--panel-2);color:var(--brass);
-  font-family:"Saira Condensed",sans-serif;font-size:16px;font-weight:700;letter-spacing:.12em;text-transform:uppercase
-}
-.key.act{
-  color:var(--brass);font-family:"Saira Condensed",sans-serif;
-  font-size:15px;font-weight:700;letter-spacing:.08em;text-transform:uppercase
-}
+.workrow{display:block;margin:18px 0 14px}
+.workpane{min-width:0;height:auto}
 
-.salestab{
-  flex:none;width:44px;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;
-  border:1px solid rgba(var(--brass-rgb),.34);border-radius:var(--radius);
-  background:var(--panel);color:var(--brass)
+/* Trends is the work pane now - there is no keypad to trade places with, so it is
+   simply the next card down the page rather than a drawer behind a tab. */
+.salespane{
+  display:flex;flex-direction:column;height:auto;overflow:visible;
+  border:1px solid rgba(var(--brass-rgb),.22);
+  border-radius:var(--radius);padding:18px;background:rgba(var(--brass-rgb),.025)
 }
-.salestab-text{
-  display:block;writing-mode:vertical-rl;text-orientation:upright;
-  font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:15px;
-  letter-spacing:.02em;line-height:1.05;text-transform:uppercase;word-spacing:.7em;white-space:nowrap
-}
-.salestab[aria-expanded=true]{background:var(--panel-2);border-color:var(--brass)}
-
-.salespane{display:none;flex-direction:column;height:100%;overflow:hidden}
 .queuepad{display:none;grid-template-columns:repeat(3,1fr);gap:7px;height:100%}
-.workrow.sales-open .keypad{display:none}
-.workrow.sales-open .salespane{display:flex}
-.workrow.sales-open .queuepad{display:none}
-.workrow.queue-open .keypad,.workrow.queue-open .salespane{display:none}
+.workrow.queue-open .salespane{display:none}
 .workrow.queue-open .queuepad{display:grid}
 .sales-bar{display:flex;align-items:center;gap:8px;flex:none;margin-bottom:8px}
 .sales-head{
@@ -533,15 +507,6 @@ kbd{
   body{padding-top:34px}
   .wrap{max-width:1080px}
   .layout{grid-template-columns:minmax(0,1fr) 260px;gap:36px}
-  .salestab{display:none}
-  .workrow{display:block;margin-top:18px}
-  .workpane{height:auto}
-  .keypad{display:none!important}
-  .salespane{
-    display:flex!important;height:auto;overflow:visible;
-    border:1px solid rgba(var(--brass-rgb),.22);
-    border-radius:var(--radius);padding:18px;background:rgba(var(--brass-rgb),.025)
-  }
   .workrow.queue-open .salespane{display:none!important}
   .workrow.queue-open .queuepad{
     display:grid!important;
@@ -593,7 +558,6 @@ kbd{
   .hint{margin-bottom:10px;font-size:12.5px}
   .docket{padding:13px 16px 15px}
   .docket-figure{font-size:34px}
-  .workpane{height:330px}
 }
 
 .quick{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:-6px 0 14px}
@@ -1470,8 +1434,7 @@ kbd{
 }
 
 
-/* Mobile working rail: lock viewport + Sales Trends / Back to Keypad. */
-.workrail{flex:none;width:44px;display:flex;flex-direction:column;gap:6px}
+/* Pin lives beside the rarity row; it is all that is left of the old working rail. */
 .viewlock{
   flex:none;width:44px;height:44px;padding:0;cursor:pointer;
   border:1px solid rgba(var(--brass-rgb),.30);border-radius:var(--radius);
@@ -1484,12 +1447,6 @@ kbd{
   border-color:var(--verdigris);color:var(--verdigris);background:var(--panel-2)
 }
 .viewlock[aria-pressed=true] .viewlock-text::after{content:"ED"}
-.workrail .salestab{width:44px;flex:1;min-height:0}
-.salestab-text{
-  writing-mode:vertical-rl!important;text-orientation:mixed!important;
-  transform:rotate(180deg);
-  letter-spacing:.07em!important;word-spacing:.18em!important
-}
 
 /* Completed market analysis turns the picker into a dedicated trends/results pane. */
 .salespane.results-mode .sales-bar,
@@ -1525,31 +1482,15 @@ kbd{
 }
 
 /* iPhone: rapid +/- and picker taps must never become double-tap page zoom. */
-.stepbtn,.rollbtn,.agechip,.slotbtn,.optbtn,.analysebtn,.deepbtn,.queuebtn,.key,
-.salestab,.trend-change,.viewlock{
+.stepbtn,.rollbtn,.agechip,.slotbtn,.optbtn,.analysebtn,.deepbtn,.queuebtn,
+.trend-change,.viewlock{
   touch-action:manipulation;-webkit-user-select:none;user-select:none
 }
 
 @media(min-width:821px){
-  .workrail{display:none}
   .trend-toolbar{position:static;background:transparent}
 }
-/* The keypad exists because a phone's own keyboard covers the page it is typing into. Half a
-   desktop screen is narrow for the same reason a phone is, but it still has a real keyboard
-   and no such problem - so the width was never the right question, the pointer is. Anything
-   driven by a mouse gets the desktop work row at any width. */
 @media (hover:hover) and (pointer:fine){
-  .workrail{display:none}
-  .salestab{display:none}
-  .workrow{display:block;margin-top:18px}
-  .workpane{height:auto}
-  .keypad{display:none!important}
-  .salespane{
-    display:flex!important;height:auto;overflow:visible;
-    border:1px solid rgba(var(--brass-rgb),.22);
-    border-radius:var(--radius);padding:18px;background:rgba(var(--brass-rgb),.025)
-  }
-  .workrow.queue-open .salespane{display:none!important}
   .trend-toolbar{position:static;background:transparent}
 }
 @media(max-width:820px){
@@ -1561,7 +1502,6 @@ kbd{
 /* Lock is a phone-only control. Wider layouts keep Sales Trends but no lock. */
 @media(min-width:621px){
   .viewlock{display:none!important}
-  .workrail{gap:0}
 }
 
 
@@ -1697,21 +1637,14 @@ kbd{
   .quick-chip{padding:8px 10px!important}
   .quick-val{font-size:16px!important}
 
-  .workrow{position:relative;align-items:flex-start!important;gap:6px!important;margin-top:8px!important}
-  .workrail{
-    position:sticky;top:8px;z-index:8;width:34px!important;height:168px;gap:5px!important;align-self:flex-start
-  }
+  .workrow{position:relative;margin-top:8px!important}
   .viewlock{
     display:flex!important;align-items:center;justify-content:center;width:34px!important;height:34px!important;
     border-radius:9px!important
   }
   .viewlock-icon{font-size:15px;filter:grayscale(1);opacity:.55}
   .viewlock[aria-pressed=true] .viewlock-icon{filter:none;opacity:1}
-  .workrail .salestab{width:34px!important;min-height:128px!important;flex:1!important;border-radius:9px!important}
-  .salestab-text{font-size:11px!important;letter-spacing:.08em!important}
-
-  .workpane{height:330px!important}
-  .workrow.sales-open .workpane{height:auto!important;min-height:calc(100svh - 175px)!important}
+  .workpane{height:auto!important}
   .salespane{height:auto!important;min-height:inherit!important;overflow:visible!important;padding-bottom:6px}
   .queuepad{height:330px!important}
   .sales-bar{margin-bottom:8px!important}
@@ -1856,38 +1789,6 @@ kbd{
     font-size:10.5px!important
   }
 
-  /* One integrated side rail instead of two visually unrelated blocks. */
-  .workrail{
-    position:sticky!important;
-    top:8px!important;
-    z-index:8!important;
-    width:38px!important;
-    height:330px!important;
-    display:grid!important;
-    grid-template-rows:48px minmax(0,1fr)!important;
-    gap:0!important;
-    border:1px solid rgba(var(--brass-rgb),.34)!important;
-    border-radius:10px!important;
-    overflow:hidden!important;
-    background:var(--panel)!important;
-    align-self:flex-start!important
-  }
-  .workrail .viewlock{
-    width:100%!important;
-    height:48px!important;
-    min-height:48px!important;
-    border:0!important;
-    border-bottom:1px solid rgba(var(--brass-rgb),.24)!important;
-    border-radius:0!important;
-    background:transparent!important;
-    color:var(--dim)!important;
-    display:flex!important;
-    flex-direction:column!important;
-    align-items:center!important;
-    justify-content:center!important;
-    gap:1px!important;
-    padding:0!important
-  }
   .viewlock-icon{
     position:relative!important;
     display:block!important;
@@ -1925,37 +1826,6 @@ kbd{
     font-weight:700!important;
     letter-spacing:.09em!important;
     color:inherit!important
-  }
-  .workrail .viewlock[aria-pressed=true]{
-    color:var(--verdigris)!important;
-    background:rgba(107,184,168,.06)!important
-  }
-
-  .workrail .salestab{
-    width:100%!important;
-    min-height:0!important;
-    height:100%!important;
-    border:0!important;
-    border-radius:0!important;
-    background:transparent!important
-  }
-  .workrail .salestab[aria-expanded=true]{
-    background:var(--panel-2)!important
-  }
-  .salestab-text{
-    font-size:12px!important;
-    font-weight:700!important;
-    letter-spacing:.10em!important;
-    color:var(--brass)!important
-  }
-
-  .workrow{
-    gap:7px!important
-  }
-
-  /* When Trends expands, keep the rail the same visual unit beside the content. */
-  .workrow.sales-open .workrail{
-    height:min(72svh,620px)!important
   }
 }
 
@@ -2069,13 +1939,6 @@ h1 .title-word{white-space:nowrap}
     border-color:rgba(var(--brass-rgb),.14)!important
   }
 
-  /* Structural containers should almost disappear until active. */
-  .workrail{
-    border-color:rgba(var(--brass-rgb),.18)!important
-  }
-  .workrail .viewlock{
-    border-bottom-color:rgba(var(--brass-rgb),.12)!important
-  }
   .trend-toolbar,
   .market-analytics,
   .result-mini,
@@ -2122,8 +1985,6 @@ h1 .title-word{white-space:nowrap}
   }
 
   /* Selected / active states regain contrast. */
-  .key:active,
-  .key.pressed,
   .slotbtn[aria-pressed=true],
   .rollbtn[aria-pressed=true],
   .agechip[aria-pressed=true],
@@ -2131,7 +1992,6 @@ h1 .title-word{white-space:nowrap}
   .chart-tab[aria-pressed=true],
   .queuebtn[aria-pressed=true],
   .rarity-btn[aria-pressed=true],
-  .workrail .salestab[aria-expanded=true],
   .viewlock[aria-pressed=true]{
     border-color:rgba(var(--brass-rgb),.58)!important
   }
@@ -2306,20 +2166,6 @@ h1 .title-word{white-space:nowrap}
     background:rgba(255,255,255,.018)!important
   }
 
-  /* Work rail no longer needs a box around the whole strip. */
-  .workrail{
-    border:0!important;
-    background:rgba(255,255,255,.018)!important;
-    box-shadow:none!important
-  }
-  .workrail .viewlock{
-    border:0!important;
-    border-bottom:1px solid rgba(var(--brass-rgb),.10)!important
-  }
-  .workrail .salestab{
-    border:0!important
-  }
-
   /* Passive result/analytics containers are boundary-free. */
   .trend-toolbar,
   .market-analytics,
@@ -2387,11 +2233,6 @@ h1 .title-word{white-space:nowrap}
     border-color:var(--verdigris)!important
   }
 
-  /* Enter remains the keypad's deliberate action affordance. */
-  .key.enter{
-    border:1px solid rgba(var(--brass-rgb),.32)!important;
-    background:rgba(var(--brass-rgb),.08)!important
-  }
 }
 
 /* Desktop/tablet retain the existing bordered workstation treatment. */
@@ -2492,10 +2333,6 @@ h1 .title-word{white-space:nowrap}
   }
   .soundbtn[aria-pressed=true]{
     border:0!important;
-    background:rgba(var(--brass-rgb),.08)!important
-  }
-
-  #handBtns .soundbtn[aria-pressed=true]{
     background:rgba(var(--brass-rgb),.08)!important
   }
 
@@ -2608,38 +2445,6 @@ h1 .title-word{white-space:nowrap}
   body.focus-mode .flip,
   body.focus-mode #scrapBox{
     display:block!important
-  }
-
-  /* Trends rail is now one full-height action beside the keypad. */
-  .workrail{
-    width:42px!important;
-    height:330px!important;
-    display:block!important;
-    border:0!important;
-    border-radius:10px!important;
-    overflow:hidden!important;
-    background:rgba(255,255,255,.018)!important
-  }
-  .workrail .salestab{
-    display:flex!important;
-    align-items:center!important;
-    justify-content:center!important;
-    width:100%!important;
-    height:100%!important;
-    min-height:330px!important;
-    border:0!important;
-    background:transparent!important
-  }
-  .salestab-text{
-    font-size:14px!important;
-    font-weight:800!important;
-    letter-spacing:.12em!important
-  }
-  .workrow.sales-open .workrail{
-    height:min(72svh,620px)!important
-  }
-  .workrow.sales-open .salestab{
-    min-height:100%!important
   }
 
   /* Trends setup is a three-card sequence instead of six icons floating in space. */
@@ -3109,11 +2914,6 @@ h1 .title-word{white-space:nowrap}
       <p class="settings-head">Colour</p>
       <div class="swatches" id="swatches"></div>
 
-      <p class="settings-head">Handedness</p>
-      <div class="soundpick-btns" id="handBtns">
-        <button type="button" class="soundbtn" data-hand="right" aria-pressed="true">Right handed</button>
-        <button type="button" class="soundbtn" data-hand="left">Left handed</button>
-      </div>
       <details style="margin-top:14px">
         <summary class="settings-head" style="cursor:pointer">Developer diagnostics</summary>
         <div class="debug" id="debug">No lookup yet.</div>
@@ -3213,8 +3013,8 @@ h1 .title-word{white-space:nowrap}
         <p style="margin:0 0 7px"><b>Tax</b> is the market rate in your country. It is added on top of what you type,
         so buyers see a higher figure than the one you receive. A rate above other sellers&rsquo; means typing less to
         land at the same displayed price &mdash; which is the only way it changes what you should list at.</p>
-        <p style="margin:0">Tap the keypad directly. <kbd>Enter</kbd> or <b>&#10003;</b> calculates, copies the figure,
-        and fills in the flip and dismantle tiles below.</p>
+        <p style="margin:0">Type the price, then <kbd>Enter</kbd> or the <b>&#10003;</b> beside the field. Either one
+        calculates, copies the figure, and fills in the flip and dismantle tiles below.</p>
       </div>
 
       <div class="docket" id="docket">
@@ -3250,30 +3050,7 @@ h1 .title-word{white-space:nowrap}
 
       <div class="workrow" id="workrow">
         <div class="focus-toast" id="focusToast" role="status" aria-live="polite">Calculator pinned</div>
-        <div class="workrail">
-          <button type="button" class="salestab" id="salesTab" aria-expanded="false" aria-label="Open Sales Trends">
-            <span class="salestab-text">Trends</span>
-          </button>
-        </div>
-
         <div class="workpane" id="workpane">
-          <div class="keypad" id="keypad">
-            <button type="button" class="key" data-key="1">1</button>
-            <button type="button" class="key" data-key="2">2</button>
-            <button type="button" class="key" data-key="3">3</button>
-            <button type="button" class="key" data-key="4">4</button>
-            <button type="button" class="key" data-key="5">5</button>
-            <button type="button" class="key" data-key="6">6</button>
-            <button type="button" class="key" data-key="7">7</button>
-            <button type="button" class="key" data-key="8">8</button>
-            <button type="button" class="key" data-key="9">9</button>
-            <button type="button" class="key act" data-key="clear">C</button>
-            <button type="button" class="key" data-key="0">0</button>
-            <button type="button" class="key act" data-key="⌫">⌫</button>
-            <button type="button" class="key act" data-key=".">.</button>
-            <button type="button" class="key enter" data-key="enter">Enter</button>
-          </div>
-
           <div class="queuepad" id="queuePad">
             <button type="button" class="queuebtn" data-pos="1">1</button>
             <button type="button" class="queuebtn" data-pos="2">2</button>
@@ -3288,7 +3065,7 @@ h1 .title-word{white-space:nowrap}
             <button type="button" class="queuebtn" data-pos="11">11</button>
             <button type="button" class="queuebtn" data-pos="12">12</button>
             <button type="button" class="queuebtn past" data-pos="13">Past 12</button>
-            <button type="button" class="queuebtn back" data-queue-back="1">Back to price keypad</button>
+            <button type="button" class="queuebtn back" data-queue-back="1">Back to trends</button>
           </div>
 
           <div class="salespane" id="salesPane">
@@ -3978,51 +3755,31 @@ function refreshMarketOpts(){
   $('listingFloorMini').textContent=validFloor()?fmt(state.floor):'—';
   scheduleAutoAnalyse()
 }
-function buildKeypad(){
-  var keys=['1','2','3','4','5','6','7','8','9','clear','0','⌫','.'];
-  $('keypad').innerHTML=keys.map(function(k){
-    var label=k==='clear'?'C':k;
-    var act=(k==='⌫'||k==='clear'||k==='.')?' act':'';
-    return '<button type="button" class="key'+act+'" data-key="'+k+'">'+label+'</button>'
-  }).join('')+'<button type="button" class="key enter" data-key="enter">Enter</button>'
-}
 function buildQueuePad(){
   var out='';
   for(var i=1;i<=12;i++)out+='<button type="button" class="queuebtn" data-pos="'+i+'">'+i+'</button>';
   out+='<button type="button" class="queuebtn past" data-pos="13">Past 12</button>';
-  out+='<button type="button" class="queuebtn back" data-queue-back="1">Back to price keypad</button>';
+  out+='<button type="button" class="queuebtn back" data-queue-back="1">Back to trends</button>';
   $('queuePad').innerHTML=out
 }
 function isDesktop(){return window.matchMedia&&window.matchMedia('(min-width:821px)').matches}
 function isPhone(){return window.matchMedia&&window.matchMedia('(max-width:620px)').matches}
-function updateSalesTabLabel(){
-  var open=!!state.salesOpen,label=open?'← Keypad':'Trends';
-  var span=$('salesTab').querySelector('.salestab-text');
-  if(span)span.textContent=label;
-  $('salesTab').setAttribute('aria-label',open?'Back to Keypad':'Open Sales Trends')
-}
+/* Two modes, not three: Trends is the work pane itself now, and the queue picker
+   borrows it for as long as it is open. */
 function setWorkMode(mode){
   var w=$('workrow');
   w.classList.toggle('sales-open',mode==='sales');
   w.classList.toggle('queue-open',mode==='queue');
-  state.salesOpen=mode==='sales';
-  $('salesTab').setAttribute('aria-expanded',state.salesOpen?'true':'false');
-  updateSalesTabLabel()
+  state.salesOpen=mode==='sales'
 }
-function showPricePad(){
+function showWorkPane(){
   state.keyBuffer=normalizePriceString($('price').value);
-  if(isDesktop()){setWorkMode('sales');return}
-  setWorkMode(state.salesOpen?'sales':'price')
+  setWorkMode('sales');
+  scheduleAutoAnalyse()
 }
 function showQueuePad(){
   state.salesOpen=false;
   setWorkMode('queue')
-}
-function toggleSales(force){
-  if(isDesktop()){setWorkMode('sales');return}
-  var open=typeof force==='boolean'?force:!state.salesOpen;
-  setWorkMode(open?'sales':'price');
-  if(open)scheduleAutoAnalyse()
 }
 function showFocusToast(msg){
   if(!isPhone())return;
@@ -4054,12 +3811,6 @@ function scrollBelowPinned(el){
     var y=el.getBoundingClientRect().top+window.pageYOffset-pinnedOffset();
     window.scrollTo({top:Math.max(0,y),behavior:'smooth'})
   }catch(e){scrollToCard(el)}
-}
-
-function setHand(h){
-  state.hand=h;try{localStorage.setItem('etc-hand',h);localStorage.setItem('warera-calc-hand',h)}catch(e){}
-  $('workrow').classList.toggle('lefty',h==='left');
-  document.querySelectorAll('[data-hand]').forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-hand')===h?'true':'false')})
 }
 
 function resetAnalysis(){
@@ -4765,7 +4516,7 @@ var TOURS={
           'smallest step the market allows, with the market tax already worked in. Tap the '+
           'card to copy it.'},
     {sel:'#goBtn',title:'It is already copied',
-     body:'You never have to select that number. <b>Enter</b> on the keypad, or this tick, '+
+     body:'You never have to select that number. <b>Enter</b> on the keyboard, or this tick, '+
           'calculates and puts the figure straight on your clipboard &mdash; switch to the '+
           'game and paste.'},
     {sel:'#quickScrap',title:'When not to sell at all',
@@ -7313,7 +7064,7 @@ function renderModel(m,meta){
     paintTrendHero(m.histTarget,'HIGHER-PRICE OPPORTUNITY','Historical sales support this higher price. Live competition between the current floor and this target determines how safe the opportunity is.',xEntry?decStr(xEntry):fmt(m.histTarget));
     showFinalOrDismantle(underFloor(),'Quick-sale minimum undercut','Higher historical opportunity '+fmt(m.histTarget)+' is shown in Trends with a live-depth risk bar.');
     paintTrendMini(m);
-    if(isDesktop())setWorkMode('sales')
+    setWorkMode('sales')
   }else{
     var headline='Minimum undercut';
     var detail='Default rule: beat the current best offer by the smallest possible amount.';
@@ -7335,7 +7086,7 @@ function renderModel(m,meta){
     $('resultText').innerHTML=info;
     showFinalOrDismantle(m.directPrice,headline,detail);
     paintTrendMini(m);
-    if(isDesktop())setWorkMode('sales');else toggleSales(true)
+    setWorkMode('sales');scheduleAutoAnalyse()
   }
   debug(meta,m);renderRawInspector();
 
@@ -7478,7 +7229,7 @@ function analyse(deep){
     $('rawInspector').textContent='No fresh raw sample yet. Tap “Fetch raw sample”.'
   }
   if(!canAnalyse()){
-    if(!isDesktop())toggleSales(true);
+    setWorkMode('sales');
     state.marketLoading=false;setSalesStatus('Choose the piece/roll and enter the current floor price.','error');return
   }
   state.deep=!!deep;state.itemCode=itemCode();$('analyseBtn').disabled=true;$('deepBtn').disabled=true;
@@ -8299,38 +8050,6 @@ $('rollGrid').addEventListener('input',function(e){
   else delete state.rolls[key];
   resetAnalysis();paintRollFacts();refreshMarketOpts()
 });
-$('keypad').addEventListener('click',function(e){
-  var b=e.target.closest('[data-key]');if(!b)return;
-  e.preventDefault();
-
-  var k=b.getAttribute('data-key');
-  if(k==='enter'){coreCalc(true);copyCore();return}
-
-  // The keypad owns its own buffer. It never depends on the text field having
-  // focus, which is important on iOS where tapping a button does not place a
-  // caret in the input.
-  var v=String(state.keyBuffer||$('price').value||'');
-
-  if(k==='clear'){
-    v=''
-  }else if(k==='⌫'){
-    v=v.slice(0,-1)
-  }else if(k==='.'){
-    if(v.indexOf('.')>=0)return;
-    v=v===''?'0.':v+'.'
-  }else if(/^\d$/.test(k)){
-    // Avoid growing leading zeroes such as 0003, but keep 0.xxx valid.
-    if(v==='0')v=k;
-    else v+=k
-  }
-
-  applyPriceString(v);
-  resetAnalysis();
-
-  // Visual feedback only; do NOT focus the input or summon the iOS keyboard.
-  b.classList.add('pressed');
-  window.setTimeout(function(){b.classList.remove('pressed')},90)
-});
 $('price').addEventListener('input',function(){
   syncInputs();
   if(!coreDisplayed()&&!state.pinnedTier){
@@ -8578,7 +8297,6 @@ document.querySelector('.legacyopts').addEventListener('click',function(e){
 });
 
 $('goBtn').addEventListener('click',function(){coreCalc(true);copyCore()});
-$('salesTab').addEventListener('click',function(){toggleSales()});
 
 $('expandTrendData').addEventListener('click',function(){setTrendExpanded(true,true)});
 $('oppCount').addEventListener('input',function(){
@@ -8653,7 +8371,7 @@ $('salesStatus').addEventListener('click',function(){
 });
 $('queuePad').addEventListener('click',function(e){
   var p=e.target.closest('[data-pos]');if(p){finalFromQueue(Number(p.getAttribute('data-pos')));return}
-  if(e.target.closest('[data-queue-back]'))showPricePad()
+  if(e.target.closest('[data-queue-back]'))showWorkPane()
 });
 $('docket').addEventListener('click',function(){if(state.coreFigure||state.listFigure)copyCore()});
 
@@ -8686,7 +8404,6 @@ function closeSettings(){
 $('settingsClose').addEventListener('click',closeSettings);
 $('settingsPanel').addEventListener('click',function(e){if(e.target===$('settingsPanel'))closeSettings()});
 document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!$('settingsPanel').hidden)closeSettings()});
-$('handBtns').addEventListener('click',function(e){var b=e.target.closest('[data-hand]');if(b)setHand(b.getAttribute('data-hand'))});
 $('tipLink').addEventListener('click',function(){
   var id=this.dataset.article||'';
   if(!id)return;
@@ -8953,9 +8670,8 @@ document.addEventListener('keydown',function(e){
   if(document.activeElement===$('price')&&e.key==='Enter'){e.preventDefault();coreCalc(true);copyCore()}
 });
 
-buildRarity();buildSlots();buildRolls();buildKeypad();buildQueuePad();renderRecent();updateSalesTabLabel();setViewLock(false);updateTaxChip();setChartTab('price');
+buildRarity();buildSlots();buildRolls();buildQueuePad();renderRecent();setViewLock(false);updateTaxChip();setChartTab('price');
 try{
-  var h=localStorage.getItem('warera-calc-hand')||localStorage.getItem('etc-hand')||'right';setHand(h);
   var t=localStorage.getItem('warera-calc-tax');if(t)$('tax').value=t;
   var mt=localStorage.getItem('warera-calc-mkttax');if(mt)$('mktTax').value=mt;
   updateTaxChip();
@@ -8972,7 +8688,7 @@ loadLocalProfile().then(function(){
   paintProfile(PROFILE_SEED);
   loadProfile();
 });
-syncInputs();refreshMarketOpts();setWorkMode(isDesktop()?'sales':'price');
+syncInputs();refreshMarketOpts();setWorkMode('sales');
 loadSortMin();
 $('sortMin').value=String(sortMin.abs);
 $('sortMinPct').value=String(sortMin.pct);
@@ -8986,7 +8702,7 @@ coreCalc(true);
 if(window.matchMedia){try{
   window.matchMedia('(min-width:821px)').addEventListener('change',function(){
     if(!isPhone()&&state.viewLocked)setViewLock(false);
-    setWorkMode(isDesktop()?'sales':'price')
+    setWorkMode('sales')
   });
   window.matchMedia('(max-width:620px)').addEventListener('change',function(){
     if(!isPhone()&&state.viewLocked)setViewLock(false)
