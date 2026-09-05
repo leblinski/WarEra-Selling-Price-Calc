@@ -124,22 +124,17 @@ h1{
   position:fixed;z-index:941;pointer-events:none;overflow:visible;
   -webkit-user-select:none;user-select:none;-webkit-touch-callout:none
 }
-.wheel-seg{
-  fill:var(--panel-2);stroke:rgba(var(--brass-rgb),.35);stroke-width:1;
-  transition:fill .08s linear
-}
-.wheel-seg.on{fill:var(--brass)}
+/* Every colour in the ring is written as an attribute in the drawing code rather than as
+   fill:var(--...) here. Safari does not resolve a custom property through an SVG fill built
+   this way and the segments came out near-white, which is the one thing a ring of white
+   labels cannot be. Attributes cannot be misresolved. */
+.wheel-seg{transition:fill .08s linear}
 .wheel-lab{
-  fill:var(--ink);font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:13px;
+  font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:13px;
   text-anchor:middle;dominant-baseline:middle;pointer-events:none
 }
-.wheel-seg.on+.wheel-lab{fill:var(--panel)}
-.wheel-hub{fill:var(--panel-2);stroke:var(--rust);stroke-width:1.5}
-.wheel-hub.on{fill:var(--rust);stroke:var(--rust)}
-.wheel-x{stroke:var(--dim);stroke-width:2.5;stroke-linecap:round}
-.wheel-hub.on+.wheel-x{stroke:#fff}
 .wheel-title{
-  fill:var(--brass);font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:12px;
+  font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:12px;
   letter-spacing:.1em;text-anchor:middle;text-transform:uppercase
 }
 @media (prefers-reduced-motion:reduce){.wheel-seg{transition:none}}
@@ -8736,6 +8731,13 @@ $('histList').addEventListener('click',function(e){
    hub, and nothing is committed until the finger comes up - so a hold that wanders back to
    the centre is a cancel rather than a wrong pick. The ring is clamped into the viewport
    because a tile at the edge of the strip would otherwise open half of itself off-screen. */
+/* Teal rather than the panel colour, because the ring floats over a dimmed page and needs to
+   be its own object rather than another panel - and dark enough that the labels stay white,
+   which is the only way a number is readable at this size. The lit segment is a lighter teal
+   with a brass edge, so which one is chosen never depends on reading a fill. */
+var WHEEL_BG='#123E44',WHEEL_HI='#1E7A78',WHEEL_EDGE='rgba(107,184,168,.45)',
+    WHEEL_HI_EDGE='#C89B3C',WHEEL_TEXT='#FFFFFF',WHEEL_TITLE='#C89B3C',
+    HUB_EDGE='#C2703F',HUB_ON='#C2703F';
 var wheel=null;
 function wheelXY(cx,cy,r,a){return [cx+r*Math.cos(a),cy+r*Math.sin(a)]}
 function wheelArc(cx,cy,r0,r1,a0,a1){
@@ -8757,18 +8759,27 @@ function openWheel(stage,idx,x,y){
   svg.setAttribute('class','wheel');
   svg.style.left=(cx-pad)+'px';svg.style.top=(cy-pad)+'px';
   svg.setAttribute('width',pad*2);svg.setAttribute('height',pad*2);
-  var ox=pad,oy=pad,step=Math.PI*2/n,start=-Math.PI/2-step/2,parts='';
+  var ox=pad,oy=pad,step=Math.PI*2/n,start=-Math.PI/2-step/2;
+  var NS='http://www.w3.org/2000/svg';
+  var mk=function(tag,attrs,text){
+    var e=document.createElementNS(NS,tag),k;
+    for(k in attrs)if(attrs.hasOwnProperty(k))e.setAttribute(k,attrs[k]);
+    if(text!=null)e.textContent=text;
+    svg.appendChild(e);return e
+  };
   for(var i=0;i<n;i++){
     var a0=start+i*step,a1=a0+step,mid=(a0+a1)/2,lp=wheelXY(ox,oy,(r0+R)/2,mid);
-    parts+='<path class="wheel-seg" data-seg="'+i+'" d="'+wheelArc(ox,oy,r0,R,a0,a1)+'"></path>'+
-      '<text class="wheel-lab" x="'+lp[0].toFixed(1)+'" y="'+lp[1].toFixed(1)+'">'+
-      esc(stage.opts[i].label)+'</text>';
+    mk('path',{'class':'wheel-seg','data-seg':i,d:wheelArc(ox,oy,r0,R,a0,a1),
+      fill:WHEEL_BG,stroke:WHEEL_EDGE,'stroke-width':1});
+    mk('text',{'class':'wheel-lab',x:lp[0].toFixed(1),y:lp[1].toFixed(1),fill:WHEEL_TEXT},
+      stage.opts[i].label);
   }
-  parts+='<circle class="wheel-hub" cx="'+ox+'" cy="'+oy+'" r="'+(r0-4)+'"></circle>'+
-    '<path class="wheel-x" d="M'+(ox-8)+' '+(oy-8)+'L'+(ox+8)+' '+(oy+8)+
-    'M'+(ox+8)+' '+(oy-8)+'L'+(ox-8)+' '+(oy+8)+'"></path>'+
-    '<text class="wheel-title" x="'+ox+'" y="'+(oy-R-4)+'">'+esc(stage.title)+'</text>';
-  svg.innerHTML=parts;
+  mk('circle',{'class':'wheel-hub',cx:ox,cy:oy,r:r0-4,fill:WHEEL_BG,stroke:HUB_EDGE,
+    'stroke-width':1.5});
+  mk('path',{'class':'wheel-x',d:'M'+(ox-8)+' '+(oy-8)+'L'+(ox+8)+' '+(oy+8)+
+    'M'+(ox+8)+' '+(oy-8)+'L'+(ox-8)+' '+(oy+8),stroke:HUB_EDGE,'stroke-width':2.5,
+    'stroke-linecap':'round',fill:'none'});
+  mk('text',{'class':'wheel-title',x:ox,y:oy-R-4,fill:WHEEL_TITLE},stage.title);
   document.body.appendChild(veil);document.body.appendChild(svg);
   wheel={svg:svg,veil:veil,stage:stage,idx:idx,cx:cx,cy:cy,r0:r0,R:R,
          step:step,start:start,n:n,pick:-1};
@@ -8795,9 +8806,16 @@ function wheelAim(x,y){
     pick=Math.floor((a-wheel.start)/wheel.step)%wheel.n
   }
   wheel.pick=pick;
-  var segs=wheel.svg.querySelectorAll('.wheel-seg');
-  for(var i=0;i<segs.length;i++)segs[i].classList.toggle('on',i===pick);
-  wheel.svg.querySelector('.wheel-hub').classList.toggle('on',pick<0)
+  var segs=wheel.svg.querySelectorAll('.wheel-seg'),i,on;
+  for(i=0;i<segs.length;i++){
+    on=i===pick;
+    segs[i].setAttribute('fill',on?WHEEL_HI:WHEEL_BG);
+    segs[i].setAttribute('stroke',on?WHEEL_HI_EDGE:WHEEL_EDGE);
+    segs[i].setAttribute('stroke-width',on?2:1)
+  }
+  var hub=wheel.svg.querySelector('.wheel-hub'),x=wheel.svg.querySelector('.wheel-x');
+  hub.setAttribute('fill',pick<0?HUB_ON:WHEEL_BG);
+  x.setAttribute('stroke',pick<0?'#FFFFFF':HUB_EDGE)
 }
 function closeWheel(){
   if(!wheel)return;
