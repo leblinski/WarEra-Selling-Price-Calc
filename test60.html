@@ -243,6 +243,12 @@ input:focus{outline:none;border-color:var(--brass);box-shadow:0 0 0 3px rgba(var
 }
 .gobtn:hover{border-color:var(--brass);background:var(--panel)}
 #price{padding-right:74px}
+/* The hint is not a price, so it does not need a price's size - and at the value's 22px
+   the example is wider than the field and gets cut off exactly where the digits start. */
+#price::placeholder{font-size:13px;opacity:.8}
+/* The narrowest phones leave the field about 82px of text; the example has to fit whole
+   or it stops being an example. */
+@media(max-width:359px){#price::placeholder{font-size:11px}}
 
 .rarity{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0 6px}
 .rarity-label{
@@ -2946,7 +2952,7 @@ h1 .title-word{white-space:nowrap}
         <div id="priceField">
           <label class="label" for="price" id="priceLabel">Price to beat</label><button type="button" class="q" data-q="price" aria-expanded="false" aria-label="What price goes here">?</button>
           <div class="inputwrap">
-            <input type="text" id="price" placeholder="their cheapest · e.g. 326.129" inputmode="decimal" autocomplete="off" spellcheck="false">
+            <input type="text" id="price" placeholder="e.g. 326.129" inputmode="decimal" enterkeyhint="done" autocomplete="off" spellcheck="false">
             <button type="button" class="gobtn" id="goBtn" aria-label="Calculate and copy">&#10003;</button>
           </div>
         </div>
@@ -6365,6 +6371,22 @@ function loadCraftData(bust){
   paintCraft()
 }
 
+/* Copying while the field is losing focus must not focus anything of its own: the
+   textarea trick inside legacyCopy would pull a phone's keyboard straight back up.
+   The async clipboard needs no focus at all, and iOS has had it since 13.4. */
+function copyCoreQuiet(){
+  var scrap=!!state.listFigure,
+      value=scrap?'DO NOT LIST - DISMANTLE THIS FOR SCRAPS':state.coreFigure;
+  if(!value)return;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    try{
+      var pr=navigator.clipboard.writeText(value);
+      if(pr&&pr.then)pr.then(function(){showStamp(true,value)},function(){showStamp(false,value)});
+      else showStamp(true,value)
+    }catch(e){showStamp(false,value)}
+  }else showStamp(legacyCopy(value),value);
+  addRecentCore(state.lastPrice,scrap?state.listFigure:state.coreFigure,scrap)
+}
 function copyCore(){
   var scrap=!!state.listFigure;
   var value=scrap?'DO NOT LIST - DISMANTLE THIS FOR SCRAPS':state.coreFigure;
@@ -8071,7 +8093,18 @@ $('price').addEventListener('focus',function(){
   setTimeout(function(){try{el.setSelectionRange(0,el.value.length)}catch(e){}},0)
 });
 
-$('price').addEventListener('blur',function(){state.keyBuffer=normalizePriceString(this.value);coreCalc(true)});
+/* A phone's decimal pad has no return key: its done/tick simply dismisses the keyboard,
+   which reaches the page as a blur and never as Enter. So the blur is the commit - the
+   same calculate-and-copy that Enter does - or the figure never reaches the clipboard
+   before you switch to the game. */
+$('price').addEventListener('blur',function(e){
+  state.keyBuffer=normalizePriceString(this.value);
+  coreCalc(true);
+  // The tick beside the field runs its own copy; let it, rather than stamping twice.
+  var to=e&&e.relatedTarget;
+  if(to&&to.id==='goBtn')return;
+  if($('autoCopy').checked)copyCoreQuiet()
+});
 $('ageHours').addEventListener('input',function(){
   syncInputs();resetAnalysis();
   var parsed=parseListingAge(this.value);
