@@ -63,7 +63,13 @@ h1{
    the order in your head. Each piece you price becomes a tile instead: its icon, its roll
    and its price, laid out so a glance finds the one you want. Tapping loads it back;
    dragging groups them however you are actually working; the x drops one. */
-.hist-list{display:flex;flex-wrap:wrap;gap:7px;touch-action:pan-y}
+.hist-list{display:flex;flex-wrap:wrap;gap:7px;touch-action:pan-y;position:relative}
+/* Where the tile will land, drawn in the gap it will land in. Nothing about the drop is
+   drawn on a tile any more, because no tile is being traded with. */
+.drop-caret{
+  position:absolute;width:3px;border-radius:2px;background:var(--brass);
+  box-shadow:0 0 6px rgba(var(--brass-rgb),.75);pointer-events:none;z-index:3
+}
 .ptile{
   position:relative;width:78px;flex:none;border-radius:9px;
   border:1px solid var(--tier,rgba(var(--brass-rgb),.3));background:var(--panel);
@@ -172,7 +178,6 @@ h1{
   pointer-events:none;z-index:5;opacity:.9;
   box-shadow:0 10px 26px rgba(0,0,0,.5);border-color:var(--brass)
 }
-.ptile.over{box-shadow:0 0 0 2px var(--brass) inset}
 @media (prefers-reduced-motion:reduce){.ptile,.ptile-x,.ptile-grip{transition:none}}
 .hist-item{
   position:relative;width:100%;text-align:left;font:inherit;color:inherit;
@@ -7974,7 +7979,17 @@ function renderRecent(){
    not fire at all. A few pixels of slop before it counts as a drag keeps a tap a tap, and
    the tile being carried drops out of hit-testing so elementFromPoint names the one under
    it rather than itself. */
-var dragTile=null,dragIdx=-1,dragX=0,dragY=0,dragging=false,dragBlockClick=false;
+var dragTile=null,dragIdx=-1,dragX=0,dragY=0,dragging=false,dragBlockClick=false,dragSlot=-1;
+function showCaret(){
+  var list=$('histList');
+  if(list.querySelector('.drop-caret'))return;
+  var c=document.createElement('div');c.className='drop-caret';c.hidden=true;
+  list.appendChild(c)
+}
+function clearCaret(){
+  var c=$('histList').querySelector('.drop-caret');
+  if(c&&c.parentNode)c.parentNode.removeChild(c)
+}
 
 /* ---- What a tile still needs, and how to ask for it ----------------------------
    One stage per hold, in the order the piece is described: the slot first, then the roll.
@@ -8028,15 +8043,56 @@ function wheelStage(x){
   for(var v=lo;v<=hi;v++)opts.push({label:String(v),val:v});
   return {kind:'value',key:need.key,title:need.label,opts:opts}
 }
-function tileIndexAt(x,y){
-  var el=document.elementFromPoint(x,y);
-  var t=el&&el.closest?el.closest('.ptile'):null;
-  return t?Number(t.getAttribute('data-idx')):-1
+/* A drop lands in a gap, not on a tile. The gap is found from the nearest tile and which
+   half of it the pointer is in; distance is measured to the tile's box rather than its
+   centre, and a row counts for six times a column, so a wrapped grid hands back a gap in
+   the row being pointed at instead of the nearest one on the diagonal.
+
+   Offsets rather than getBoundingClientRect, because the tile being carried is under a
+   transform and its rect has moved with the pointer while its offsets have not. */
+function tileSlots(){return $('histList').querySelectorAll('.ptile')}
+function listGap(){
+  var g=parseFloat(getComputedStyle($('histList')).columnGap);
+  return isFinite(g)?g:7
 }
-function moveRecent(from,to){
+function dropSlotAt(x,y){
+  var kids=tileSlots();if(!kids.length)return 0;
+  var box=$('histList').getBoundingClientRect(),px=x-box.left,py=y-box.top;
+  /* Released well clear of the list, the drag is abandoned rather than snapped to the
+     nearest gap - and the caret goes with it, so the release is never a surprise. */
+  var slack=48;
+  if(px<-slack||py<-slack||px>box.width+slack||py>box.height+slack)return -1;
+  var best=0,bestScore=Infinity,i,el,l,t,w,h,dx,dy,score;
+  for(i=0;i<kids.length;i++){
+    el=kids[i];l=el.offsetLeft;t=el.offsetTop;w=el.offsetWidth;h=el.offsetHeight;
+    dx=px<l?l-px:(px>l+w?px-(l+w):0);
+    dy=py<t?t-py:(py>t+h?py-(t+h):0);
+    score=dy*6+dx;
+    if(score<bestScore){bestScore=score;best=i}
+  }
+  el=kids[best];
+  return px<el.offsetLeft+el.offsetWidth/2?best:best+1
+}
+function paintCaret(slot){
+  var list=$('histList'),c=list.querySelector('.drop-caret'),kids=tileSlots();
+  if(!c)return;
+  if(!kids.length||slot<0){c.hidden=true;return}
+  var g=listGap()/2,ref,left;
+  if(slot<kids.length){ref=kids[slot];left=ref.offsetLeft-g}
+  else{ref=kids[kids.length-1];left=ref.offsetLeft+ref.offsetWidth+g}
+  left=Math.max(0,Math.min(list.clientWidth-3,left-1.5));
+  c.style.left=left+'px';c.style.top=ref.offsetTop+'px';
+  c.style.height=ref.offsetHeight+'px';c.hidden=false
+}
+/* slot is a gap, 0 to length, so both ends of the list are reachable. Landing in either
+   gap beside where the tile already is means it has not moved. */
+function moveRecentTo(from,slot){
   var a=readRecent();
-  if(from<0||to<0||from>=a.length||to>=a.length||from===to)return;
-  a.splice(to,0,a.splice(from,1)[0]);
+  if(from<0||from>=a.length)return;
+  slot=Math.max(0,Math.min(a.length,slot));
+  if(slot===from||slot===from+1)return;
+  var item=a.splice(from,1)[0];
+  a.splice(slot>from?slot-1:slot,0,item);
   saveRecent(a);renderRecent()
 }
 function dropRecent(i){
@@ -8709,26 +8765,23 @@ $('histList').addEventListener('pointermove',function(e){
   // Slop, so a tap that wobbles is still a tap.
   if(!dragging){
     if(Math.abs(dx)+Math.abs(dy)<6)return;
-    dragging=true;dragTile.classList.add('dragging')
+    dragging=true;dragTile.classList.add('dragging');showCaret()
   }
   e.preventDefault();
   dragTile.style.transform='translate('+dx+'px,'+dy+'px)';
-  var over=tileIndexAt(e.clientX,e.clientY);
-  Array.prototype.forEach.call($('histList').children,function(el){
-    el.classList.toggle('over',over>=0&&Number(el.getAttribute('data-idx'))===over&&over!==dragIdx)
-  })
+  dragSlot=dropSlotAt(e.clientX,e.clientY);
+  paintCaret(dragSlot)
 });
 function endDrag(e){
   if(wheel)return;
   if(!dragTile)return;
-  var was=dragging,to=was?tileIndexAt(e.clientX,e.clientY):-1;
+  var was=dragging,slot=was?dropSlotAt(e.clientX,e.clientY):-1;
   try{if(e.pointerId!=null)dragTile.releasePointerCapture(e.pointerId)}catch(err){}
   dragTile.classList.remove('dragging');dragTile.style.transform='';
-  Array.prototype.forEach.call($('histList').children,function(el){el.classList.remove('over')});
-  dragTile=null;dragging=false;
+  clearCaret();
+  dragTile=null;dragging=false;dragSlot=-1;
   if(was){
-    // A drag that ends on a tile is a reorder; one that ends anywhere else just puts it back.
-    if(to>=0&&to!==dragIdx)moveRecent(dragIdx,to);
+    if(slot>=0)moveRecentTo(dragIdx,slot);
     // The click that follows the release is the drag's own, not a tap on a tile.
     dragBlockClick=true;setTimeout(function(){dragBlockClick=false},0)
   }
