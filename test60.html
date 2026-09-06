@@ -1109,6 +1109,18 @@ kbd{
    what says so; the chosen one still takes the brass. */
 .zone-row:not(.head){border-color:rgba(var(--brass-rgb),.16)}
 .zone-row .z-p{text-align:left}
+/* What the book has been doing, under what it is doing. Two lines, because the series
+   answers exactly two questions a snapshot cannot: how long this has held, and whether the
+   support under it is growing. */
+.book-hist{margin-top:9px;padding-top:8px;border-top:1px solid rgba(var(--brass-rgb),.14)}
+.book-hist .bh-lead{
+  display:block;font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:9.5px;
+  letter-spacing:.13em;text-transform:uppercase;color:var(--dim);margin-bottom:4px
+}
+.book-hist p{margin:0 0 3px;font-size:11px;line-height:1.45;color:var(--dim)}
+.book-hist b{color:var(--ink);font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+.book-hist .bh-up{color:var(--verdigris)}
+.book-hist .bh-down{color:var(--rust)}
 .zone-row:not(.head):hover{border-color:var(--line);color:var(--ink)}
 .zone-row.on{border-color:var(--brass);color:var(--ink);background:rgba(var(--brass-rgb),.10)}
 .zone-row.on .z-p{color:var(--brass)}
@@ -4452,6 +4464,87 @@ function bookLevels(orders,dir,n){
   return out.slice(0,n||5)
 }
 function bookQty(n){return Math.round(n).toLocaleString()}
+/* ---- What the book has been doing --------------------------------------------------
+   A snapshot says where the price is. Only the series says how long it has been there and
+   whether the support under it is building or eroding, and the collector has been keeping
+   the ladders every run since the day it was taught to. This reads them.
+
+   Fetched on first sight of a book panel rather than on load: it is the largest thing the
+   page asks for after the summary, and most visits never open a book. A version of the
+   collector that has not published it yet simply leaves the block out. */
+var bookHist=null,bookHistTried=false;
+function loadBookHistory(){
+  if(bookHistTried)return;
+  bookHistTried=true;
+  collectorFetch('books.json',false).then(function(j){
+    if(!j||!j.snapshots||!j.snapshots.length)return;
+    bookHist=j;
+    craftState.sig=null;craftState.caseSig=null;
+    paintCraft();paintCase()
+  },function(){})
+}
+function bookSeries(code){
+  if(!bookHist)return null;
+  var out=[],all=bookHist.snapshots,i,r;
+  for(i=0;i<all.length;i++){
+    r=all[i][code];
+    if(r&&r.b&&r.b.length&&r.a&&r.a.length)out.push({t:Date.parse(all[i].t),b:r.b,a:r.a})
+  }
+  return out.length>=6?out:null
+}
+function bookLevelQty(rungs,px){
+  for(var i=0;i<rungs.length;i++)if(Math.abs(rungs[i][0]-px)<1e-9)return rungs[i][1];
+  return 0
+}
+function bookHistBlock(code){
+  var s=bookSeries(code);if(!s)return '';
+  var last=s[s.length-1],bid=last.b[0][0],ask=last.a[0][0];
+  var hours=(last.t-s[0].t)/3600000;
+  if(!(hours>1))return '';
+  var same=0,run=0,i,lo=bid,hi=bid;
+  for(i=0;i<s.length;i++){
+    if(s[i].b[0][0]===bid&&s[i].a[0][0]===ask)same++;
+    if(s[i].b[0][0]<lo)lo=s[i].b[0][0];
+    if(s[i].b[0][0]>hi)hi=s[i].b[0][0]
+  }
+  for(i=s.length-1;i>=0;i--){if(s[i].b[0][0]===bid&&s[i].a[0][0]===ask)run++;else break}
+  var held=run<2?'new this reading'
+          :'unbroken for '+fmtHours((last.t-s[s.length-run].t)/3600000);
+  // The wall is the level being rested against, so it is the one worth tracking - but only
+  // for as long as it has existed. A level three readings old has no trend to report.
+  var q=[],age=0,tot=0;
+  for(i=0;i<s.length;i++)q.push(bookLevelQty(s[i].b,bid));
+  for(i=q.length-1;i>=0&&q[i]>0;i--)age++;
+  var seen=q.slice(q.length-age),now=q[q.length-1];
+  for(i=0;i<seen.length;i++)tot+=seen[i];
+  var wall;
+  if(age<8){
+    wall='The '+bid.toFixed(3)+' wall is <b>'+bookQty(now)+'</b>, and the level is '+
+         age+' reading'+(age===1?'':'s')+' old.'
+  }else{
+    var mean=tot/seen.length,recent=0,take=Math.min(8,seen.length);
+    for(i=seen.length-take;i<seen.length;i++)recent+=seen[i];
+    recent/=take;
+    var drift=mean>0?(recent/mean-1)*100:0;
+    var word=drift>15?'<span class="bh-up">building</span>'
+            :drift<-15?'<span class="bh-down">eroding</span>':'holding';
+    wall='The '+bid.toFixed(3)+' wall is <b>'+bookQty(now)+'</b>, '+word+' \u2014 '+
+         bookQty(Math.min.apply(null,seen))+' to '+bookQty(Math.max.apply(null,seen))+
+         ' over the window.'
+  }
+  /* Named as readings rather than as the book, because with a Gateway key the panel above
+     is live and this is the collector's series - up to a run behind it. */
+  return '<div class="book-hist"><span class="bh-lead">Last '+fmtHours(hours)+
+    ' \u00b7 '+s.length+' readings</span>'+
+    '<p><b>'+bid.toFixed(3)+' / '+ask.toFixed(3)+'</b> \u2014 '+held+
+    ', the touch in '+same+' of them.</p>'+
+    '<p>Best bid has '+(lo===hi?'held at <b>'+bid.toFixed(3)+'</b> throughout'
+      :'ranged <b>'+lo.toFixed(3)+'</b> to <b>'+hi.toFixed(3)+'</b>')+'.</p>'+
+    '<p>'+wall+'</p></div>'
+}
+function fmtHours(h){
+  return h<1?Math.round(h*60)+' min':h<48?Math.round(h)+' h':Math.round(h/24)+' days'
+}
 /* Every correction this session earned itself a sentence in a footnote and none of them
    took one away, so the case card reached 395 words with a single 1,015-character
    paragraph in it. All of it is true and almost none of it is read.
@@ -4758,6 +4851,7 @@ function bookZones(code,maxn){
 function bookPanel(code,name,icon,need,unit,gross){
   var ob=craftBook(code);
   if(!ob)return '';
+  loadBookHistory();
   var bids=bookLevels(ob.buy_orders,'bid',5),asks=bookLevels(ob.sell_orders,'ask',5);
   var spread=(bids[0]&&asks[0])?bids[0].price.toFixed(3)+' / '+asks[0].price.toFixed(3):'\u2014';
   var side=function(rows,cls,label,mark){
@@ -4829,7 +4923,7 @@ function bookPanel(code,name,icon,need,unit,gross){
     '<div class="book-grid">'+
       side(bids,'buy','Buy orders',0)+
       side(asks,'sell','Sell orders',at==null?need:0)+
-    '</div>'+ladder+foot+'</div>'
+    '</div>'+ladder+foot+bookHistBlock(code)+'</div>'
 }
 function craftRollKey(slot,skills){
   if(!skills)return null;
@@ -4967,6 +5061,8 @@ function refreshBooks(){
   bookBusy=true;paintBooksNow();
   var done=function(){
     bookBusy=false;
+    // A re-read of the book is also the moment to pick up any snapshots since the last one.
+    bookHistTried=false;loadBookHistory();
     craftState.sig=null;craftState.caseSig=null;craftState.sortSig=null;
     paintCraft();paintCase();paintSort();paintCutCard();paintDataStamp()
   };
