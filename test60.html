@@ -625,6 +625,12 @@ kbd{
   font-size:11.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--dim)
 }
 .scrap-btns{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:9px}
+/* The flat phone treatment drops the outline on every .soundbtn, which works for a pair
+   where one is pressed and reads as a segmented control. This one is alone and unpressed,
+   so without an outline it reads as a caption - which is why nobody pressed it. */
+#craftSrcBtns .soundbtn{
+  border:1px solid rgba(var(--brass-rgb),.42)!important;color:var(--brass)!important
+}
 #scrapPrice{
   width:120px;height:44px;padding:0 11px;font-size:16px;background:var(--panel);
   border:1px solid rgba(var(--brass-rgb),.38);border-radius:var(--radius);
@@ -1091,6 +1097,9 @@ kbd{
      take a thumb rather than a cursor. */
   white-space:nowrap;min-height:44px
 }
+/* Every row is a choice, and a phone has no hover to reveal that. The resting outline is
+   what says so; the chosen one still takes the brass. */
+.zone-row:not(.head){border-color:rgba(var(--brass-rgb),.16)}
 .zone-row .z-p{text-align:left}
 .zone-row:not(.head):hover{border-color:var(--line);color:var(--ink)}
 .zone-row.on{border-color:var(--brass);color:var(--ink);background:rgba(var(--brass-rgb),.10)}
@@ -3349,8 +3358,8 @@ h1 .title-word{white-space:nowrap}
         <div class="scrap-src">
           <span class="scrap-src-label">Input prices</span>
           <div class="craft-fields">
-            <label for="craftScrap"><span><i aria-hidden="true" class="res res-scrap res-in"></i>Scraps</span><input type="text" id="craftScrap" value="0.223" inputmode="decimal" autocomplete="off" spellcheck="false" readonly></label>
-            <label for="craftSteel"><span><i aria-hidden="true" class="res res-steel res-in"></i>Steel</span><input type="text" id="craftSteel" value="1.683" inputmode="decimal" autocomplete="off" spellcheck="false" readonly></label>
+            <label for="craftScrap"><span><i aria-hidden="true" class="res res-scrap res-in"></i>Scraps</span><input type="text" id="craftScrap" value="0.223" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+            <label for="craftSteel"><span><i aria-hidden="true" class="res res-steel res-in"></i>Steel</span><input type="text" id="craftSteel" value="1.683" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
             <label for="craftCount">Crafts<input type="number" id="craftCount" value="1" min="1" max="999" step="1" inputmode="numeric" autocomplete="off"></label>
           </div>
           <div class="scrap-btns" id="craftSrcBtns">
@@ -5856,8 +5865,6 @@ function setCraftSource(src){
     b.setAttribute('aria-pressed',own?'true':'false');
     b.textContent=own?'Back to the live book':'Set my own prices'
   }
-  $('craftScrap').readOnly=craftState.src!=='own';
-  $('craftSteel').readOnly=craftState.src!=='own';
   syncCraftInputs();
   paintCraft();paintCase();paintSort();paintCutCard()
 }
@@ -8155,6 +8162,12 @@ $('dataRefresh').addEventListener('click',function(){
 function pickEntry(code,px){
   var cur=craftState.entry[code];
   craftState.entry[code]=(cur!=null&&Math.abs(cur-px)<1e-9)?null:px;
+  /* On your own prices the ladder would otherwise light a row and change nothing: the
+     point of picking a rest position is to price the craft at it. */
+  if(craftState.src==='own'&&craftState.entry[code]!=null){
+    var f=code==='scraps'?'craftScrap':code==='steel'?'craftSteel':null;
+    if(f)$(f).value=craftState.entry[code].toFixed(f==='craftScrap'?5:4)
+  }
   // The ladder and the box are two ways of setting one thing, so they show one thing.
   if(code==='case1'&&$('caseBid'))
     $('caseBid').value=craftState.entry[code]==null?'':craftState.entry[code].toFixed(3);
@@ -8198,8 +8211,13 @@ $('caseBid').addEventListener('input',function(){
 $('craftSrcBtns').addEventListener('click',function(e){
   var b=e.target.closest('[data-craftsrc]');if(b)setCraftSource(b.getAttribute('data-craftsrc'))
 });
+/* Typing in the box is the whole intent, so it switches the card over by itself. Making
+   the fields editable only after finding a button meant nobody found the fields. */
 ['craftScrap','craftSteel'].forEach(function(id){
-  $(id).addEventListener('input',function(){if(craftState.src==='own')paintCraft()})
+  $(id).addEventListener('input',function(){
+    if(craftState.src!=='own')setCraftSource('own');
+    else paintCraft()
+  })
 });
 $('craftCount').addEventListener('input',paintCraft);
 $('caseCount').addEventListener('input',paintCase);
