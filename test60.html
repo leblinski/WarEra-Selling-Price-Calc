@@ -886,6 +886,11 @@ kbd{
 .rollfacts dd small{display:block;font-size:9.5px;font-weight:500;color:var(--dim);margin-top:2px}
 .rollfacts dd.up{color:var(--verdigris)} .rollfacts dd.down{color:var(--rust)}
 .rollfacts .week{color:var(--brass)}
+/* Where the asking price sits among sales that actually happened, and - where the roll is
+   not what prices the item - why the figure above came from the item rather than the roll. */
+.shape-note{margin:6px 0 0;font-size:11px;line-height:1.45;color:var(--dim)}
+.shape-note b{color:var(--ink);font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+.shape-note .warn{color:var(--rust)}
 /* Three short columns do not want the whole card; stretched apart they stop reading as rows. */
 .nbrs{margin:9px 0 2px;max-width:300px}
 .nbrs-h{
@@ -3174,6 +3179,7 @@ h1 .title-word{white-space:nowrap}
               <div class="trend-card-label">2 · Roll</div>
               <div class="rollgrid" id="rollGrid" hidden></div>
               <div class="rollfacts" id="rollFacts" hidden></div>
+              <p class="shape-note" id="shapeNote" hidden></p>
               <div class="nbrs" id="rollNbrs" hidden></div>
             </section>
 
@@ -3701,12 +3707,16 @@ function factsFor(code,slot,want){
     var row=rolls[k];
     if(craftRollKey(slot,(row.exact_roll||{}).skills)!==want)continue;
     var st=row.selected||row.fallback_48h,wide=row.retained_window;
+    /* The price wants the freshest window and the question of whether this roll is worth a
+       premium wants the widest one: a roll with one sale in 48h has no median to compare,
+       and the knife at 39 attack has hundreds over the week. So both are carried. */
+    var w=wide&&wide.median!=null?{median:Number(wide.median),n:wide.count||0}:null;
     if(st&&st.median!=null)
       return {median:Number(st.median),n:st.count||0,secs:st.median_time_to_sell_seconds,
-              lo:st.min,hi:st.max,week:false};
-    if(wide&&wide.median!=null)
-      return {median:Number(wide.median),n:wide.count||0,
-              secs:wide.median_time_to_sell_seconds,lo:null,hi:null,week:true};
+              lo:st.min,hi:st.max,week:false,wide:w};
+    if(w)
+      return {median:w.median,n:w.n,
+              secs:wide.median_time_to_sell_seconds,lo:null,hi:null,week:true,wide:w};
     return null
   }
   return null
@@ -3720,6 +3730,48 @@ function rollChosen(){
   return state.slot==='weapon'
     ? Number(state.rolls.attack)+'/'+Number(state.rolls.criticalChance)
     : String(Number(state.rolls[(STAT_RANGES[state.slot]||{}).key]))
+}
+/* ---- What the item fetches, and whether its roll is what prices it ------------------
+   The calculator prices a piece off its own exact roll. That is right where a roll is worth
+   something and quietly wrong where it is not: on a knife the medians run 1.756 at attack 25
+   and 1.810 at 36, flat inside the noise of a single roll, and thirty-five sales of one roll
+   is a sample to fit noise to. The collector measures the difference now and says which kind
+   of item this is; here that decides which distribution the advice comes from. */
+function itemShape(){
+  var cat=((craftState.summary||{}).categories||{})[itemCode()];
+  var sh=cat&&cat.price_shape;
+  return sh&&sh.quantiles&&sh.quantiles.length>1?sh:null
+}
+/* Two distributions, and which one a price belongs against is the whole question. The item
+   as a whole is right for a roll that is priced on its own merits. For an ordinary roll of a
+   flat item it is not: a knife's top rolls are a tenth of its sales and the whole top half
+   of its prices, and counting them as comparable supply makes a commodity ask look like the
+   middle of the market when it is high against everything it competes with. */
+function shapeArr(sh,base){
+  return base&&sh.base_quantiles&&sh.base_quantiles.length>1?sh.base_quantiles:sh.quantiles
+}
+function shapeQ(sh,pct,base){
+  var q=shapeArr(sh,base);
+  return q[Math.max(0,Math.min(q.length-1,Math.round(pct/100*(q.length-1))))]
+}
+function shapePct(sh,price,base){
+  var q=shapeArr(sh,base),last=q.length-1,i;
+  if(!(price>q[0]))return 0;
+  if(price>=q[last])return 100;
+  for(i=1;i<=last;i++)if(price<=q[i]){
+    var span=q[i]-q[i-1],frac=span>0?(price-q[i-1])/span:0;
+    return Math.round(((i-1+frac)/last)*100)
+  }
+  return 100
+}
+/* A flat item can still have a roll that is worth something - a knife is a commodity to 37
+   attack and not at 39 - so the item's own shape does not get the last word on every roll. */
+function rollIsPremium(sh,f){
+  if(!f||!(sh.premium_above>0))return false;
+  // The widest window the roll has, because this asks what the roll is worth rather than
+  // what it fetched this afternoon.
+  var w=f.wide&&f.wide.n>=(f.n||0)?f.wide:{median:f.median,n:f.n};
+  return w.median!=null&&w.n>=5&&w.median>sh.premium_above
 }
 function rollFacts(){
   var want=rollChosen();
@@ -3750,6 +3802,28 @@ function rollNeighbours(){
   for(i=0;i<out.length;i++)out[i].f=factsFor(code,state.slot,out[i].key);
   return out
 }
+/* The sentence that would have saved twenty knives: an ask nine days old was above every
+   sale of its own roll, and nothing on the card said so. */
+function paintShapeNote(sh,flat,ask,f){
+  var el=$('shapeNote');if(!el)return;
+  if(!sh){el.hidden=true;el.innerHTML='';return}
+  var name=itemName()||'this item';
+  var n=flat?(sh.base_sales||sh.sales):sh.sales;
+  var pct=shapePct(sh,ask,flat);
+  var where='That sits at <b>p'+pct+'</b> of '+bookQty(n)+' '+esc(name)+
+    (flat?' sales at ordinary rolls':' sales')+
+    (pct>=90?' \u2014 <span class="warn">higher than almost everything that sold</span>':'')+'.';
+  var why=flat
+    ? 'A '+esc(name)+'\u2019s roll does not move its price: rolls differ by '+
+      Math.round(sh.roll_spread_pct)+'% against '+Math.round(sh.within_roll_pct)+
+      '% of noise inside one. So this is the band ordinary rolls trade in, not this roll\u2019s '+
+      f.n+' sale'+(f.n===1?'':'s')+' \u2014 and not the '+bookQty(sh.sales-(sh.base_sales||sh.sales))+
+      ' that fetched a premium above '+Number(sh.premium_above).toFixed(3)+'.'
+    : (sh.flat?'This roll fetches more than an ordinary '+esc(name)+' does, so it is priced on '+
+        'its own '+((f.wide&&f.wide.n>(f.n||0)?f.wide.n:f.n))+' sales rather than the band.':'');
+  el.innerHTML=where+(why?' '+why:'');
+  el.hidden=false
+}
 function paintRollFacts(){
   var box=$('rollFacts');if(!box)return;
   var f=rollFacts(),nbBox=$('rollNbrs');
@@ -3757,24 +3831,31 @@ function paintRollFacts(){
   // blank card, which reads as though they belong to the piece now in hand.
   if(!f){
     box.hidden=true;box.innerHTML='';
+    if($('shapeNote')){$('shapeNote').hidden=true;$('shapeNote').innerHTML=''}
     if(nbBox){nbBox.hidden=true;nbBox.innerHTML=''}
     return
   }
   var scrap=craftDismantle(state.tier),tax=Number($('tax').value);
   if(!isFinite(tax)||tax<0)tax=0;
-  var net=f.median*(1-tax/100),edge=scrap>0?net-scrap:null;
+  var sh=itemShape(),premium=!!(sh&&sh.flat&&rollIsPremium(sh,f)),flat=!!(sh&&sh.flat&&!premium);
+  // A premium roll on a flat item is worth what the roll fetches, and its widest window is
+  // the only sample big enough to say what that is.
+  var ask=flat?shapeQ(sh,50,true):(premium&&f.wide&&f.wide.n>(f.n||0)?f.wide.median:f.median);
+  var lo=flat?shapeQ(sh,25,true):f.lo,hi=flat?shapeQ(sh,75,true):f.hi;
+  var net=ask*(1-tax/100),edge=scrap>0?net-scrap:null;
   var cell=function(label,value,extra,cls){
     return '<div><dt>'+label+'</dt><dd'+(cls?' class="'+cls+'"':'')+'>'+value+
            (extra?'<small>'+extra+'</small>':'')+'</dd></div>'
   };
   box.innerHTML=
-    cell('List at',f.median.toFixed(3),
-         f.lo!=null&&f.hi!=null?f.lo.toFixed(3)+'\u2013'+f.hi.toFixed(3):'')+
+    cell('List at',ask.toFixed(3),
+         lo!=null&&hi!=null?lo.toFixed(3)+'\u2013'+hi.toFixed(3):'')+
     cell('Sells in',sellsIn(f.secs),f.week?'over the week':'')+
     cell('Sales',String(f.n),f.week?'<span class="week">7-day window</span>':'last 48h')+
     (edge==null?'':cell('Over scraps',(edge>=0?'+':'\u2212')+Math.abs(edge).toFixed(3),
          'scraps fetch '+scrap.toFixed(2),edge>=0?'up':'down'));
   box.hidden=false;
+  paintShapeNote(sh,flat,ask,f);
   var nb=nbBox;if(!nb)return;
   var rows=rollNeighbours();
   if(!rows){nb.hidden=true;nb.innerHTML='';return}
