@@ -135,6 +135,7 @@ h1{
    this way and the segments came out near-white, which is the one thing a ring of white
    labels cannot be. Attributes cannot be misresolved. */
 .wheel-seg{transition:fill .08s linear}
+.wheel-lab-sm{font-size:11px!important}
 .wheel-lab{
   font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:13px;
   text-anchor:middle;dominant-baseline:middle;pointer-events:none
@@ -354,6 +355,40 @@ input:focus{outline:none;border-color:var(--brass);box-shadow:0 0 0 3px rgba(var
   transition:width 120ms ease,height 120ms ease,border-color 120ms ease;
 }
 .slotbtn:hover{border-color:rgba(var(--brass-rgb),.55)}
+/* The ring replaces both pickers. They stay in the document because everything that shows
+   and hides the cards around them still runs off them, and because putting them back is one
+   line rather than a rebuild. */
+#slotGrid,#rollGrid{display:none!important}
+.trendpick{
+  display:flex;align-items:center;gap:12px;width:100%;margin:0 0 12px;padding:12px 14px;
+  cursor:pointer;text-align:left;
+  border:1px solid rgba(var(--brass-rgb),.38);border-radius:var(--radius);
+  background:var(--panel);color:var(--ink);
+  touch-action:none;-webkit-user-select:none;user-select:none;
+  -webkit-touch-callout:none;-webkit-tap-highlight-color:transparent
+}
+.trendpick:disabled{cursor:default;opacity:.65;border-style:dashed}
+.trendpick .tp-art{
+  flex:none;width:52px;height:52px;border-radius:9px;
+  background-image:url('items.png');background-size:600% 600%;background-repeat:no-repeat;
+  border:1px solid var(--tier,rgba(var(--brass-rgb),.3))
+}
+.trendpick .tp-art.tp-none{background-image:none;background:var(--panel-2)}
+.trendpick .tp-text{display:flex;flex:1 1 auto;flex-direction:column;gap:2px;min-width:0}
+/* Both lines are one line each. A wrapped name pushes the roll under the art and leaves
+   Change floating beside a two-line block, which reads as three controls rather than one. */
+.trendpick .tp-text b,.trendpick .tp-text small{
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+.trendpick .tp-text b{
+  font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:16px;
+  letter-spacing:.04em;text-transform:uppercase;color:var(--ink)
+}
+.trendpick .tp-text small{font-size:12px;color:var(--dim)}
+.trendpick .tp-go{
+  margin-left:auto;flex:none;font-family:"Saira Condensed",sans-serif;font-weight:700;
+  font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--brass)
+}
 .slotart{
   display:block;width:100%;height:100%;
   border-radius:inherit;
@@ -3111,6 +3146,8 @@ h1 .title-word{white-space:nowrap}
               <p class="sales-credit">supported by <a href="https://warerastats.io/" target="_blank" rel="noopener">warerastats.io</a></p>
             </div>
 
+            <button type="button" class="trendpick" id="trendPick" aria-label="Choose the piece and its roll"></button>
+
             <div class="slotgrid" id="slotGrid">
               <button type="button" class="slotbtn" data-slot="helmet" aria-pressed="false" style="--tier:#5BB85B" title="Helmet">
                 <span class="slotart" style="background-position:40% 20%"></span>
@@ -3647,6 +3684,7 @@ function buildRarity(){
 function buildSlots(){
   var y=((state.tier-1)/5)*100;
   $('slotGrid').classList.toggle('has-selection',!!state.slot);
+  paintTrendPick();
   $('slotGrid').innerHTML=SLOTS.map(function(s){
     return '<button type="button" class="slotbtn" data-slot="'+s.code+'" aria-pressed="'+(state.slot===s.code?'true':'false')+'" style="--tier:'+tier().colour+'" title="'+s.name+'">'
       +'<span class="slotart" style="background-position:'+(sheetColumn(s.code)*20)+'% '+y+'%"></span></button>'
@@ -3750,6 +3788,27 @@ function paintRollFacts(){
     }).join('');
   nb.hidden=false
 }
+/* One control where the piece grid and the roll grid were. It shows what is chosen and
+   opens the ring on a press; the ring already knows which question comes next. */
+function paintTrendPick(){
+  var el=$('trendPick');if(!el)return;
+  if(!tierKnown()){
+    el.disabled=true;
+    el.innerHTML='<span class="tp-art tp-none"></span><span class="tp-text">'+
+      '<b>Which piece?</b><small>Enter a price, or pick a rarity, first.</small></span>';
+    return
+  }
+  el.disabled=false;
+  var y=((state.tier-1)/5)*100;
+  var art=state.slot
+    ? '<span class="tp-art" style="--tier:'+tier().colour+';background-position:'+
+      (sheetColumn(state.slot)*20)+'% '+y+'%"></span>'
+    : '<span class="tp-art tp-none"></span>';
+  var name=state.slot?itemName():'Which piece?';
+  var sub=state.slot?(hasAllRolls()?describeRoll():'Choose the roll'):'Press to choose';
+  el.innerHTML=art+'<span class="tp-text"><b>'+esc(name)+'</b><small>'+esc(sub)+
+    '</small></span><span class="tp-go">Change</span>'
+}
 function buildRolls(){
   if(!state.slot){
     $('rollGrid').hidden=true;$('trendRollCard').hidden=true;$('marketOpts').hidden=true;$('trendDataCard').hidden=true;
@@ -3788,6 +3847,7 @@ function refreshMarketOpts(){
   $('analyseBtn').disabled=!canAnalyse();
   $('salesHead').textContent=complete?itemName()+' · '+describeRoll():(state.slot?itemName()+' · choose roll':'Which piece is it?');
   $('listingFloorMini').textContent=validFloor()?fmt(state.floor):'—';
+  paintTrendPick();
   scheduleAutoAnalyse()
 }
 function buildQueuePad(){
@@ -8116,7 +8176,7 @@ function wheelRange(x){
 function wheelStage(x){
   if(!x.tier)return null;
   if(!x.slot)
-    return {kind:'slot',title:'Which piece?',
+    return {kind:'slot',title:'Which piece?',tier:x.tier,
       opts:SLOTS.map(function(s){
         return {label:s.code==='weapon'?WEAPON_NAMES[x.tier-1]:s.name,val:s.code}
       })};
@@ -8125,7 +8185,7 @@ function wheelStage(x){
     ? (x.rolls&&x.rolls.criticalChance==null?{key:'criticalChance',band:r.criticalChance,label:'crit %'}
       :x.rolls&&x.rolls.attack==null?{key:'attack',band:r.attack,label:'attack'}:null)
     : (x.rolls&&x.rolls[r.key]==null?{key:r.key,band:r.one,label:r.label}:null);
-  if(!need)return {kind:'slot',title:'Which piece?',      // fully assigned: start again
+  if(!need)return {kind:'slot',title:'Which piece?',tier:x.tier,  // assigned: start again
     opts:SLOTS.map(function(s){
       return {label:s.code==='weapon'?WEAPON_NAMES[x.tier-1]:s.name,val:s.code}
     })};
@@ -8248,6 +8308,12 @@ function activateRollControl(b){
   }
   resetAnalysis();buildRolls()
 }
+$('trendPick').addEventListener('pointerdown',function(e){
+  if(e.button&&e.button!==0)return;
+  var st=wheelStage(liveTarget().read());if(!st)return;
+  e.preventDefault();
+  openWheel(st,liveTarget(),e.clientX,e.clientY)
+});
 $('rollGrid').addEventListener('touchend',function(e){
   var b=e.target.closest('[data-roll],[data-stepkey]');if(!b)return;
   e.preventDefault();
@@ -8703,11 +8769,45 @@ function wheelArc(cx,cy,r0,r1,a0,a1){
   return 'M'+p0[0]+' '+p0[1]+'A'+r1+' '+r1+' 0 '+big+' 1 '+p1[0]+' '+p1[1]+
          'L'+p2[0]+' '+p2[1]+'A'+r0+' '+r0+' 0 '+big+' 0 '+p3[0]+' '+p3[1]+'Z'
 }
-function openWheel(stage,idx,x,y){
+/* The ring assigns to something, and a tile and the live Trends selection are two
+   somethings. A target reads the piece the way the ring understands it - tier, slot, rolls,
+   a half-narrowed band - and puts it back wherever it actually lives. */
+function tileTarget(idx){
+  return {
+    read:function(){var a=readRecent();return a[idx]||null},
+    save:function(x){var a=readRecent();if(!a[idx])return;a[idx]=x;saveRecent(a);renderRecent()}
+  }
+}
+function liveTarget(){
+  return {
+    read:function(){
+      return {tier:tierKnown()?state.tier:0,slot:state.slot||'',
+              rolls:state.slot?state.rolls:null,band:state.wheelBand||null,
+              sname:'',short:'',roll:''}
+    },
+    save:function(x){
+      state.wheelBand=x.band||null;
+      state.slot=x.slot||'';
+      /* The ring writes null for a roll it has not asked about yet, and Number(null) is 0 -
+         which reads as a chosen roll of zero and unlocks the analysis on a piece nobody has
+         finished describing. */
+      var out={},k,v;
+      if(x.rolls)for(k in x.rolls){v=x.rolls[k];if(v!=null&&Number.isFinite(Number(v)))out[k]=Number(v)}
+      state.rolls=out;
+      state.higherCheaper=false;$('higherCheaper').checked=false;
+      resetAnalysis();buildSlots();buildRolls();prefetchSelected()
+    }
+  }
+}
+function openWheel(stage,target,x,y){
   closeWheel();
-  // The title sits outside the ring, so the padding has to clear it too or a wheel
-  // opened near the top of the screen loses its heading.
-  var n=stage.opts.length,R=n>8?128:112,r0=34,pad=R+24;
+  /* Big enough to point at with a thumb without looking, and never wider than the screen
+     it opens on: the title sits outside the ring, so the padding has to clear that too or a
+     ring opened near the top loses its heading. */
+  var n=stage.opts.length;
+  var lim=Math.min(window.innerWidth,window.innerHeight)/2-26;
+  var R=Math.max(104,Math.min(n>8?176:152,Math.floor(lim)));
+  var r0=Math.max(34,Math.min(48,Math.round(R*0.28))),pad=R+24;
   var cx=Math.max(pad,Math.min(window.innerWidth-pad,x));
   var cy=Math.max(pad,Math.min(window.innerHeight-pad,y));
   var veil=document.createElement('div');veil.className='wheel-veil';
@@ -8717,27 +8817,48 @@ function openWheel(stage,idx,x,y){
   svg.setAttribute('width',pad*2);svg.setAttribute('height',pad*2);
   var ox=pad,oy=pad,step=Math.PI*2/n,start=-Math.PI/2-step/2;
   var NS='http://www.w3.org/2000/svg';
-  var mk=function(tag,attrs,text){
+  var mk=function(tag,attrs,text,parent){
     var e=document.createElementNS(NS,tag),k;
     for(k in attrs)if(attrs.hasOwnProperty(k))e.setAttribute(k,attrs[k]);
     if(text!=null)e.textContent=text;
-    svg.appendChild(e);return e
+    (parent||svg).appendChild(e);return e
   };
+  /* The piece ring carries the piece. A name is a word you read; the art is the thing you
+     already recognise from the grid you were picking in, so the ring is pointed at rather
+     than read. The sheet is six across and six down, so one cell drawn at ic wide means the
+     whole sheet at 6ic, shifted so the wanted cell lands in the box and clipped to it. */
+  var icons=stage.kind==='slot'&&stage.tier?Math.max(30,Math.min(52,Math.round((R-r0)*0.38))):0;
+  var defs=icons?mk('defs',{}):null;
   for(var i=0;i<n;i++){
     var a0=start+i*step,a1=a0+step,mid=(a0+a1)/2,lp=wheelXY(ox,oy,(r0+R)/2,mid);
     mk('path',{'class':'wheel-seg','data-seg':i,d:wheelArc(ox,oy,r0,R,a0,a1),
       fill:WHEEL_BG,stroke:WHEEL_EDGE,'stroke-width':1});
-    mk('text',{'class':'wheel-lab',x:lp[0].toFixed(1),y:lp[1].toFixed(1),fill:WHEEL_TEXT},
-      stage.opts[i].label);
+    if(icons){
+      var ic=icons,bx=lp[0]-ic/2,by=lp[1]-ic/2-9,cid='wi'+i+'-'+Date.now();
+      var col=sheetColumn(stage.opts[i].val),row=stage.tier-1;
+      var cp=mk('clipPath',{id:cid},null,defs);
+      mk('rect',{x:bx.toFixed(1),y:by.toFixed(1),width:ic,height:ic,rx:7},null,cp);
+      var im=mk('image',{x:(bx-col*ic).toFixed(1),y:(by-row*ic).toFixed(1),
+        width:ic*6,height:ic*6,'clip-path':'url(#'+cid+')',preserveAspectRatio:'none',
+        href:'items.png'});
+      // Safari has wanted the xlink form for as long as it has drawn these at all.
+      im.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href','items.png');
+      mk('text',{'class':'wheel-lab wheel-lab-sm',x:lp[0].toFixed(1),
+        y:(lp[1]+ic/2-2).toFixed(1),fill:WHEEL_TEXT},stage.opts[i].label);
+    }else{
+      mk('text',{'class':'wheel-lab',x:lp[0].toFixed(1),y:lp[1].toFixed(1),fill:WHEEL_TEXT},
+        stage.opts[i].label);
+    }
   }
   mk('circle',{'class':'wheel-hub',cx:ox,cy:oy,r:r0-4,fill:WHEEL_BG,stroke:HUB_EDGE,
     'stroke-width':1.5});
-  mk('path',{'class':'wheel-x',d:'M'+(ox-8)+' '+(oy-8)+'L'+(ox+8)+' '+(oy+8)+
-    'M'+(ox+8)+' '+(oy-8)+'L'+(ox-8)+' '+(oy+8),stroke:HUB_EDGE,'stroke-width':2.5,
+  var xr=Math.round(r0*0.32);
+  mk('path',{'class':'wheel-x',d:'M'+(ox-xr)+' '+(oy-xr)+'L'+(ox+xr)+' '+(oy+xr)+
+    'M'+(ox+xr)+' '+(oy-xr)+'L'+(ox-xr)+' '+(oy+xr),stroke:HUB_EDGE,'stroke-width':2.5,
     'stroke-linecap':'round',fill:'none'});
   mk('text',{'class':'wheel-title',x:ox,y:oy-R-4,fill:WHEEL_TITLE},stage.title);
   document.body.appendChild(veil);document.body.appendChild(svg);
-  wheel={svg:svg,veil:veil,stage:stage,idx:idx,cx:cx,cy:cy,r0:r0,R:R,
+  wheel={svg:svg,veil:veil,stage:stage,target:target,cx:cx,cy:cy,r0:r0,R:R,
          step:step,start:start,n:n,pick:-1};
   // On the document, because the veil covers the page and a pointer that leaves the tile
   // must keep aiming - and because a lost capture should not strand an open ring.
@@ -8786,12 +8907,12 @@ function closeWheel(){
    piece is worse than an unassigned one, so the slot goes back too and the price stays. */
 function wheelCommit(x,y){
   if(!wheel)return;
-  var w=wheel,a=readRecent(),x0=a[w.idx];
+  var w=wheel,x0=w.target.read();
   closeWheel();
   if(!x0)return;
   if(w.pick<0){
     x0.slot='';x0.sname='';x0.short='';x0.roll='';x0.rolls=null;x0.band=null;
-    saveRecent(a);renderRecent();return
+    w.target.save(x0);return
   }
   var chosen=w.stage.opts[w.pick].val;
   if(w.stage.kind==='slot'){
@@ -8810,7 +8931,7 @@ function wheelCommit(x,y){
     x0.band=null;
     x0.short=wheelShort(x0);x0.roll=wheelRoll(x0)
   }
-  saveRecent(a);renderRecent()
+  w.target.save(x0)
 }
 // Written the way the rest of the page writes a roll, whatever order the wheels asked in.
 function wheelShort(x){
@@ -8852,7 +8973,7 @@ $('histList').addEventListener('pointerdown',function(e){
   var st=wheelStage(x0);if(!st)return;
   e.preventDefault();
   dragBlockClick=true;
-  openWheel(st,idx,e.clientX,e.clientY)
+  openWheel(st,tileTarget(idx),e.clientX,e.clientY)
 });
 $('histList').addEventListener('pointermove',function(e){
   if(wheel)return;
