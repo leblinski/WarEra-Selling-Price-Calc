@@ -8856,7 +8856,24 @@ $('histList').addEventListener('click',function(e){
 /* A third state between resting and chosen: what the pointer is over, which is not yet an
    answer. It carries a verdigris edge rather than the chosen wedge's brass, so the two are
    told apart by colour rather than by how light they are. */
-var WHEEL_WARM='#195F63',WHEEL_WARM_EDGE='#6BB8A8';
+var WHEEL_WARM_EDGE='#6BB8A8';
+/* A roll ring is a scale, and a scale should be readable without reading. Pale at the weak
+   end, deep at the strong one, so which way round the numbers run is apparent from across
+   the ring and the hand can travel to roughly the right place before the eye arrives.
+
+   The pale end stops at #2A7C82 because the labels are white and white on that is 4.7:1 -
+   any lighter and the ring would be quicker to aim at and harder to read. Pieces get none of
+   this: a helmet is not stronger than a glove. */
+var RAMP_WEAK='#2A7C82',RAMP_STRONG='#0C2A30';
+function wheelMix(a,b,t){
+  var pa=parseInt(a.slice(1),16),pb=parseInt(b.slice(1),16),o='#',i,ca,cb,v;
+  for(i=16;i>=0;i-=8){
+    ca=(pa>>i)&255;cb=(pb>>i)&255;v=Math.round(ca+(cb-ca)*t);
+    o+=(v<16?'0':'')+v.toString(16)
+  }
+  return o
+}
+function wheelRamp(t){return wheelMix(RAMP_WEAK,RAMP_STRONG,t)}
 var WHEEL_BG='#123E44',WHEEL_HI='#1E7A78',WHEEL_EDGE='rgba(107,184,168,.45)',
     WHEEL_HI_EDGE='#C89B3C',WHEEL_TEXT='#FFFFFF',WHEEL_TITLE='#C89B3C',
     HUB_EDGE='#C2703F',HUB_ON='#C2703F';
@@ -8958,6 +8975,8 @@ function wheelDraw(stage,rest){
     }
   };
   var ic=stage&&stage.kind==='slot'&&stage.tier?Math.max(30,Math.min(52,Math.round((R-r0)*0.38))):0;
+  // Rolls run weak to strong in the order they were built, so the index is the scale.
+  var ramp=!!(stage&&stage.kind!=='slot'&&n>1);
   w.wedges=[];
   var i;
   // Nothing left to ask: the rest of the ring is drawn inert, because a lone wedge floating
@@ -8965,11 +8984,11 @@ function wheelDraw(stage,rest){
   if(!n&&rest)mk('path',{'class':'wheel-seg-off',d:wheelArc(ox,oy,r0,R,rest.a1,rest.a0+TAU),
     fill:WHEEL_BG,stroke:WHEEL_EDGE,'stroke-width':1});
   for(i=0;i<n;i++){
-    var a0=from+i*span,a1=a0+span;
+    var a0=from+i*span,a1=a0+span,base=ramp?wheelRamp(i/(n-1)):WHEEL_BG;
     mk('path',{'class':'wheel-seg','data-seg':i,d:wheelArc(ox,oy,r0,R,a0,a1),
-      fill:WHEEL_BG,stroke:WHEEL_EDGE,'stroke-width':1});
+      fill:base,stroke:WHEEL_EDGE,'stroke-width':1});
     face((a0+a1)/2,ic,stage.kind==='slot'?stage.opts[i].val:null,stage.tier,stage.opts[i].label,false);
-    w.wedges.push({a0:a0,a1:a1,i:i})
+    w.wedges.push({a0:a0,a1:a1,i:i,fill:base})
   }
   // The place the finger is standing, drawn as the answer it stands for and pickable by
   // nothing. Last, so it sits over the seam where the options wrap around to meet it.
@@ -9102,10 +9121,13 @@ function wheelHover(x,y){
     }
   }
   w.hover=h;
-  var segs=w.svg.querySelectorAll('.wheel-seg'),lit;
+  var segs=w.svg.querySelectorAll('.wheel-seg'),lit,own;
   for(i=0;i<segs.length;i++){
     lit=h.kind==='opt'&&h.i===i;
-    segs[i].setAttribute('fill',lit?WHEEL_WARM:WHEEL_BG);
+    own=(w.wedges[i]&&w.wedges[i].fill)||WHEEL_BG;
+    // Lifted from its own place on the scale rather than to a fixed colour, or the
+    // highlight would read as darker than its neighbours at the pale end of a roll ring.
+    segs[i].setAttribute('fill',lit?wheelMix(own,WHEEL_WARM_EDGE,0.34):own);
     segs[i].setAttribute('stroke',lit?WHEEL_WARM_EDGE:WHEEL_EDGE);
     segs[i].setAttribute('stroke-width',lit?2:1)
   }
