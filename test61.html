@@ -2931,6 +2931,239 @@ h1 .title-word{white-space:nowrap}
 /* test60 · shared Raw/Trends transaction pool */
 .sales-status{transition:opacity .15s ease}
 
+/* ================================================================================
+   THE BENCH · test61
+   --------------------------------------------------------------------------------
+   A tile is made here and shipped from here. The price is fed in at the top, the
+   piece is described on the tile itself with the ring the picker used, and the ship
+   lever sends a stamped copy down the belt into the strip.
+
+   The figure the game wants is the big number on the tile. The price you typed sits
+   under it in small - after the first second it is only there to be checked against,
+   and it was taking the size the answer needed.
+   ============================================================================== */
+.bench{
+  position:relative;margin:0 0 12px;padding:12px 12px 0;
+  border:1px solid var(--line);border-radius:var(--radius);
+  background:linear-gradient(180deg,rgba(var(--brass-rgb),.055),rgba(var(--brass-rgb),0) 96px),var(--panel-2);
+  overflow:hidden
+}
+.bench-rail{
+  display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin:0 0 8px;
+  font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:10px;
+  letter-spacing:.17em;text-transform:uppercase;color:var(--brass)
+}
+.bench-rail small{
+  font-family:inherit;font-weight:600;font-size:10px;letter-spacing:.1em;color:var(--dim)
+}
+
+/* The infeed. A price is one short number, and the field was 58px tall in 22px of
+   monospace - the size of the answer, given to the question. */
+.bench .fields{grid-template-columns:minmax(0,1fr) auto;gap:8px;margin:0 0 10px;align-items:end}
+.bench .tax-editor #tax,.bench .tax-editor #mktTax{height:38px;font-size:15px}
+.bench #priceLabel,.bench .fields .q{display:none}
+.bench #price{height:38px;font-size:15px;padding:0 44px 0 11px}
+.bench #price::placeholder{font-size:11px}
+@media(max-width:359px){.bench #price::placeholder{font-size:10px}}
+.bench .gobtn{width:33px;height:30px;right:4px;font-size:16px;border-radius:7px}
+
+/* The deck: the workpiece, and the light it is judged by. */
+.bench-deck{display:grid;grid-template-columns:minmax(0,1fr) 88px;gap:10px;align-items:stretch}
+@media(max-width:359px){.bench-deck{grid-template-columns:minmax(0,1fr) 78px;gap:8px}}
+
+.workpiece{
+  position:relative;display:grid;grid-template-columns:48px minmax(0,1fr);gap:10px;
+  align-items:center;width:100%;padding:10px 11px 10px 14px;text-align:left;cursor:pointer;
+  border:1px solid var(--brass-deep);border-radius:var(--radius);
+  background:var(--panel);color:var(--ink);overflow:hidden;
+  transition:border-color .18s ease,box-shadow .18s ease
+}
+.workpiece::before{
+  content:"";position:absolute;left:0;top:0;bottom:0;width:4px;
+  background:repeating-linear-gradient(to bottom,var(--tier,var(--brass)) 0 7px,transparent 7px 15px)
+}
+.workpiece:hover{border-color:var(--brass)}
+.workpiece:disabled{cursor:default}
+.wp-art{
+  position:relative;display:flex;align-items:center;justify-content:center;
+  width:48px;height:48px;border-radius:9px;overflow:hidden;
+  border:1px solid var(--tier,rgba(var(--brass-rgb),.3));
+  background-image:url('items.png');background-size:600% 600%;background-repeat:no-repeat
+}
+/* Most prices are worked out from the price alone, and a blank plate says less than the
+   rarity does - which is always known the moment a price is typed. */
+.wp-art.wp-blank{
+  background-image:none;background:rgba(var(--brass-rgb),.06);
+  font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:10px;line-height:1.1;
+  letter-spacing:.05em;text-transform:uppercase;color:var(--tier,var(--dim));text-align:center;
+  padding:0 3px
+}
+.wp-copy{display:flex;flex-direction:column;gap:1px;min-width:0}
+.wp-copy b,.wp-copy small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wp-copy b{
+  font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:13px;
+  letter-spacing:.07em;text-transform:uppercase;color:var(--brass)
+}
+.wp-copy>small{font-size:10.5px;color:var(--dim)}
+/* A price broken across two lines stops being one number, so the figure is sized to the
+   column rather than wrapped inside it. The verdict that replaces it below the scrap floor
+   is words, and wraps like words. */
+.wp-fig{
+  display:block;margin-top:3px;font-family:"IBM Plex Mono",monospace;font-weight:600;
+  font-size:clamp(21px,6.4vw,42px);line-height:1.05;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;white-space:nowrap
+}
+.workpiece.empty .wp-fig{font-size:19px;opacity:.4}
+.workpiece.blocked{border-color:var(--verdigris)}
+.workpiece.blocked .wp-fig{
+  font-size:clamp(15px,4.3vw,26px);line-height:1.15;color:var(--verdigris);white-space:normal
+}
+/* A screen with room gives it to the answer and to the light, which are the two things
+   being looked at. */
+@media(min-width:621px){
+  .bench-deck{grid-template-columns:minmax(0,1fr) 104px;gap:12px}
+  .workpiece{grid-template-columns:56px minmax(0,1fr);gap:13px;padding:13px 15px 13px 17px}
+  .wp-art{width:56px;height:56px}
+  .wp-copy b{font-size:14px}
+  .wp-copy>small{font-size:11.5px}
+  .wp-ref{font-size:11px}
+  .sig-lamp{width:18px;height:18px}
+  .sig-lamp::before{left:-4px;right:-4px;top:-5px;height:7px}
+  .sig-word{font-size:14px}
+  .sig-sub{font-size:10.5px}
+}
+.workpiece.success{border-color:var(--verdigris)}
+/* The price you typed, kept for checking the answer against and nothing else. */
+.wp-ref{
+  display:block;margin-top:2px;font-family:"IBM Plex Mono",monospace;font-size:10.5px;
+  letter-spacing:.02em;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+}
+.wp-stamp{
+  position:absolute;right:9px;top:9px;padding:2px 8px;border-radius:4px;
+  border:1px solid var(--verdigris);color:var(--verdigris);
+  font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:9.5px;
+  letter-spacing:.14em;text-transform:uppercase;
+  opacity:0;transform:rotate(-9deg) scale(.86);transition:opacity .18s ease,transform .18s ease;
+  pointer-events:none
+}
+.workpiece.is-copied .wp-stamp,.workpiece.is-failed .wp-stamp{opacity:1;transform:rotate(-9deg) scale(1)}
+.workpiece.is-failed .wp-stamp{border-color:var(--brass);color:var(--brass)}
+
+/* ---- The signal head ----------------------------------------------------------
+   The two pills the docket carried - how much the history supports the price, and how
+   the floor is behaving - resolve to one of three lamps, because at a glance that is
+   all either of them was being read for. The hoods are most of what makes a signal
+   head recognisable at this size, so each lens gets one. */
+.signal{
+  display:flex;flex-direction:column;align-items:center;padding:9px 5px 8px;
+  border:1px solid var(--line);border-radius:var(--radius);
+  background:linear-gradient(180deg,var(--panel),#0A161A);text-align:center
+}
+.sig-housing{
+  display:flex;flex-direction:column;gap:7px;padding:7px 7px 8px;border-radius:11px;
+  border:1px solid rgba(var(--brass-rgb),.3);
+  background:linear-gradient(180deg,#0A161A,#050D10);
+  box-shadow:inset 0 1px 0 rgba(var(--brass-rgb),.14)
+}
+.sig-lamp{
+  position:relative;display:block;width:15px;height:15px;border-radius:50%;
+  background:radial-gradient(circle at 34% 30%,#1D3038,#081216 72%);
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.6),inset 0 2px 3px rgba(0,0,0,.7);
+  transition:background .25s ease,box-shadow .25s ease,opacity .25s ease
+}
+.sig-lamp::before{
+  content:"";position:absolute;left:-3px;right:-3px;top:-4px;height:6px;
+  border-radius:6px 6px 2px 2px;background:linear-gradient(180deg,#1E3139,#0F1D23)
+}
+.sig-lamp::after{
+  content:"";position:absolute;left:3px;top:2px;width:6px;height:4px;border-radius:50%;
+  background:rgba(255,255,255,.15)
+}
+.signal.red .sig-lamp.red{
+  background:radial-gradient(circle at 34% 30%,#F2AD84,var(--rust) 60%,#713516 100%);
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.45),0 0 11px 2px rgba(194,112,63,.5)
+}
+.signal.amber .sig-lamp.amber{
+  background:radial-gradient(circle at 34% 30%,#F6DFA6,var(--brass) 60%,#75570F 100%);
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.45),0 0 11px 2px rgba(var(--brass-rgb),.5)
+}
+.signal.green .sig-lamp.green{
+  background:radial-gradient(circle at 34% 30%,#CBF2E8,var(--verdigris) 60%,#296A5F 100%);
+  box-shadow:inset 0 0 0 1px rgba(0,0,0,.45),0 0 11px 2px rgba(107,184,168,.5)
+}
+.signal.red .sig-lamp.red,.signal.amber .sig-lamp.amber,.signal.green .sig-lamp.green{
+  animation:sigBreathe 2.8s ease-in-out infinite
+}
+@keyframes sigBreathe{0%,100%{filter:brightness(1)}50%{filter:brightness(1.3)}}
+/* Reading the market walks the head rather than lighting a verdict it does not have. */
+.signal.busy .sig-lamp{
+  background:radial-gradient(circle at 34% 30%,#F6DFA6,var(--brass) 60%,#75570F 100%);
+  opacity:.14;animation:sigScan 1.05s linear infinite
+}
+.signal.busy .sig-lamp.amber{animation-delay:.35s}
+.signal.busy .sig-lamp.green{animation-delay:.7s}
+@keyframes sigScan{0%,58%,100%{opacity:.14}18%{opacity:1}}
+@media(prefers-reduced-motion:reduce){.sig-lamp{animation:none!important}}
+.sig-word{
+  margin-top:9px;font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:13px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--dim)
+}
+.signal.red .sig-word{color:var(--rust)}
+.signal.amber .sig-word,.signal.busy .sig-word{color:var(--brass)}
+.signal.green .sig-word{color:var(--verdigris)}
+.sig-meter{
+  display:block;width:100%;height:3px;margin:6px 0 5px;border-radius:2px;
+  background:rgba(var(--brass-rgb),.15);overflow:hidden
+}
+.sig-meter i{
+  display:block;height:100%;width:0;background:var(--brass);
+  transition:width .5s cubic-bezier(.2,.7,.2,1),background .25s ease
+}
+.signal.red .sig-meter i{background:var(--rust)}
+.signal.green .sig-meter i{background:var(--verdigris)}
+.sig-sub{
+  display:block;font-size:9.5px;line-height:1.25;letter-spacing:.02em;color:var(--dim);
+  overflow-wrap:anywhere
+}
+
+/* ---- The outfeed --------------------------------------------------------------
+   The belt runs only while something is on it. A background that moves all the time is
+   a thing to look away from, not a thing that means anything. */
+.belt{
+  position:relative;display:flex;align-items:center;justify-content:flex-end;
+  height:26px;margin:11px -12px 0;padding:0 10px;
+  border-top:1px solid var(--line);background:linear-gradient(180deg,#0A161A,var(--ground));
+  overflow:hidden
+}
+.belt-tread{
+  position:absolute;inset:0;opacity:.22;
+  background-image:repeating-linear-gradient(114deg,rgba(var(--brass-rgb),.6) 0 2px,transparent 2px 13px);
+  background-size:15px 100%
+}
+.belt.running .belt-tread{opacity:.65;animation:beltRun .46s linear infinite}
+@keyframes beltRun{from{background-position:0 0}to{background-position:15px 0}}
+@media(prefers-reduced-motion:reduce){.belt.running .belt-tread{animation:none}}
+.belt-ship{
+  position:relative;padding:3px 11px;border-radius:5px;cursor:pointer;
+  border:1px solid var(--brass-deep);background:var(--panel);color:var(--brass);
+  font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:10px;
+  letter-spacing:.15em;text-transform:uppercase
+}
+.belt-ship:hover:not(:disabled){border-color:var(--brass);background:var(--panel-2)}
+.belt-ship:disabled{opacity:.4;cursor:default}
+
+/* The tile that rides the belt. It is the finished tile, started at the workpiece's
+   footprint, so what lands in the strip is visibly the thing that was on the bench. */
+.ptile.flyer{
+  position:fixed;z-index:130;margin:0;pointer-events:none;
+  box-shadow:0 12px 26px rgba(0,0,0,.55)
+}
+
+/* What the bench replaces. The picker and the docket stay in the document because the
+   status line, the retry, the tour and every paint path still run off them - putting
+   either back is one line. */
+#trendPick,#docket,#trendEquipmentCard{display:none!important}
+
 </style>
 </head>
 <body>
@@ -3026,6 +3259,9 @@ h1 .title-word{white-space:nowrap}
 
       <div class="tabpane" id="paneprice">
       <section class="pinzone" id="pinZone">
+
+      <section class="bench" id="bench" aria-label="Bench">
+      <div class="bench-rail"><span>Bench</span><small id="benchStep">1 · price it</small></div>
       <div class="fields">
         <div id="priceField">
           <label class="label" for="price" id="priceLabel">Price to beat</label><button type="button" class="q" data-q="price" aria-expanded="false" aria-label="What price goes here">?</button>
@@ -3050,6 +3286,35 @@ h1 .title-word{white-space:nowrap}
           </div>
         </div>
       </div>
+
+      <div class="bench-deck">
+        <button type="button" class="workpiece" id="workpiece" aria-label="Describe the piece">
+          <span class="wp-art wp-blank" id="wpArt" aria-hidden="true"></span>
+          <span class="wp-copy">
+            <b id="wpName">No piece yet</b>
+            <small id="wpRoll">Type a price, or pick a rarity</small>
+            <span class="wp-fig" id="wpFig">&mdash;</span>
+            <small class="wp-ref" id="wpRef">no price yet</small>
+          </span>
+          <span class="wp-stamp" id="wpStamp" aria-hidden="true">Copied</span>
+        </button>
+        <div class="signal" id="signalHead" role="status" aria-live="polite">
+          <span class="sig-housing" aria-hidden="true">
+            <span class="sig-lamp red"></span>
+            <span class="sig-lamp amber"></span>
+            <span class="sig-lamp green"></span>
+          </span>
+          <b class="sig-word" id="sigWord">&mdash;</b>
+          <span class="sig-meter" aria-hidden="true"><i id="sigMeter"></i></span>
+          <small class="sig-sub" id="sigSub">no reading</small>
+        </div>
+      </div>
+
+      <div class="belt" id="belt">
+        <span class="belt-tread" aria-hidden="true"></span>
+        <button type="button" class="belt-ship" id="beltShip" disabled>Ship &#9654;</button>
+      </div>
+      </section>
 
       <div class="rarity-mobile-row">
         <button type="button" class="rarity-compact" id="rarityCompact" aria-expanded="false">
@@ -3571,7 +3836,7 @@ h1 .title-word{white-space:nowrap}
 
   <footer>
     <p>Market data supported by <a href="https://warerastats.io/" target="_blank" rel="noopener">warerastats.io</a></p>
-    <p>test60 · pinned pricing summary + staged Trends workflow</p>
+    <p>test61 · tile factory: bench, signal head, belt</p>
   </footer>
 </div>
 
@@ -3912,7 +4177,8 @@ function paintTrendPick(){
   }
   el.innerHTML=art+'<span class="tp-text"><b>'+esc(name)+'</b><small>'+esc(sub)+'</small></span>'+
     '<span class="tp-go">Change</span>'+
-    (sig?'<span class="tp-sig">'+sig+'</span>':'')
+    (sig?'<span class="tp-sig">'+sig+'</span>':'');
+  paintBench()
 }
 function buildRolls(){
   if(!state.slot){
@@ -6730,7 +6996,7 @@ function addRecentCore(inp,out,scrap){
   a=a.filter(function(x){
     return !(x.price===entry.price&&x.item===entry.item&&x.roll===entry.roll)
   });
-  a.unshift(entry);saveRecent(a);renderRecent()
+  a.unshift(entry);saveRecent(a);renderRecent();shipTile()
 }
 function scrollToCard(el){
   try{var y=el.getBoundingClientRect().top+window.pageYOffset-12;window.scrollTo(0,Math.max(0,y))}catch(e){}
@@ -9366,7 +9632,135 @@ if(window.matchMedia){try{
     if(!isPhone()&&state.viewLocked)setViewLock(false)
   })
 }catch(e){}}
-console.log('ETC test60 — phone-first large charts with responsive SVG geometry');
+
+/* ================================================================================
+   THE BENCH · test61
+   --------------------------------------------------------------------------------
+   The page used to ask for the price in one control, the piece in a second, and print
+   the answer in a third, stacked down the screen in that order. All three are one
+   object here: a tile you feed a price, describe on its own face, and ship.
+
+   Nothing underneath moved. The docket still holds the figure, its label, its hint and
+   its state classes - the bench reads them. An observer on it means every path that
+   ever wrote to the docket repaints the tile without knowing the tile exists.
+   ============================================================================== */
+function benchStill(){
+  try{return window.matchMedia('(prefers-reduced-motion:reduce)').matches}catch(e){return false}
+}
+/* Three lamps out of two pills. Confidence says whether the history supports the price;
+   the floor signal says whether the cheapest listing is still worth undercutting. Green
+   needs both - a High reading against a floor that has sat there for days is not a green
+   light, it is a stale one. The scrap floor overrides everything: there is no price to
+   list at, so there is nothing to go on. */
+function benchSignal(){
+  if(state.marketLoading)return {lamp:'busy',word:'Reading',sub:'checking the market',score:null};
+  if(state.listFigure)return {lamp:'red',word:'Hold',sub:'below its dismantle floor',score:100};
+  var m=state.model;
+  if(!m)return {lamp:'',word:'\u2014',sub:tierKnown()?'describe the piece':'no reading',score:null};
+  var band=m.confidence,score=Number(m.confidenceScore),sg=m.signal||{},lamp;
+  if(band==='Low')lamp='red';
+  else if(band==='High'&&sg.key!=='stale')lamp='green';
+  else lamp='amber';
+  return {
+    lamp:lamp,
+    word:lamp==='green'?'Go':(lamp==='amber'?'Watch':'Hold'),
+    sub:(sg.key&&sg.key!=='unknown')?sg.label:(band.toLowerCase()+' confidence'),
+    score:Number.isFinite(score)?score:null
+  }
+}
+function paintSignal(){
+  var head=$('signalHead');if(!head)return;
+  var s=benchSignal();
+  head.className='signal'+(s.lamp?' '+s.lamp:'');
+  $('sigWord').textContent=s.word;
+  $('sigSub').textContent=s.sub;
+  $('sigMeter').style.width=(s.score==null?0:Math.max(4,Math.min(100,s.score)))+'%'
+}
+function paintBench(){
+  var wp=$('workpiece');if(!wp)return;
+  var known=tierKnown(),art=$('wpArt');
+  wp.style.setProperty('--tier',known?tier().colour:'rgba(var(--brass-rgb),.35)');
+  wp.disabled=!known;
+  if(known&&state.slot){
+    art.className='wp-art';
+    art.style.backgroundPosition=(sheetColumn(state.slot)*20)+'% '+(((state.tier-1)/5)*100)+'%';
+    art.textContent=''
+  }else{
+    art.className='wp-art wp-blank';
+    art.style.backgroundPosition='';
+    art.textContent=known?tier().name:''
+  }
+  $('wpName').textContent=known?(state.slot?itemName():'Which piece?'):'No piece yet';
+  $('wpRoll').textContent=!known?'Type a price, or pick a rarity'
+    :(!state.slot?'Press to describe it':(hasAllRolls()?describeRoll():'Choose the roll'));
+  var fig=$('figure').textContent||'\u2014',cls=$('docket').classList;
+  $('wpFig').textContent=fig;
+  wp.classList.toggle('empty',fig==='\u2014');
+  wp.classList.toggle('blocked',cls.contains('blocked'));
+  wp.classList.toggle('success',cls.contains('success'));
+  wp.classList.toggle('is-copied',cls.contains('is-copied'));
+  wp.classList.toggle('is-failed',cls.contains('is-failed'));
+  $('wpStamp').textContent=$('stamp').textContent||'Copied';
+  $('wpRef').textContent=state.lastPrice?('you typed '+state.lastPrice):'no price yet';
+  $('benchStep').textContent=!known?'1 \u00b7 price it'
+    :(!state.slot||!hasAllRolls()?'2 \u00b7 describe it':'3 \u00b7 ship it');
+  $('beltShip').disabled=!coreCopyValue();
+  paintSignal()
+}
+/* The ring opens on the tile, on the tile's own face, which is where the thing being
+   described is. Same stage, same target as the picker it replaces. */
+$('workpiece').addEventListener('pointerdown',function(e){
+  if(e.button&&e.button!==0)return;
+  if($('workpiece').disabled)return;
+  var st=wheelStage(liveTarget().read());if(!st)return;
+  e.preventDefault();
+  openWheel(st,liveTarget(),e.clientX,e.clientY)
+});
+$('beltShip').addEventListener('click',function(){copyCore()});
+
+/* ---- Shipping ------------------------------------------------------------------
+   The strip already gets the tile; this is only the half-second that says where it came
+   from. The flyer is the finished tile itself, started at the workpiece's footprint and
+   squashed to it, so what lands in the strip is visibly the thing that was on the bench
+   rather than a shape that appeared next to it. */
+var beltTimer=null;
+function shipTile(){
+  var belt=$('belt'),wp=$('workpiece'),dest=$('histList').querySelector('.ptile');
+  if(belt){
+    belt.classList.add('running');
+    clearTimeout(beltTimer);
+    beltTimer=setTimeout(function(){belt.classList.remove('running')},820)
+  }
+  if(!wp||!dest||benchStill()||!dest.animate)return;
+  var a=wp.getBoundingClientRect(),b=dest.getBoundingClientRect();
+  if(!a.width||!b.width)return;
+  var fly=dest.cloneNode(true);
+  fly.classList.add('flyer');
+  fly.style.left=b.left+'px';fly.style.top=b.top+'px';
+  fly.style.width=b.width+'px';fly.style.height=b.height+'px';
+  document.body.appendChild(fly);
+  var dx=(a.left+a.width/2)-(b.left+b.width/2),dy=(a.top+a.height/2)-(b.top+b.height/2);
+  dest.style.visibility='hidden';
+  var an=fly.animate([
+    {transform:'translate('+dx+'px,'+dy+'px) scale('+Math.min(2.6,a.width/b.width)+',.7)',opacity:.25},
+    {transform:'translate('+(dx*.4)+'px,'+(dy*.46+12)+'px) scale(1.1)',opacity:1,offset:.55},
+    {transform:'translate(0,0) scale(1)',opacity:1}
+  ],{duration:640,easing:'cubic-bezier(.2,.82,.24,1)'});
+  an.onfinish=an.oncancel=function(){
+    try{dest.style.visibility=''}catch(e){}
+    if(fly.parentNode)fly.parentNode.removeChild(fly)
+  }
+}
+
+/* Every write to the docket is a repaint of the tile, without any of those paths having
+   to know the tile is there. */
+try{
+  new MutationObserver(function(){paintBench()}).observe($('docket'),
+    {subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['class']})
+}catch(e){}
+paintBench();
+
+console.log('ETC test61 — tile factory: bench, signal head, belt');
 })();
 </script>
 </body>
