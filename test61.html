@@ -3122,8 +3122,23 @@ h1 .title-word{white-space:nowrap}
 .signal.busy .sig-lamp.green{animation-delay:.7s}
 @keyframes sigScan{0%,58%,100%{opacity:.14}18%{opacity:1}}
 @media(prefers-reduced-motion:reduce){.sig-lamp{animation:none!important}}
+.sig-cap{
+  display:block;margin-bottom:7px;font-family:"Saira Condensed",sans-serif;font-weight:700;
+  font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--brass);
+  text-align:center;line-height:1.1
+}
+/* The price the light is about, and the one thing on the head worth taking away. */
+.sig-price{
+  margin-top:3px;padding:2px 7px;border-radius:5px;cursor:pointer;
+  border:1px solid var(--brass-deep);background:var(--panel-2);color:var(--brass);
+  font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:600;
+  font-variant-numeric:tabular-nums
+}
+.sig-price:hover{border-color:var(--brass)}
+.sig-price.took{border-color:var(--verdigris);color:var(--verdigris)}
+.signal.green .sig-price{border-color:var(--verdigris);color:var(--verdigris)}
 .sig-word{
-  margin-top:9px;font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:13px;
+  margin-top:8px;font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:13px;
   letter-spacing:.14em;text-transform:uppercase;color:var(--dim)
 }
 .signal.red .sig-word{color:var(--rust)}
@@ -3132,6 +3147,7 @@ h1 .title-word{white-space:nowrap}
 /* How many comparable listings sit ahead of the price. It is the one number the light
    reads and the only one the page cannot work out for you. */
 .sig-count{display:flex;align-items:stretch;gap:3px;margin:6px 0 5px;width:100%}
+.sig-count[hidden]{display:none}
 .sig-count button{
   flex:none;width:21px;padding:0;cursor:pointer;border-radius:5px;
   border:1px solid var(--line);background:var(--panel-2);color:var(--brass);
@@ -3317,13 +3333,15 @@ h1 .title-word{white-space:nowrap}
           <span class="wp-stamp" id="wpStamp" aria-hidden="true">Copied</span>
         </button>
         <div class="signal" id="signalHead" role="status" aria-live="polite">
+          <span class="sig-cap">Higher price</span>
           <span class="sig-housing">
             <span class="sig-row"><span class="sig-lamp red" aria-hidden="true"></span><i id="sigRiskyRange">&mdash;</i></span>
             <span class="sig-row"><span class="sig-lamp amber" aria-hidden="true"></span><i id="sigCautionRange">&mdash;</i></span>
             <span class="sig-row"><span class="sig-lamp green" aria-hidden="true"></span><i id="sigSafeRange">&mdash;</i></span>
           </span>
           <b class="sig-word" id="sigWord">&mdash;</b>
-          <span class="sig-count">
+          <button type="button" class="sig-price" id="sigPrice" hidden>&mdash;</button>
+          <span class="sig-count" id="sigCount" hidden>
             <button type="button" id="aheadMinus" aria-label="One fewer listing ahead">&minus;</button>
             <input type="number" id="aheadCount" min="0" max="99" step="1" inputmode="numeric" placeholder="?" aria-label="Comparable or better listings ahead of your price">
             <button type="button" id="aheadPlus" aria-label="One more listing ahead">+</button>
@@ -9675,44 +9693,68 @@ if(window.matchMedia){try{
 function benchStill(){
   try{return window.matchMedia('(prefers-reduced-motion:reduce)').matches}catch(e){return false}
 }
-/* The light reads competition, not confidence. What decides whether a price is worth
-   listing at is how many comparable-or-better listings sit ahead of it, and how long the
-   item takes to sell: safe is inside about one normal sale cycle, less safe is one to
-   three, risky is past that. Both bands move with the item - on something that sells four
-   times an hour, nine ahead of you is nothing, and on something that sells twice a day it
-   is most of a week - so the head prints the counts beside its own lenses.
+/* ---- The higher-price light ----------------------------------------------------
+   This is the live-depth check from the Trends card, moved up next to the tile, because
+   it is the one reading that changes what you do and it was the furthest down the page.
 
-   The counting is the reader's; the marketplace does not publish which listings are
-   comparable. Everything else on the head is worked out.
+   It answers one question and only that one: history says this roll clears above the
+   floor you are looking at - is it safe to list up there, or will you sit behind a queue?
+   That depends on how many comparable-or-better listings sit between the floor and the
+   opportunity, against how fast the roll actually sells. Safe is inside about one normal
+   sale cycle, less safe is one to three, risky is past that.
 
-   The scrap floor overrides all of it: below it there is no price to list at, so there is
-   nothing for a count to be about. */
+   Both bands move with the item, so the head prints the count that lights each lens: on a
+   sniper that sells twice a day it is 0 / 1 / 2+, on something turning over hourly it is
+   far wider. Counting the listings is the reader's job - the marketplace does not publish
+   which of them are comparable - and everything else is worked out.
+
+   With no opportunity there is nothing for a light to say, so it says why instead: the
+   history stops at the floor, the score is under 70, the floor has gone stale, or sellers
+   are already undercutting each other. Below the scrap floor none of it applies. */
 function benchBands(){
   var m=state.model;
-  if(!m)return null;
+  if(!m||!m.higher)return null;
   try{return opportunityDepthBands(m)}catch(e){return null}
+}
+function noLiftReason(m){
+  if(!(Number(m.histTarget)>Number(state.floor)+.0005))return 'history stops at the floor';
+  if(Number(m.confidenceScore)<70)return 'confidence under 70';
+  if(m.signal&&m.signal.key==='stale')return 'the floor has gone stale';
+  if(m.pressureActive)return 'sellers are undercutting';
+  return 'no lift supported'
+}
+/* What to type for the opportunity: the historical target, with tax worked in the same
+   way the tile's own figure is. */
+function benchLiftEntry(m){
+  var e=null;
+  try{e=entryForDisplayed(m.histTarget,false)}catch(err){e=null}
+  return e?decStr(e):fmt(m.histTarget)
 }
 function benchSignal(){
   if(state.marketLoading)
-    return {lamp:'busy',word:'Reading',sub:'checking the market',bands:null};
+    return {lamp:'busy',word:'Reading',sub:'checking the market',bands:null,price:null};
   if(state.listFigure)
-    return {lamp:'red',word:'Dismantle',sub:'below its scrap floor',bands:null};
-  var bands=benchBands();
+    return {lamp:'red',word:'Dismantle',sub:'below its scrap floor',bands:null,price:null};
+  var m=state.model;
+  if(!m)
+    return {lamp:'',word:'\u2014',sub:tierKnown()?'describe the piece':'no reading',bands:null,price:null};
+  if(!m.higher)
+    return {lamp:'',word:'No lift',sub:noLiftReason(m),bands:null,price:null};
+  var bands=benchBands(),price=benchLiftEntry(m);
   if(!bands)
-    return {lamp:'',word:'\u2014',sub:tierKnown()?'describe the piece':'no reading',bands:null};
-  var n=state.opportunityCount;
-  if(n==null||!Number.isFinite(Number(n)))
-    return {lamp:'',word:'Count',sub:'how many are ahead of you',bands:bands};
-  n=Math.max(0,Math.floor(Number(n)));
+    return {lamp:'',word:'\u2014',sub:'no depth to judge by',bands:null,price:price};
+  var n=aheadNow();
+  if(n==null)
+    return {lamp:'',word:'Count',sub:'listings between floor and it',bands:bands,price:price};
   var risk=opportunityRiskForCount(n,bands),
       lamp=risk==='safe'?'green':(risk==='caution'?'amber':'red'),
-      ahead=n+1,
-      hours=bands.velocity>0?ahead/bands.velocity:Infinity;
+      // The floor itself is already one listing ahead of the opportunity price.
+      hours=bands.velocity>0?(n+1)/bands.velocity:Infinity;
   return {
     lamp:lamp,
     word:risk==='safe'?'Safe':(risk==='caution'?'Less safe':'Risky'),
-    sub:Number.isFinite(hours)?('~'+niceDuration(hours)+' to clear'):'no sale rate to judge by',
-    bands:bands
+    sub:(n+' between'+(Number.isFinite(hours)?(' \u00b7 ~'+niceDuration(hours)+' to clear'):'')),
+    bands:bands,price:price
   }
 }
 function paintSignal(){
@@ -9724,12 +9766,25 @@ function paintSignal(){
   $('sigSafeRange').textContent=b?(b.safeMax===0?'0':('0\u2013'+b.safeMax)):'\u2014';
   $('sigCautionRange').textContent=b?opportunityRangeText(b.safeMax+1,b.cautionMax):'\u2014';
   $('sigRiskyRange').textContent=b?((b.cautionMax+1)+'+'):'\u2014';
-  var cur=$('aheadCount'),want=(state.opportunityCount==null?'':String(state.opportunityCount));
+  var pr=$('sigPrice');
+  pr.hidden=!s.price;
+  if(s.price&&pr.textContent!==s.price){pr.textContent=s.price;pr.classList.remove('took')}
+  var cur=$('aheadCount'),want=(aheadNow()==null?'':String(aheadNow()));
   if(document.activeElement!==cur&&cur.value!==want)cur.value=want;
-  // Nothing to count against until the market has been read, and a stepper that moves a
-  // number no lamp is reading is a control that lies about having an effect.
+  // Nothing to count between until there is an opportunity to count towards, and a stepper
+  // that moves a number no lamp is reading is a control that lies about having an effect.
+  $('sigCount').hidden=!b;
   cur.disabled=!b;$('aheadMinus').disabled=!b;$('aheadPlus').disabled=!b
 }
+/* Taking the suggestion. The tile keeps the quick-sale figure - that is still the answer
+   to "what do I type to sell this now" - and this is the other one. */
+$('sigPrice').addEventListener('click',function(){
+  var v=this.textContent;
+  if(!v||v==='\u2014')return;
+  copyTextSafe(v);
+  this.classList.add('took');
+  playCopySound(true)
+});
 /* One count, two places to set it: the head here and the depth bar in the Trends card.
    Both go through setOpportunityCount, so neither can hold a number the other does not. */
 function setAhead(v){setOpportunityCount(v);paintBench()}
