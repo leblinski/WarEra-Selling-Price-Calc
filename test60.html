@@ -8262,8 +8262,10 @@ function wheelRange(x){
   var r=STAT_RANGES[x.slot];
   return r?{one:r.tiers[x.tier-1],key:r.key,label:r.label}:null
 }
-// The stage a hold should open, given what the tile already carries.
-function wheelStage(x){
+/* The question a press should open, given what the piece already carries. `strict` is the
+   cascade asking whether there is a next question at all: a fully described piece has none,
+   where a fresh press on one starts the description again. */
+function wheelStage(x,strict){
   if(!x.tier)return null;
   if(!x.slot)
     return {kind:'slot',title:'Which piece?',tier:x.tier,
@@ -8275,7 +8277,7 @@ function wheelStage(x){
     ? (x.rolls&&x.rolls.criticalChance==null?{key:'criticalChance',band:r.criticalChance,label:'crit %'}
       :x.rolls&&x.rolls.attack==null?{key:'attack',band:r.attack,label:'attack'}:null)
     : (x.rolls&&x.rolls[r.key]==null?{key:r.key,band:r.one,label:r.label}:null);
-  if(!need)return {kind:'slot',title:'Which piece?',tier:x.tier,  // assigned: start again
+  if(!need)return strict?null:{kind:'slot',title:'Which piece?',tier:x.tier, // start again
     opts:SLOTS.map(function(s){
       return {label:s.code==='weapon'?WEAPON_NAMES[x.tier-1]:s.name,val:s.code}
     })};
@@ -8893,23 +8895,19 @@ function liveTarget(){
     }
   }
 }
-function openWheel(stage,target,x,y){
-  closeWheel();
-  /* Big enough to point at with a thumb without looking, and never wider than the screen
-     it opens on: the title sits outside the ring, so the padding has to clear that too or a
-     ring opened near the top loses its heading. */
-  var n=stage.opts.length;
-  var lim=Math.min(window.innerWidth,window.innerHeight)/2-26;
-  var R=Math.max(104,Math.min(n>8?176:152,Math.floor(lim)));
-  var r0=Math.max(34,Math.min(48,Math.round(R*0.28))),pad=R+24;
-  var cx=Math.max(pad,Math.min(window.innerWidth-pad,x));
-  var cy=Math.max(pad,Math.min(window.innerHeight-pad,y));
-  var veil=document.createElement('div');veil.className='wheel-veil';
-  var svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-  svg.setAttribute('class','wheel');
-  svg.style.left=(cx-pad)+'px';svg.style.top=(cy-pad)+'px';
-  svg.setAttribute('width',pad*2);svg.setAttribute('height',pad*2);
-  var ox=pad,oy=pad,step=Math.PI*2/n,start=-Math.PI/2-step/2;
+/* One press, not three. The ring used to ask one question per press: piece, then band, then
+   value, and a weapon took four. Holding still on a segment - or pushing out past the rim -
+   opens the next question in place, and the release commits the whole path. Pulling into the
+   hub steps back a question, so a wrong turn costs a movement rather than a restart.
+
+   Dwell and push both, because they suit different hands: the push is instant and wants room
+   to overshoot into, the dwell works in every direction even when the ring is clamped against
+   an edge. Whichever happens first. */
+var WHEEL_DWELL=340,WHEEL_PUSH=22;
+function wheelDraw(stage){
+  var w=wheel,svg=w.svg,n=stage.opts.length,ox=w.pad,oy=w.pad,R=w.R,r0=w.r0;
+  var step=Math.PI*2/n,start=-Math.PI/2-step/2;
+  while(svg.firstChild)svg.removeChild(svg.firstChild);
   var NS='http://www.w3.org/2000/svg';
   var mk=function(tag,attrs,text,parent){
     var e=document.createElementNS(NS,tag),k;
@@ -8922,13 +8920,13 @@ function openWheel(stage,target,x,y){
      than read. The sheet is six across and six down, so one cell drawn at ic wide means the
      whole sheet at 6ic, shifted so the wanted cell lands in the box and clipped to it. */
   var icons=stage.kind==='slot'&&stage.tier?Math.max(30,Math.min(52,Math.round((R-r0)*0.38))):0;
-  var defs=icons?mk('defs',{}):null;
-  for(var i=0;i<n;i++){
+  var defs=icons?mk('defs',{}):null,i;
+  for(i=0;i<n;i++){
     var a0=start+i*step,a1=a0+step,mid=(a0+a1)/2,lp=wheelXY(ox,oy,(r0+R)/2,mid);
     mk('path',{'class':'wheel-seg','data-seg':i,d:wheelArc(ox,oy,r0,R,a0,a1),
       fill:WHEEL_BG,stroke:WHEEL_EDGE,'stroke-width':1});
     if(icons){
-      var ic=icons,bx=lp[0]-ic/2,by=lp[1]-ic/2-9,cid='wi'+i+'-'+Date.now();
+      var ic=icons,bx=lp[0]-ic/2,by=lp[1]-ic/2-9,cid='wi'+i+'-'+(w.seq||0);
       var col=sheetColumn(stage.opts[i].val),row=stage.tier-1;
       var cp=mk('clipPath',{id:cid},null,defs);
       mk('rect',{x:bx.toFixed(1),y:by.toFixed(1),width:ic,height:ic,rx:7},null,cp);
@@ -8944,22 +8942,113 @@ function openWheel(stage,target,x,y){
         stage.opts[i].label);
     }
   }
+  // The arc that fills while a segment is held, so the next ring is not a thing that just
+  // happens. It is drawn once and moved onto whichever segment is being held.
+  mk('path',{'class':'wheel-dwell',d:'',stroke:WHEEL_HI_EDGE,'stroke-width':3,fill:'none',
+    'stroke-linecap':'round',pathLength:1,'stroke-dasharray':1,'stroke-dashoffset':1});
   mk('circle',{'class':'wheel-hub',cx:ox,cy:oy,r:r0-4,fill:WHEEL_BG,stroke:HUB_EDGE,
     'stroke-width':1.5});
   var xr=Math.round(r0*0.32);
-  mk('path',{'class':'wheel-x',d:'M'+(ox-xr)+' '+(oy-xr)+'L'+(ox+xr)+' '+(oy+xr)+
-    'M'+(ox+xr)+' '+(oy-xr)+'L'+(ox-xr)+' '+(oy+xr),stroke:HUB_EDGE,'stroke-width':2.5,
-    'stroke-linecap':'round',fill:'none'});
-  mk('text',{'class':'wheel-title',x:ox,y:oy-R-4,fill:WHEEL_TITLE},stage.title);
+  // Back where there is something to go back to, and abandon where there is not.
+  mk('path',{'class':'wheel-x',d:w.path.length
+      ? 'M'+(ox+xr)+' '+oy+'L'+(ox-xr)+' '+oy+'M'+(ox-xr+7)+' '+(oy-7)+'L'+(ox-xr)+' '+oy+
+        'L'+(ox-xr+7)+' '+(oy+7)
+      : 'M'+(ox-xr)+' '+(oy-xr)+'L'+(ox+xr)+' '+(oy+xr)+
+        'M'+(ox+xr)+' '+(oy-xr)+'L'+(ox-xr)+' '+(oy+xr),
+    stroke:HUB_EDGE,'stroke-width':2.5,'stroke-linecap':'round',fill:'none'});
+  var crumb=w.path.length?w.path[w.path.length-1].label+' · ':'';
+  mk('text',{'class':'wheel-title',x:ox,y:oy-R-19,fill:WHEEL_TITLE},crumb+stage.title);
+  w.stage=stage;w.n=n;w.step=step;w.start=start;w.pick=-1;w.seq=(w.seq||0)+1
+}
+function openWheel(stage,target,x,y){
+  closeWheel();
+  /* Big enough to point at with a thumb without looking, and never wider than the screen
+     it opens on: the title sits outside the ring, so the padding has to clear that too or a
+     ring opened near the top loses its heading. Sized once for the whole cascade - a ring
+     that resized between questions would move the thing being pointed at. */
+  var lim=Math.min(window.innerWidth,window.innerHeight)/2-32;
+  var R=Math.max(104,Math.min(176,Math.floor(lim)));
+  // Room outside the rim for the heading and for the arc that fills under it.
+  var r0=Math.max(34,Math.min(48,Math.round(R*0.28))),pad=R+30;
+  var cx=Math.max(pad,Math.min(window.innerWidth-pad,x));
+  var cy=Math.max(pad,Math.min(window.innerHeight-pad,y));
+  var veil=document.createElement('div');veil.className='wheel-veil';
+  var svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('class','wheel');
+  svg.style.left=(cx-pad)+'px';svg.style.top=(cy-pad)+'px';
+  svg.setAttribute('width',pad*2);svg.setAttribute('height',pad*2);
+  var base=target.read();
+  wheel={svg:svg,veil:veil,target:target,cx:cx,cy:cy,r0:r0,R:R,pad:pad,
+         base:base,work:base?wheelClone(base):null,path:[],done:false,dwell:0,inHub:false,
+         first:stage,used:false,pushed:false,lx:x,ly:y,
+         stage:stage,n:0,step:0,start:0,pick:-1,seq:0};
+  wheelDraw(stage);
   document.body.appendChild(veil);document.body.appendChild(svg);
-  wheel={svg:svg,veil:veil,stage:stage,target:target,cx:cx,cy:cy,r0:r0,R:R,
-         step:step,start:start,n:n,pick:-1};
   // On the document, because the veil covers the page and a pointer that leaves the tile
   // must keep aiming - and because a lost capture should not strand an open ring.
   document.addEventListener('pointermove',wheelMove,true);
   document.addEventListener('pointerup',wheelUp,true);
   document.addEventListener('pointercancel',wheelUp,true);
-  wheelAim(x,y)
+  /* Deliberately not aimed on opening. The ring is clamped into the viewport, so a press
+     low on the page puts the finger well below the centre it opens around - and aiming from
+     there would select whatever segment lies that way. It picked Gloves, every time, for a
+     press that had chosen nothing. Nothing is aimed until the pointer moves. */
+  wheelPaint()
+}
+// The piece as the ring understands it, copied so a cascade can be unwound without having
+// written anything.
+function wheelClone(x){
+  var out={},k;
+  for(k in x)if(x.hasOwnProperty(k))out[k]=x[k];
+  out.rolls=x.rolls?JSON.parse(JSON.stringify(x.rolls)):x.rolls;
+  out.band=x.band?{key:x.band.key,range:x.band.range.slice()}:null;
+  return out
+}
+/* One answer written onto the piece. Shared by the cascade and by the release, so a path of
+   four questions and four separate presses end in exactly the same place. */
+function wheelApply(x0,stage,chosen){
+  if(stage.kind==='slot'){
+    x0.slot=chosen;x0.rolls={};
+    var r=wheelRange(x0);
+    if(chosen==='weapon'){x0.rolls={attack:null,criticalChance:null}}
+    else if(r&&r.key){x0.rolls[r.key]=null}
+    x0.sname=chosen==='weapon'?WEAPON_NAMES[x0.tier-1]:slotName(chosen);
+    x0.short='';x0.roll='';x0.band=null
+  }else if(stage.kind==='band'){
+    // A band is not an answer, only a narrowing: it decides which values the next ring holds.
+    x0.band={key:stage.key,range:chosen}
+  }else{
+    x0.rolls=x0.rolls||{};x0.rolls[stage.key]=chosen;
+    x0.band=null;
+    x0.short=wheelShort(x0);x0.roll=wheelRoll(x0)
+  }
+  return x0
+}
+function wheelAdvance(){
+  var w=wheel;
+  if(!w||w.done||w.pick<0||!w.work)return;
+  var opt=w.stage.opts[w.pick];
+  wheelApply(w.work,w.stage,opt.val);
+  w.path.push({stage:w.stage,val:opt.val,label:opt.label});
+  w.used=true;
+  var next=wheelStage(w.work,true);
+  if(!next){w.done=true;wheelPaint();return}
+  wheelDraw(next);
+  // Re-aim from where the pointer actually is: a finger that has not moved since the ring
+  // changed under it would otherwise be pointing at nothing, and the cascade would stall.
+  wheelAim(w.lx,w.ly)
+}
+function wheelBackOne(){
+  var w=wheel;
+  if(!w||!w.path.length||!w.base)return;
+  w.path.pop();
+  w.work=wheelClone(w.base);
+  for(var i=0;i<w.path.length;i++)wheelApply(w.work,w.path[i].stage,w.path[i].val);
+  w.done=false;
+  // Back to nothing is back to the question the press opened with, which for a piece that
+  // was already described is the ring that starts describing it again.
+  wheelDraw(w.path.length?wheelStage(w.work,true)||w.first:w.first);
+  wheelPaint()
 }
 function wheelMove(e){if(wheel){e.preventDefault();wheelAim(e.clientX,e.clientY)}}
 function wheelUp(e){
@@ -8969,27 +9058,65 @@ function wheelUp(e){
   dragBlockClick=true;setTimeout(function(){dragBlockClick=false},0)
 }
 function wheelAim(x,y){
-  if(!wheel)return;
-  var dx=x-wheel.cx,dy=y-wheel.cy,d=Math.sqrt(dx*dx+dy*dy),pick=-1;
-  if(d>=wheel.r0){
+  var w=wheel;if(!w)return;
+  var dx=x-w.cx,dy=y-w.cy,d=Math.sqrt(dx*dx+dy*dy),pick=-1;
+  if(d>=w.r0){
     var a=Math.atan2(dy,dx);
-    while(a<wheel.start)a+=Math.PI*2;
-    pick=Math.floor((a-wheel.start)/wheel.step)%wheel.n
+    while(a<w.start)a+=Math.PI*2;
+    pick=Math.floor((a-w.start)/w.step)%w.n
   }
-  wheel.pick=pick;
-  var segs=wheel.svg.querySelectorAll('.wheel-seg'),i,on;
+  // Entering the hub steps back one question, once per entry rather than while you sit there.
+  if(pick<0){
+    if(!w.inHub){w.inHub=true;if(w.path.length){wheelBackOne();return}}
+  }else w.inHub=false;
+  var changed=pick!==w.pick;
+  w.pick=pick;w.lx=x;w.ly=y;
+  wheelPaint();
+  if(changed)wheelHold();
+  /* Pushing out past the rim is the same answer as holding, for a hand that would rather not
+     wait. Only outward: the hub is the way back. One push per excursion, or a finger parked
+     outside the rim would fall through every remaining question at once. */
+  if(d<=w.R)w.pushed=false;
+  else if(!w.done&&!w.pushed&&pick>=0&&d>w.R+WHEEL_PUSH){w.pushed=true;wheelAdvance()}
+}
+function wheelHold(){
+  var w=wheel;if(!w)return;
+  clearTimeout(w.dwell);
+  var arc=w.svg.querySelector('.wheel-dwell');
+  if(arc){arc.setAttribute('d','');arc.style.transition='none';arc.setAttribute('stroke-dashoffset',1)}
+  if(w.done||w.pick<0)return;
+  if(arc){
+    var a0=w.start+w.pick*w.step,a1=a0+w.step,p0=wheelXY(w.pad,w.pad,w.R+7,a0),
+        p1=wheelXY(w.pad,w.pad,w.R+7,a1);
+    arc.setAttribute('d','M'+p0[0].toFixed(1)+' '+p0[1].toFixed(1)+'A'+(w.R+7)+' '+(w.R+7)+
+      ' 0 0 1 '+p1[0].toFixed(1)+' '+p1[1].toFixed(1));
+    // Two frames, because a transition set in the same frame as the value it starts from
+    // has nothing to animate away from.
+    requestAnimationFrame(function(){requestAnimationFrame(function(){
+      if(wheel&&arc.parentNode){
+        arc.style.transition='stroke-dashoffset '+WHEEL_DWELL+'ms linear';
+        arc.setAttribute('stroke-dashoffset',0)
+      }
+    })});
+  }
+  w.dwell=setTimeout(function(){if(wheel&&!wheel.done&&wheel.pick>=0)wheelAdvance()},WHEEL_DWELL)
+}
+function wheelPaint(){
+  var w=wheel;if(!w)return;
+  var segs=w.svg.querySelectorAll('.wheel-seg'),i,on;
   for(i=0;i<segs.length;i++){
-    on=i===pick;
+    on=i===w.pick;
     segs[i].setAttribute('fill',on?WHEEL_HI:WHEEL_BG);
     segs[i].setAttribute('stroke',on?WHEEL_HI_EDGE:WHEEL_EDGE);
     segs[i].setAttribute('stroke-width',on?2:1)
   }
-  var hub=wheel.svg.querySelector('.wheel-hub'),x=wheel.svg.querySelector('.wheel-x');
-  hub.setAttribute('fill',pick<0?HUB_ON:WHEEL_BG);
-  x.setAttribute('stroke',pick<0?'#FFFFFF':HUB_EDGE)
+  var hub=w.svg.querySelector('.wheel-hub'),xm=w.svg.querySelector('.wheel-x');
+  hub.setAttribute('fill',w.pick<0?HUB_ON:WHEEL_BG);
+  xm.setAttribute('stroke',w.pick<0?'#FFFFFF':HUB_EDGE)
 }
 function closeWheel(){
   if(!wheel)return;
+  clearTimeout(wheel.dwell);
   document.removeEventListener('pointermove',wheelMove,true);
   document.removeEventListener('pointerup',wheelUp,true);
   document.removeEventListener('pointercancel',wheelUp,true);
@@ -8997,34 +9124,22 @@ function closeWheel(){
   if(wheel.svg.parentNode)wheel.svg.parentNode.removeChild(wheel.svg);
   wheel=null
 }
-/* Releasing on the hub abandons the whole assignment, not just this ring: a half-assigned
-   piece is worse than an unassigned one, so the slot goes back too and the price stays. */
+/* Releasing in the hub abandons. With nothing chosen on the way in that is the old gesture
+   and still clears the piece; part-way through a cascade it only drops the path, because
+   pulling back to think and letting go should not cost the assignment you already had. */
 function wheelCommit(x,y){
   if(!wheel)return;
-  var w=wheel,x0=w.target.read();
+  var w=wheel,x0=w.work,had=w.path.length;
   closeWheel();
   if(!x0)return;
   if(w.pick<0){
+    // Pulling back to think and letting go should not cost the assignment you already had;
+    // only a press that never chose anything is the gesture that clears the piece.
+    if(had||w.used)return;
     x0.slot='';x0.sname='';x0.short='';x0.roll='';x0.rolls=null;x0.band=null;
     w.target.save(x0);return
   }
-  var chosen=w.stage.opts[w.pick].val;
-  if(w.stage.kind==='slot'){
-    x0.slot=chosen;x0.rolls={};
-    var r=wheelRange(x0);
-    if(chosen==='weapon'){x0.rolls={attack:null,criticalChance:null}}
-    else if(r&&r.key){x0.rolls[r.key]=null}
-    x0.sname=chosen==='weapon'?WEAPON_NAMES[x0.tier-1]:slotName(chosen);
-    x0.short='';x0.roll='';
-  }else if(w.stage.kind==='band'){
-    // A band is not an answer, only a narrowing. It is remembered on the tile so the next
-    // hold opens the values inside it - one ring per hold, as every other stage works.
-    x0.band={key:w.stage.key,range:chosen}
-  }else{
-    x0.rolls=x0.rolls||{};x0.rolls[w.stage.key]=chosen;
-    x0.band=null;
-    x0.short=wheelShort(x0);x0.roll=wheelRoll(x0)
-  }
+  if(!w.done)wheelApply(x0,w.stage,w.stage.opts[w.pick].val);
   w.target.save(x0)
 }
 // Written the way the rest of the page writes a roll, whatever order the wheels asked in.
