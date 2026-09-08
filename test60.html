@@ -8903,10 +8903,19 @@ function liveTarget(){
    Dwell and push both, because they suit different hands: the push is instant and wants room
    to overshoot into, the dwell works in every direction even when the ring is clamped against
    an edge. Whichever happens first. */
-var WHEEL_DWELL=340,WHEEL_PUSH=22;
-function wheelDraw(stage){
-  var w=wheel,svg=w.svg,n=stage.opts.length,ox=w.pad,oy=w.pad,R=w.R,r0=w.r0;
-  var step=Math.PI*2/n,start=-Math.PI/2-step/2;
+/* Where you are resting is never a thing you can pick. Hovering a segment turns it into the
+   answer you have given and re-divides the rest of the circle into the next question, so the
+   finger always sits on something inert and the ring around it is always what comes next.
+   Nothing is on a timer: standing still does nothing at all, and only a deliberate move into
+   one of the other wedges answers anything. That is what makes it readable - the version
+   before this advanced under the finger and gave no time to read what had appeared. */
+function wheelSpan(a){var t=Math.PI*2;a=a%t;return a<0?a+t:a}
+function wheelDraw(stage,rest){
+  var w=wheel,svg=w.svg,ox=w.pad,oy=w.pad,R=w.R,r0=w.r0;
+  var n=stage?stage.opts.length:0,TAU=Math.PI*2;
+  var gap=rest?rest.a1-rest.a0:0;
+  var span=n?(TAU-gap)/n:0;
+  var from=rest?rest.a1:-Math.PI/2-(n?TAU/n:0)/2;
   while(svg.firstChild)svg.removeChild(svg.firstChild);
   var NS='http://www.w3.org/2000/svg';
   var mk=function(tag,attrs,text,parent){
@@ -8915,37 +8924,48 @@ function wheelDraw(stage){
     if(text!=null)e.textContent=text;
     (parent||svg).appendChild(e);return e
   };
-  /* The piece ring carries the piece. A name is a word you read; the art is the thing you
-     already recognise from the grid you were picking in, so the ring is pointed at rather
-     than read. The sheet is six across and six down, so one cell drawn at ic wide means the
-     whole sheet at 6ic, shifted so the wanted cell lands in the box and clipped to it. */
-  var icons=stage.kind==='slot'&&stage.tier?Math.max(30,Math.min(52,Math.round((R-r0)*0.38))):0;
-  var defs=icons?mk('defs',{}):null,i;
-  for(i=0;i<n;i++){
-    var a0=start+i*step,a1=a0+step,mid=(a0+a1)/2,lp=wheelXY(ox,oy,(r0+R)/2,mid);
-    mk('path',{'class':'wheel-seg','data-seg':i,d:wheelArc(ox,oy,r0,R,a0,a1),
-      fill:WHEEL_BG,stroke:WHEEL_EDGE,'stroke-width':1});
-    if(icons){
-      var ic=icons,bx=lp[0]-ic/2,by=lp[1]-ic/2-9,cid='wi'+i+'-'+(w.seq||0);
-      var col=sheetColumn(stage.opts[i].val),row=stage.tier-1;
+  var defs=mk('defs',{}),seq=w.seq=(w.seq||0)+1;
+  /* The piece ring carries the piece: the art is the thing you already recognise. The sheet
+     is six across and six down, so one cell drawn at ic wide is the whole sheet at 6ic,
+     shifted so the wanted cell lands in the box and clipped to it. */
+  var face=function(mid,ic,slot,tier,label,dim){
+    var lp=wheelXY(ox,oy,(r0+R)/2,mid);
+    if(ic&&slot){
+      var bx=lp[0]-ic/2,by=lp[1]-ic/2-9,cid='wi'+seq+'-'+Math.round(mid*100);
       var cp=mk('clipPath',{id:cid},null,defs);
       mk('rect',{x:bx.toFixed(1),y:by.toFixed(1),width:ic,height:ic,rx:7},null,cp);
-      var im=mk('image',{x:(bx-col*ic).toFixed(1),y:(by-row*ic).toFixed(1),
+      var im=mk('image',{x:(bx-sheetColumn(slot)*ic).toFixed(1),y:(by-(tier-1)*ic).toFixed(1),
         width:ic*6,height:ic*6,'clip-path':'url(#'+cid+')',preserveAspectRatio:'none',
-        href:'items.png'});
+        href:'items.png',opacity:dim?0.85:1});
       // Safari has wanted the xlink form for as long as it has drawn these at all.
       im.setAttributeNS('http://www.w3.org/1999/xlink','xlink:href','items.png');
       mk('text',{'class':'wheel-lab wheel-lab-sm',x:lp[0].toFixed(1),
-        y:(lp[1]+ic/2-2).toFixed(1),fill:WHEEL_TEXT},stage.opts[i].label);
+        y:(lp[1]+ic/2-2).toFixed(1),fill:WHEEL_TEXT},label);
     }else{
-      mk('text',{'class':'wheel-lab',x:lp[0].toFixed(1),y:lp[1].toFixed(1),fill:WHEEL_TEXT},
-        stage.opts[i].label);
+      mk('text',{'class':'wheel-lab',x:lp[0].toFixed(1),y:lp[1].toFixed(1),fill:WHEEL_TEXT},label);
     }
+  };
+  var ic=stage&&stage.kind==='slot'&&stage.tier?Math.max(30,Math.min(52,Math.round((R-r0)*0.38))):0;
+  w.wedges=[];
+  var i;
+  // Nothing left to ask: the rest of the ring is drawn inert, because a lone wedge floating
+  // on the veil reads as something half-drawn rather than as an answer that is finished.
+  if(!n&&rest)mk('path',{'class':'wheel-seg-off',d:wheelArc(ox,oy,r0,R,rest.a1,rest.a0+TAU),
+    fill:WHEEL_BG,stroke:WHEEL_EDGE,'stroke-width':1});
+  for(i=0;i<n;i++){
+    var a0=from+i*span,a1=a0+span;
+    mk('path',{'class':'wheel-seg','data-seg':i,d:wheelArc(ox,oy,r0,R,a0,a1),
+      fill:WHEEL_BG,stroke:WHEEL_EDGE,'stroke-width':1});
+    face((a0+a1)/2,ic,stage.kind==='slot'?stage.opts[i].val:null,stage.tier,stage.opts[i].label,false);
+    w.wedges.push({a0:a0,a1:a1,i:i})
   }
-  // The arc that fills while a segment is held, so the next ring is not a thing that just
-  // happens. It is drawn once and moved onto whichever segment is being held.
-  mk('path',{'class':'wheel-dwell',d:'',stroke:WHEEL_HI_EDGE,'stroke-width':3,fill:'none',
-    'stroke-linecap':'round',pathLength:1,'stroke-dasharray':1,'stroke-dashoffset':1});
+  // The place the finger is standing, drawn as the answer it stands for and pickable by
+  // nothing. Last, so it sits over the seam where the options wrap around to meet it.
+  if(rest){
+    mk('path',{'class':'wheel-rest',d:wheelArc(ox,oy,r0,R,rest.a0,rest.a1),
+      fill:WHEEL_HI,stroke:WHEEL_HI_EDGE,'stroke-width':2});
+    face((rest.a0+rest.a1)/2,rest.ic||0,rest.slot,rest.tier,rest.label,true)
+  }
   mk('circle',{'class':'wheel-hub',cx:ox,cy:oy,r:r0-4,fill:WHEEL_BG,stroke:HUB_EDGE,
     'stroke-width':1.5});
   var xr=Math.round(r0*0.32);
@@ -8956,19 +8976,18 @@ function wheelDraw(stage){
       : 'M'+(ox-xr)+' '+(oy-xr)+'L'+(ox+xr)+' '+(oy+xr)+
         'M'+(ox+xr)+' '+(oy-xr)+'L'+(ox-xr)+' '+(oy+xr),
     stroke:HUB_EDGE,'stroke-width':2.5,'stroke-linecap':'round',fill:'none'});
-  var crumb=w.path.length?w.path[w.path.length-1].label+' · ':'';
-  mk('text',{'class':'wheel-title',x:ox,y:oy-R-19,fill:WHEEL_TITLE},crumb+stage.title);
-  w.stage=stage;w.n=n;w.step=step;w.start=start;w.pick=-1;w.seq=(w.seq||0)+1
+  mk('text',{'class':'wheel-title',x:ox,y:oy-R-19,fill:WHEEL_TITLE},
+    stage?stage.title:'Release to keep');
+  w.stage=stage;w.rest=rest||null
 }
 function openWheel(stage,target,x,y){
   closeWheel();
-  /* Big enough to point at with a thumb without looking, and never wider than the screen
-     it opens on: the title sits outside the ring, so the padding has to clear that too or a
-     ring opened near the top loses its heading. Sized once for the whole cascade - a ring
-     that resized between questions would move the thing being pointed at. */
+  /* Big enough to point at with a thumb without looking, and never wider than the screen it
+     opens on: the heading sits outside the rim, so the padding has to clear that too. Sized
+     once for the whole cascade - a ring that resized between questions would move the thing
+     being pointed at. */
   var lim=Math.min(window.innerWidth,window.innerHeight)/2-32;
   var R=Math.max(104,Math.min(176,Math.floor(lim)));
-  // Room outside the rim for the heading and for the arc that fills under it.
   var r0=Math.max(34,Math.min(48,Math.round(R*0.28))),pad=R+30;
   var cx=Math.max(pad,Math.min(window.innerWidth-pad,x));
   var cy=Math.max(pad,Math.min(window.innerHeight-pad,y));
@@ -8979,21 +8998,15 @@ function openWheel(stage,target,x,y){
   svg.setAttribute('width',pad*2);svg.setAttribute('height',pad*2);
   var base=target.read();
   wheel={svg:svg,veil:veil,target:target,cx:cx,cy:cy,r0:r0,R:R,pad:pad,
-         base:base,work:base?wheelClone(base):null,path:[],done:false,dwell:0,inHub:false,
-         first:stage,used:false,pushed:false,lx:x,ly:y,
-         stage:stage,n:0,step:0,start:0,pick:-1,seq:0};
-  wheelDraw(stage);
+         base:base,work:base?wheelClone(base):null,path:[],first:stage,used:false,
+         inHub:false,wedges:[],rest:null,stage:stage,seq:0};
+  wheelDraw(stage,null);
   document.body.appendChild(veil);document.body.appendChild(svg);
   // On the document, because the veil covers the page and a pointer that leaves the tile
   // must keep aiming - and because a lost capture should not strand an open ring.
   document.addEventListener('pointermove',wheelMove,true);
   document.addEventListener('pointerup',wheelUp,true);
   document.addEventListener('pointercancel',wheelUp,true);
-  /* Deliberately not aimed on opening. The ring is clamped into the viewport, so a press
-     low on the page puts the finger well below the centre it opens around - and aiming from
-     there would select whatever segment lies that way. It picked Gloves, every time, for a
-     press that had chosen nothing. Nothing is aimed until the pointer moves. */
-  wheelPaint()
 }
 // The piece as the ring understands it, copied so a cascade can be unwound without having
 // written anything.
@@ -9024,19 +9037,20 @@ function wheelApply(x0,stage,chosen){
   }
   return x0
 }
-function wheelAdvance(){
+// Moving into one of the other wedges is the whole gesture: it answers, and the wedge you
+// moved into becomes the place to stand while you read what came next.
+function wheelPick(idx){
   var w=wheel;
-  if(!w||w.done||w.pick<0||!w.work)return;
-  var opt=w.stage.opts[w.pick];
-  wheelApply(w.work,w.stage,opt.val);
-  w.path.push({stage:w.stage,val:opt.val,label:opt.label});
+  if(!w||!w.stage||!w.work)return;
+  var seg=w.wedges[idx];if(!seg)return;
+  var opt=w.stage.opts[seg.i],was=w.stage;
+  wheelApply(w.work,was,opt.val);
+  w.path.push({stage:was,val:opt.val,label:opt.label});
   w.used=true;
-  var next=wheelStage(w.work,true);
-  if(!next){w.done=true;wheelPaint();return}
-  wheelDraw(next);
-  // Re-aim from where the pointer actually is: a finger that has not moved since the ring
-  // changed under it would otherwise be pointing at nothing, and the cascade would stall.
-  wheelAim(w.lx,w.ly)
+  var rest={a0:seg.a0,a1:seg.a1,label:opt.label,
+            slot:was.kind==='slot'?opt.val:null,tier:was.tier,
+            ic:was.kind==='slot'&&was.tier?Math.max(30,Math.min(52,Math.round((w.R-w.r0)*0.38))):0};
+  wheelDraw(wheelStage(w.work,true),rest)
 }
 function wheelBackOne(){
   var w=wheel;
@@ -9044,79 +9058,41 @@ function wheelBackOne(){
   w.path.pop();
   w.work=wheelClone(w.base);
   for(var i=0;i<w.path.length;i++)wheelApply(w.work,w.path[i].stage,w.path[i].val);
-  w.done=false;
-  // Back to nothing is back to the question the press opened with, which for a piece that
-  // was already described is the ring that starts describing it again.
-  wheelDraw(w.path.length?wheelStage(w.work,true)||w.first:w.first);
-  wheelPaint()
+  // Back to nothing is back to the question the press opened with, and back to no resting
+  // place - the finger is in the hub, which is where it had to be to ask for this.
+  wheelDraw(w.path.length?wheelStage(w.work,true)||w.first:w.first,null)
 }
 function wheelMove(e){if(wheel){e.preventDefault();wheelAim(e.clientX,e.clientY)}}
 function wheelUp(e){
   if(!wheel)return;
   e.preventDefault();e.stopPropagation();
-  wheelCommit(e.clientX,e.clientY);
+  wheelCommit();
   dragBlockClick=true;setTimeout(function(){dragBlockClick=false},0)
 }
 function wheelAim(x,y){
   var w=wheel;if(!w)return;
-  var dx=x-w.cx,dy=y-w.cy,d=Math.sqrt(dx*dx+dy*dy),pick=-1;
-  if(d>=w.r0){
-    var a=Math.atan2(dy,dx);
-    while(a<w.start)a+=Math.PI*2;
-    pick=Math.floor((a-w.start)/w.step)%w.n
+  var dx=x-w.cx,dy=y-w.cy,d=Math.sqrt(dx*dx+dy*dy);
+  if(d<w.r0){
+    // Entering the hub steps back one question, once per entry rather than while you sit there.
+    if(!w.inHub){w.inHub=true;if(w.path.length)wheelBackOne();else wheelHub(true)}
+    return
   }
-  // Entering the hub steps back one question, once per entry rather than while you sit there.
-  if(pick<0){
-    if(!w.inHub){w.inHub=true;if(w.path.length){wheelBackOne();return}}
-  }else w.inHub=false;
-  var changed=pick!==w.pick;
-  w.pick=pick;w.lx=x;w.ly=y;
-  wheelPaint();
-  if(changed)wheelHold();
-  /* Pushing out past the rim is the same answer as holding, for a hand that would rather not
-     wait. Only outward: the hub is the way back. One push per excursion, or a finger parked
-     outside the rim would fall through every remaining question at once. */
-  if(d<=w.R)w.pushed=false;
-  else if(!w.done&&!w.pushed&&pick>=0&&d>w.R+WHEEL_PUSH){w.pushed=true;wheelAdvance()}
+  if(w.inHub){w.inHub=false;wheelHub(false)}
+  var a=Math.atan2(dy,dx),i,seg;
+  if(w.rest&&wheelSpan(a-w.rest.a0)<w.rest.a1-w.rest.a0)return;   // standing still is safe
+  for(i=0;i<w.wedges.length;i++){
+    seg=w.wedges[i];
+    if(wheelSpan(a-seg.a0)<seg.a1-seg.a0){wheelPick(i);return}
+  }
 }
-function wheelHold(){
+function wheelHub(on){
   var w=wheel;if(!w)return;
-  clearTimeout(w.dwell);
-  var arc=w.svg.querySelector('.wheel-dwell');
-  if(arc){arc.setAttribute('d','');arc.style.transition='none';arc.setAttribute('stroke-dashoffset',1)}
-  if(w.done||w.pick<0)return;
-  if(arc){
-    var a0=w.start+w.pick*w.step,a1=a0+w.step,p0=wheelXY(w.pad,w.pad,w.R+7,a0),
-        p1=wheelXY(w.pad,w.pad,w.R+7,a1);
-    arc.setAttribute('d','M'+p0[0].toFixed(1)+' '+p0[1].toFixed(1)+'A'+(w.R+7)+' '+(w.R+7)+
-      ' 0 0 1 '+p1[0].toFixed(1)+' '+p1[1].toFixed(1));
-    // Two frames, because a transition set in the same frame as the value it starts from
-    // has nothing to animate away from.
-    requestAnimationFrame(function(){requestAnimationFrame(function(){
-      if(wheel&&arc.parentNode){
-        arc.style.transition='stroke-dashoffset '+WHEEL_DWELL+'ms linear';
-        arc.setAttribute('stroke-dashoffset',0)
-      }
-    })});
-  }
-  w.dwell=setTimeout(function(){if(wheel&&!wheel.done&&wheel.pick>=0)wheelAdvance()},WHEEL_DWELL)
-}
-function wheelPaint(){
-  var w=wheel;if(!w)return;
-  var segs=w.svg.querySelectorAll('.wheel-seg'),i,on;
-  for(i=0;i<segs.length;i++){
-    on=i===w.pick;
-    segs[i].setAttribute('fill',on?WHEEL_HI:WHEEL_BG);
-    segs[i].setAttribute('stroke',on?WHEEL_HI_EDGE:WHEEL_EDGE);
-    segs[i].setAttribute('stroke-width',on?2:1)
-  }
   var hub=w.svg.querySelector('.wheel-hub'),xm=w.svg.querySelector('.wheel-x');
-  hub.setAttribute('fill',w.pick<0?HUB_ON:WHEEL_BG);
-  xm.setAttribute('stroke',w.pick<0?'#FFFFFF':HUB_EDGE)
+  if(hub)hub.setAttribute('fill',on?HUB_ON:WHEEL_BG);
+  if(xm)xm.setAttribute('stroke',on?'#FFFFFF':HUB_EDGE)
 }
 function closeWheel(){
   if(!wheel)return;
-  clearTimeout(wheel.dwell);
   document.removeEventListener('pointermove',wheelMove,true);
   document.removeEventListener('pointerup',wheelUp,true);
   document.removeEventListener('pointercancel',wheelUp,true);
@@ -9124,22 +9100,19 @@ function closeWheel(){
   if(wheel.svg.parentNode)wheel.svg.parentNode.removeChild(wheel.svg);
   wheel=null
 }
-/* Releasing in the hub abandons. With nothing chosen on the way in that is the old gesture
-   and still clears the piece; part-way through a cascade it only drops the path, because
-   pulling back to think and letting go should not cost the assignment you already had. */
-function wheelCommit(x,y){
+/* The release keeps whatever the path has answered. In the hub it abandons - and only clears
+   the piece when nothing was answered on the way in, because pulling back to think and
+   letting go should not cost the assignment you already had. */
+function wheelCommit(){
   if(!wheel)return;
-  var w=wheel,x0=w.work,had=w.path.length;
+  var w=wheel,x0=w.work,inHub=w.inHub,used=w.used;
   closeWheel();
   if(!x0)return;
-  if(w.pick<0){
-    // Pulling back to think and letting go should not cost the assignment you already had;
-    // only a press that never chose anything is the gesture that clears the piece.
-    if(had||w.used)return;
+  if(inHub||!used){
+    if(used||w.path.length)return;
     x0.slot='';x0.sname='';x0.short='';x0.roll='';x0.rolls=null;x0.band=null;
     w.target.save(x0);return
   }
-  if(!w.done)wheelApply(x0,w.stage,w.stage.opts[w.pick].val);
   w.target.save(x0)
 }
 // Written the way the rest of the page writes a roll, whatever order the wheels asked in.
