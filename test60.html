@@ -8895,6 +8895,29 @@ function tileTarget(idx){
     save:function(x){var a=readRecent();if(!a[idx])return;a[idx]=x;saveRecent(a);renderRecent()}
   }
 }
+/* Describing a piece in Trends is describing the thing you just priced, and the tile that
+   price left behind was written before anyone knew what it was - a bare figure with the
+   rarity plate on it. It learns now.
+
+   The tile is found by the pair the price is made of, the figure and what it was priced
+   against, so an older tile at a different price is left alone. Nothing matching means the
+   price has moved on since, and nothing is touched. */
+function describeRecent(){
+  var fig=state.listFigure||state.coreFigure;
+  if(!fig)return;
+  var a=readRecent(),inp=state.lastPrice==null?'':String(state.lastPrice),i,x;
+  for(i=0;i<a.length;i++){
+    x=a[i];
+    if(x.price!==fig||String(x.inp||'')!==inp)continue;
+    x.item=itemName()||(tierKnown()?tier().name:'Calculator');
+    x.tier=tierKnown()?state.tier:x.tier;
+    x.slot=state.slot||'';
+    x.sname=state.slot?slotNameAt(state.slot,state.tier):'';
+    x.roll=state.slot?describeRoll():'';
+    x.short=state.slot?compactRoll():'';
+    saveRecent(a);renderRecent();return
+  }
+}
 function liveTarget(){
   return {
     read:function(){
@@ -8912,7 +8935,7 @@ function liveTarget(){
       if(x.rolls)for(k in x.rolls){v=x.rolls[k];if(v!=null&&Number.isFinite(Number(v)))out[k]=Number(v)}
       state.rolls=out;
       state.higherCheaper=false;$('higherCheaper').checked=false;
-      resetAnalysis();buildSlots();buildRolls();prefetchSelected()
+      resetAnalysis();buildSlots();buildRolls();describeRecent();prefetchSelected()
     }
   }
 }
