@@ -8853,6 +8853,27 @@ $('histList').addEventListener('click',function(e){
    be its own object rather than another panel - and dark enough that the labels stay white,
    which is the only way a number is readable at this size. The lit segment is a lighter teal
    with a brass edge, so which one is chosen never depends on reading a fill. */
+/* A third state between resting and chosen: what the pointer is over, which is not yet an
+   answer. It carries a verdigris edge rather than the chosen wedge's brass, so the two are
+   told apart by colour rather than by how light they are. */
+var WHEEL_WARM_EDGE='#6BB8A8';
+/* A roll ring is a scale, and a scale should be readable without reading. Pale at the weak
+   end, deep at the strong one, so which way round the numbers run is apparent from across
+   the ring and the hand can travel to roughly the right place before the eye arrives.
+
+   The pale end stops at #2A7C82 because the labels are white and white on that is 4.7:1 -
+   any lighter and the ring would be quicker to aim at and harder to read. Pieces get none of
+   this: a helmet is not stronger than a glove. */
+var RAMP_WEAK='#2A7C82',RAMP_STRONG='#0C2A30';
+function wheelMix(a,b,t){
+  var pa=parseInt(a.slice(1),16),pb=parseInt(b.slice(1),16),o='#',i,ca,cb,v;
+  for(i=16;i>=0;i-=8){
+    ca=(pa>>i)&255;cb=(pb>>i)&255;v=Math.round(ca+(cb-ca)*t);
+    o+=(v<16?'0':'')+v.toString(16)
+  }
+  return o
+}
+function wheelRamp(t){return wheelMix(RAMP_WEAK,RAMP_STRONG,t)}
 var WHEEL_BG='#123E44',WHEEL_HI='#1E7A78',WHEEL_EDGE='rgba(107,184,168,.45)',
     WHEEL_HI_EDGE='#C89B3C',WHEEL_TEXT='#FFFFFF',WHEEL_TITLE='#C89B3C',
     HUB_EDGE='#C2703F',HUB_ON='#C2703F';
@@ -8909,6 +8930,14 @@ function liveTarget(){
    Nothing is on a timer: standing still does nothing at all, and only a deliberate move into
    one of the other wedges answers anything. That is what makes it readable - the version
    before this advanced under the finger and gave no time to read what had appeared. */
+/* Nothing is taken while the hand is still moving. Every movement pushes the decision back,
+   so a sweep across four wedges and the hub on the way to the fifth passes through all of
+   them and answers none. Coming to a stop is what answers - and a release answers at once,
+   because having arrived you should not have to wait to leave.
+
+   Movement is measured from where the wait was last set rather than from the previous event,
+   so a finger resting on glass and jittering a pixel or two still counts as stopped. */
+var WHEEL_SETTLE=160,WHEEL_JITTER=4;
 function wheelSpan(a){var t=Math.PI*2;a=a%t;return a<0?a+t:a}
 function wheelDraw(stage,rest){
   var w=wheel,svg=w.svg,ox=w.pad,oy=w.pad,R=w.R,r0=w.r0;
@@ -8946,6 +8975,8 @@ function wheelDraw(stage,rest){
     }
   };
   var ic=stage&&stage.kind==='slot'&&stage.tier?Math.max(30,Math.min(52,Math.round((R-r0)*0.38))):0;
+  // Rolls run weak to strong in the order they were built, so the index is the scale.
+  var ramp=!!(stage&&stage.kind!=='slot'&&n>1);
   w.wedges=[];
   var i;
   // Nothing left to ask: the rest of the ring is drawn inert, because a lone wedge floating
@@ -8953,11 +8984,11 @@ function wheelDraw(stage,rest){
   if(!n&&rest)mk('path',{'class':'wheel-seg-off',d:wheelArc(ox,oy,r0,R,rest.a1,rest.a0+TAU),
     fill:WHEEL_BG,stroke:WHEEL_EDGE,'stroke-width':1});
   for(i=0;i<n;i++){
-    var a0=from+i*span,a1=a0+span;
+    var a0=from+i*span,a1=a0+span,base=ramp?wheelRamp(i/(n-1)):WHEEL_BG;
     mk('path',{'class':'wheel-seg','data-seg':i,d:wheelArc(ox,oy,r0,R,a0,a1),
-      fill:WHEEL_BG,stroke:WHEEL_EDGE,'stroke-width':1});
+      fill:base,stroke:WHEEL_EDGE,'stroke-width':1});
     face((a0+a1)/2,ic,stage.kind==='slot'?stage.opts[i].val:null,stage.tier,stage.opts[i].label,false);
-    w.wedges.push({a0:a0,a1:a1,i:i})
+    w.wedges.push({a0:a0,a1:a1,i:i,fill:base})
   }
   // The place the finger is standing, drawn as the answer it stands for and pickable by
   // nothing. Last, so it sits over the seam where the options wrap around to meet it.
@@ -8978,7 +9009,8 @@ function wheelDraw(stage,rest){
     stroke:HUB_EDGE,'stroke-width':2.5,'stroke-linecap':'round',fill:'none'});
   mk('text',{'class':'wheel-title',x:ox,y:oy-R-19,fill:WHEEL_TITLE},
     stage?stage.title:'Release to keep');
-  w.stage=stage;w.rest=rest||null
+  w.stage=stage;w.rest=rest||null;w.hover={kind:'none',i:-1};
+  clearTimeout(w.settle)
 }
 function openWheel(stage,target,x,y){
   closeWheel();
@@ -8999,7 +9031,8 @@ function openWheel(stage,target,x,y){
   var base=target.read();
   wheel={svg:svg,veil:veil,target:target,cx:cx,cy:cy,r0:r0,R:R,pad:pad,
          base:base,work:base?wheelClone(base):null,path:[],first:stage,used:false,
-         inHub:false,wedges:[],rest:null,stage:stage,seq:0};
+         wedges:[],rest:null,stage:stage,seq:0,
+         hover:{kind:'none',i:-1},settle:0,ax:x,ay:y,px:x,py:y};
   wheelDraw(stage,null);
   document.body.appendChild(veil);document.body.appendChild(svg);
   // On the document, because the veil covers the page and a pointer that leaves the tile
@@ -9062,36 +9095,60 @@ function wheelBackOne(){
   // place - the finger is in the hub, which is where it had to be to ask for this.
   wheelDraw(w.path.length?wheelStage(w.work,true)||w.first:w.first,null)
 }
-function wheelMove(e){if(wheel){e.preventDefault();wheelAim(e.clientX,e.clientY)}}
+function wheelMove(e){
+  var w=wheel;if(!w)return;
+  e.preventDefault();
+  w.px=e.clientX;w.py=e.clientY;
+  var dx=e.clientX-w.ax,dy=e.clientY-w.ay;
+  if(dx*dx+dy*dy>=WHEEL_JITTER*WHEEL_JITTER){
+    w.ax=e.clientX;w.ay=e.clientY;
+    clearTimeout(w.settle);
+    w.settle=setTimeout(wheelSettle,WHEEL_SETTLE)
+  }
+  wheelHover(e.clientX,e.clientY)
+}
+// What the pointer is over, and what that looks like. It decides nothing on its own.
+function wheelHover(x,y){
+  var w=wheel;if(!w)return;
+  var dx=x-w.cx,dy=y-w.cy,d=Math.sqrt(dx*dx+dy*dy),h={kind:'none',i:-1},i,seg;
+  if(d<w.r0)h={kind:'hub',i:-1};
+  else{
+    var a=Math.atan2(dy,dx);
+    if(w.rest&&wheelSpan(a-w.rest.a0)<w.rest.a1-w.rest.a0)h={kind:'rest',i:-1};
+    else for(i=0;i<w.wedges.length;i++){
+      seg=w.wedges[i];
+      if(wheelSpan(a-seg.a0)<seg.a1-seg.a0){h={kind:'opt',i:i};break}
+    }
+  }
+  w.hover=h;
+  var segs=w.svg.querySelectorAll('.wheel-seg'),lit,own;
+  for(i=0;i<segs.length;i++){
+    lit=h.kind==='opt'&&h.i===i;
+    own=(w.wedges[i]&&w.wedges[i].fill)||WHEEL_BG;
+    // Lifted from its own place on the scale rather than to a fixed colour, or the
+    // highlight would read as darker than its neighbours at the pale end of a roll ring.
+    segs[i].setAttribute('fill',lit?wheelMix(own,WHEEL_WARM_EDGE,0.34):own);
+    segs[i].setAttribute('stroke',lit?WHEEL_WARM_EDGE:WHEEL_EDGE);
+    segs[i].setAttribute('stroke-width',lit?2:1)
+  }
+  var hub=w.svg.querySelector('.wheel-hub'),xm=w.svg.querySelector('.wheel-x');
+  if(hub)hub.setAttribute('fill',h.kind==='hub'?HUB_ON:WHEEL_BG);
+  if(xm)xm.setAttribute('stroke',h.kind==='hub'?'#FFFFFF':HUB_EDGE)
+}
+// Coming to a stop is the answer.
+function wheelSettle(){
+  var w=wheel;if(!w)return;
+  if(w.hover.kind==='opt')wheelPick(w.hover.i);
+  else if(w.hover.kind==='hub'&&w.path.length)wheelBackOne()
+}
 function wheelUp(e){
   if(!wheel)return;
   e.preventDefault();e.stopPropagation();
   wheelCommit();
   dragBlockClick=true;setTimeout(function(){dragBlockClick=false},0)
 }
-function wheelAim(x,y){
-  var w=wheel;if(!w)return;
-  var dx=x-w.cx,dy=y-w.cy,d=Math.sqrt(dx*dx+dy*dy);
-  if(d<w.r0){
-    // Entering the hub steps back one question, once per entry rather than while you sit there.
-    if(!w.inHub){w.inHub=true;if(w.path.length)wheelBackOne();else wheelHub(true)}
-    return
-  }
-  if(w.inHub){w.inHub=false;wheelHub(false)}
-  var a=Math.atan2(dy,dx),i,seg;
-  if(w.rest&&wheelSpan(a-w.rest.a0)<w.rest.a1-w.rest.a0)return;   // standing still is safe
-  for(i=0;i<w.wedges.length;i++){
-    seg=w.wedges[i];
-    if(wheelSpan(a-seg.a0)<seg.a1-seg.a0){wheelPick(i);return}
-  }
-}
-function wheelHub(on){
-  var w=wheel;if(!w)return;
-  var hub=w.svg.querySelector('.wheel-hub'),xm=w.svg.querySelector('.wheel-x');
-  if(hub)hub.setAttribute('fill',on?HUB_ON:WHEEL_BG);
-  if(xm)xm.setAttribute('stroke',on?'#FFFFFF':HUB_EDGE)
-}
 function closeWheel(){
+  if(wheel)clearTimeout(wheel.settle);
   if(!wheel)return;
   document.removeEventListener('pointermove',wheelMove,true);
   document.removeEventListener('pointerup',wheelUp,true);
@@ -9105,10 +9162,15 @@ function closeWheel(){
    letting go should not cost the assignment you already had. */
 function wheelCommit(){
   if(!wheel)return;
-  var w=wheel,x0=w.work,inHub=w.inHub,used=w.used;
+  var w=wheel,x0=w.work,h=w.hover,used=w.used;
+  // Released on an option: take it now rather than make the hand wait out the pause.
+  if(h.kind==='opt'&&w.stage&&x0){
+    var seg=w.wedges[h.i],opt=seg?w.stage.opts[seg.i]:null;
+    if(opt){wheelApply(x0,w.stage,opt.val);used=true}
+  }
   closeWheel();
   if(!x0)return;
-  if(inHub||!used){
+  if(h.kind==='hub'||!used){
     if(used||w.path.length)return;
     x0.slot='';x0.sname='';x0.short='';x0.roll='';x0.rolls=null;x0.band=null;
     w.target.save(x0);return
