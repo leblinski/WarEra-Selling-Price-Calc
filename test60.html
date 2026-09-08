@@ -359,8 +359,12 @@ input:focus{outline:none;border-color:var(--brass);box-shadow:0 0 0 3px rgba(var
    and hides the cards around them still runs off them, and because putting them back is one
    line rather than a rebuild. */
 #slotGrid,#rollGrid{display:none!important}
+/* Describing the piece runs the analysis, so the button only ever asked a question with one
+   answer. It stays in the document because the status line's retry and the disabled state
+   still run off it, and because putting it back is one line. */
+#analyseBtn{display:none!important}
 .trendpick{
-  display:flex;align-items:center;gap:12px;width:100%;margin:0 0 12px;padding:12px 14px;
+  display:flex;align-items:center;flex-wrap:wrap;gap:12px;width:100%;margin:0 0 12px;padding:12px 14px;
   cursor:pointer;text-align:left;
   border:1px solid rgba(var(--brass-rgb),.38);border-radius:var(--radius);
   background:var(--panel);color:var(--ink);
@@ -385,6 +389,11 @@ input:focus{outline:none;border-color:var(--brass);box-shadow:0 0 0 3px rgba(var
   letter-spacing:.04em;text-transform:uppercase;color:var(--ink)
 }
 .trendpick .tp-text small{font-size:12px;color:var(--dim)}
+/* The verdict takes a line of its own rather than a corner of the name's. Sharing the column
+   made the pills set its width, and the roll - the thing the verdict is about - was the part
+   that got the ellipsis. */
+.trendpick .tp-sig{flex:0 0 100%;display:flex;gap:6px;margin:2px 0 0}
+.trendpick .tp-sig .pill{font-size:9px;padding:2px 7px;letter-spacing:.06em}
 .trendpick .tp-go{
   margin-left:auto;flex:none;font-family:"Saira Condensed",sans-serif;font-weight:700;
   font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--brass)
@@ -3887,8 +3896,23 @@ function paintTrendPick(){
     : '<span class="tp-art tp-none"></span>';
   var name=state.slot?itemName():'Which piece?';
   var sub=state.slot?(hasAllRolls()?describeRoll():'Choose the roll'):'Press to choose';
-  el.innerHTML=art+'<span class="tp-text"><b>'+esc(name)+'</b><small>'+esc(sub)+
-    '</small></span><span class="tp-go">Change</span>'
+  /* The verdict belongs beside the thing it is about. It is two pills - how much the history
+     supports the price, and how the floor is behaving - and they are the same two the docket
+     carries, so a glance here answers what a scroll used to. */
+  var sig='';
+  if(state.marketLoading)sig='<span class="pill watch">Reading the market…</span>';
+  else if(state.model){
+    sig='<span class="pill '+confidenceClass(state.model.confidence)+'">'+
+        esc(state.model.confidence)+' '+esc(String(state.model.confidenceScore))+'</span>';
+    // The floor signal only says anything once a listing age has been given. Without one it
+    // is a pill that reads "not supplied", which is a sentence rather than a light.
+    var sg=state.model.signal;
+    if(sg&&sg.key&&sg.key!=='unknown')
+      sig+='<span class="pill '+esc(sg.key)+'">'+esc(sg.label)+'</span>'
+  }
+  el.innerHTML=art+'<span class="tp-text"><b>'+esc(name)+'</b><small>'+esc(sub)+'</small></span>'+
+    '<span class="tp-go">Change</span>'+
+    (sig?'<span class="tp-sig">'+sig+'</span>':'')
 }
 function buildRolls(){
   if(!state.slot){
@@ -7404,6 +7428,7 @@ function renderModel(m,meta){
     paintTrendMini(m);
     setWorkMode('sales');scheduleAutoAnalyse()
   }
+  paintTrendPick();
   debug(meta,m);renderRawInspector();
 
   if(!isDesktop()){
@@ -7494,16 +7519,21 @@ function currentAnalyseSignature(){
     (validAge()?Number(state.age).toFixed(4):'na'),state.mode,state.higherCheaper?'1':'0'
   ].join('|')
 }
+/* Describing the piece is the request. It waits until every roll the piece needs is chosen
+   and there is a floor price to compare against, and then it reads the market - there is
+   nothing left for a button to ask for. Listing age stays optional; it only unlocks the
+   stale-market checks.
+
+   This used to be phone-only, from when a phone had no room for the button and a desktop
+   did. There is one layout now, and pressing Analyse after describing a piece was a step
+   that never had an answer other than yes. */
 function scheduleAutoAnalyse(){
-  // Mobile analysis is selection-driven: it waits until every required roll is
-  // explicitly selected (weapons need both damage and crit) plus the live floor price.
-  // Listing age is optional and only unlocks stale-market/downward-repricing checks.
-  if(isDesktop()||!state.salesOpen||!canAnalyse()||state.marketLoading)return;
+  if(!canAnalyse()||state.marketLoading)return;
   var sig=currentAnalyseSignature();
   if(sig===state.lastAnalyseSig&&state.model)return;
   clearTimeout(state.autoAnalyseTimer);
   state.autoAnalyseTimer=setTimeout(function(){
-    if(!isDesktop()&&state.salesOpen&&canAnalyse()&&!state.marketLoading){
+    if(canAnalyse()&&!state.marketLoading){
       var now=currentAnalyseSignature();
       if(now!==state.lastAnalyseSig||!state.model)analyse(false)
     }
@@ -7549,6 +7579,7 @@ function analyse(deep){
     state.marketLoading=false;setSalesStatus('Choose the piece/roll and enter the current floor price.','error');return
   }
   state.deep=!!deep;state.itemCode=itemCode();$('analyseBtn').disabled=true;$('deepBtn').disabled=true;
+  paintTrendPick();
   setSalesStatus(deep?'Loading the full retained week…':'Loading collected prices…');
   getMarketTransactions(state.itemCode,!!deep).then(function(res){
     var maxAge=Math.min(MAX_HISTORY_HOURS,Math.max(res.meta.targetHours,Number(res.meta.coverageHours||0)));
@@ -7583,6 +7614,9 @@ function analyse(deep){
     $('salesStatus').dataset.retry='1'
   }).finally(function(){
     state.marketLoading=false;
+    // The control carries the verdict, so it repaints when there is one and when the reading
+    // that produced it starts and stops.
+    paintTrendPick();
     $('analyseBtn').disabled=!canAnalyse();$('deepBtn').disabled=false;
     if(refineAfter)setTimeout(function(){refineFastHistoryInBackground(refineAfter.code,refineAfter.sig)},0)
   })
