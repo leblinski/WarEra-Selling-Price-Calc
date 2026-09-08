@@ -6654,10 +6654,18 @@ function loadCraftData(bust){
 /* Copying while the field is losing focus must not focus anything of its own: the
    textarea trick inside legacyCopy would pull a phone's keyboard straight back up.
    The async clipboard needs no focus at all, and iOS has had it since 13.4. */
+/* What the clipboard would get for the figure on the card, and what it last got. Enter and
+   the tick copy on purpose and may repeat; the blur only copies a figure that is not already
+   there, or pressing Enter and then switching to the game plays the confirmation twice. */
+function coreCopyValue(){
+  return state.listFigure?'DO NOT LIST - DISMANTLE THIS FOR SCRAPS':state.coreFigure
+}
+var lastCopyValue='';
 function copyCoreQuiet(){
   var scrap=!!state.listFigure,
       value=scrap?'DO NOT LIST - DISMANTLE THIS FOR SCRAPS':state.coreFigure;
   if(!value)return;
+  lastCopyValue=value;
   if(navigator.clipboard&&navigator.clipboard.writeText){
     try{
       // Issue the write, then paint. Safari can take a moment to settle the promise and
@@ -6676,6 +6684,7 @@ function copyCore(){
   var scrap=!!state.listFigure;
   var value=scrap?'DO NOT LIST - DISMANTLE THIS FOR SCRAPS':state.coreFigure;
   if(!value)return;
+  lastCopyValue=value;
   copyTextSafe(value);
   // The clipboard wants the sentence; a 78px tile wants the figure and a mark.
   addRecentCore(state.lastPrice,scrap?state.listFigure:state.coreFigure,scrap)
@@ -8445,6 +8454,10 @@ $('price').addEventListener('blur',function(e){
   // The tick beside the field runs its own copy; let it, rather than stamping twice.
   var to=e&&e.relatedTarget;
   if(to&&to.id==='goBtn')return;
+  // Switching to the game blurs the field, and Enter has usually just put this very figure
+  // on the clipboard. Copying it again is a second confirmation sound for one price.
+  var v=coreCopyValue();
+  if(!v||v===lastCopyValue)return;
   if($('autoCopy').checked)copyCoreQuiet()
 });
 $('ageHours').addEventListener('input',function(){
