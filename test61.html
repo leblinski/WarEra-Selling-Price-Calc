@@ -2968,8 +2968,7 @@ h1 .title-word{white-space:nowrap}
 .bench .gobtn{width:33px;height:30px;right:4px;font-size:16px;border-radius:7px}
 
 /* The deck: the workpiece, and the light it is judged by. */
-.bench-deck{display:grid;grid-template-columns:minmax(0,1fr) 106px;gap:10px;align-items:stretch}
-@media(max-width:359px){.bench-deck{grid-template-columns:minmax(0,1fr) 98px;gap:8px}}
+.bench-deck{display:grid;grid-template-columns:minmax(0,1fr)}
 
 .workpiece{
   position:relative;display:grid;grid-template-columns:48px minmax(0,1fr);gap:10px;
@@ -3022,19 +3021,12 @@ h1 .title-word{white-space:nowrap}
 /* A screen with room gives it to the answer and to the light, which are the two things
    being looked at. */
 @media(min-width:621px){
-  .bench-deck{grid-template-columns:minmax(0,1fr) 118px;gap:12px}
   .workpiece{grid-template-columns:56px minmax(0,1fr);gap:13px;padding:13px 15px 13px 17px}
   .wp-art{width:56px;height:56px}
   .wp-copy b{font-size:14px}
   .wp-copy>small{font-size:11.5px}
   .wp-ref{font-size:11px}
-  .sig-lamp{width:18px;height:18px}
-  .sig-lamp::before{left:-4px;right:-4px;top:-5px;height:7px}
-  .sig-word{font-size:14px}
-  .sig-sub{font-size:10.5px}
-  .sig-row i{font-size:10.5px}
-  .sig-count input{height:25px;font-size:13px}
-  .sig-count button{width:23px}
+  .opp-take b{font-size:19px}
 }
 .workpiece.success{border-color:var(--verdigris)}
 /* The price you typed, kept for checking the answer against and nothing else. */
@@ -3056,114 +3048,79 @@ h1 .title-word{white-space:nowrap}
 .workpiece.is-copied .wp-stamp,.workpiece.is-failed .wp-stamp{opacity:1;transform:rotate(-9deg) scale(1)}
 .workpiece.is-failed .wp-stamp{border-color:var(--brass);color:var(--brass)}
 
-/* ---- The signal head ----------------------------------------------------------
-   The two pills the docket carried - how much the history supports the price, and how
-   the floor is behaving - resolve to one of three lamps, because at a glance that is
-   all either of them was being read for. The hoods are most of what makes a signal
-   head recognisable at this size, so each lens gets one. */
-.signal{
-  display:flex;flex-direction:column;align-items:center;padding:9px 6px 8px;
-  border:1px solid var(--line);border-radius:var(--radius);
-  background:linear-gradient(180deg,var(--panel),#0A161A);text-align:center
+/* ---- The light -----------------------------------------------------------------
+   The live-depth check itself, moved up out of the Trends card and onto the bench. It
+   was the reading that changes what you do and it sat about fourteen hundred pixels
+   down a phone, which is the same as not being there.
+
+   It is the same element and the same code - the block was lifted, not copied - so the
+   count, the bands and the marker cannot drift from the ones in the report below. What
+   is new is the price: the light says how safe the higher price is, so the higher price
+   should be something you can take, not a number to retype from a sentence.
+
+   Green needs no reading: the zone the count lands in lights, and the other two sink
+   back. Anything else is a wall of three colours with a marker somewhere on it. */
+.bench #opportunityDepth{margin:11px 0 0;padding-top:10px;border-top:1px solid rgba(var(--brass-rgb),.16)}
+.bench .opp-head{flex-wrap:wrap;align-items:flex-end;gap:8px;margin-bottom:9px}
+.bench .opp-head-copy>strong{font-size:12px;line-height:1.25}
+.bench .opp-head-copy>small{font-size:10px}
+.bench .opp-count-control{grid-template-columns:26px 40px 26px;height:29px;align-items:stretch}
+.bench .opp-count-control input,
+.bench .opp-count-control button{height:29px;align-self:stretch}
+.bench .opp-count-control input{width:40px;font-size:13px}
+.bench .opp-count-control button{font-size:16px}
+/* The marker's flag stands 26px above the bar. Without room reserved for it, it lands on
+   top of the stepper it is being moved by. */
+.bench .opp-risk-wrap{margin:0;padding-top:16px}
+/* The three zones in the page's own colours, and only the one being pointed at is lit. */
+.bench .opp-zone{transition:filter .25s ease,box-shadow .25s ease}
+.bench .opp-zone.safe{background:linear-gradient(180deg,#3C8877,#265F53)}
+.bench .opp-zone.caution{background:linear-gradient(180deg,#A57A25,#6E5015)}
+.bench .opp-zone.risky{background:linear-gradient(180deg,#A85834,#6F3820)}
+.bench .opp-riskbar.safe .opp-zone,
+.bench .opp-riskbar.caution .opp-zone,
+.bench .opp-riskbar.risky .opp-zone{filter:saturate(.3) brightness(.52)}
+.bench .opp-riskbar.safe .opp-zone.safe{
+  filter:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.16),0 0 15px rgba(107,184,168,.4)
 }
-/* Each lens is labelled with the count that lights it, because the bands move with the
-   item: on something that sells four times an hour, nine listings ahead of you is nothing,
-   and on something that sells twice a day it is most of a week. */
-.sig-housing{
-  display:flex;flex-direction:column;gap:6px;padding:7px 8px 8px;border-radius:11px;
-  border:1px solid rgba(var(--brass-rgb),.3);
-  background:linear-gradient(180deg,#0A161A,#050D10);
-  box-shadow:inset 0 1px 0 rgba(var(--brass-rgb),.14)
+.bench .opp-riskbar.caution .opp-zone.caution{
+  filter:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.16),0 0 15px rgba(var(--brass-rgb),.4)
 }
-.sig-row{display:flex;align-items:center;gap:6px}
-.sig-row i{
-  font-family:"IBM Plex Mono",monospace;font-style:normal;font-size:9.5px;
-  font-variant-numeric:tabular-nums;color:var(--dim);white-space:nowrap
+.bench .opp-riskbar.risky .opp-zone.risky{
+  filter:none;box-shadow:inset 0 0 0 1px rgba(255,255,255,.16),0 0 15px rgba(194,112,63,.42)
 }
-.signal.red .sig-row:first-child i,
-.signal.amber .sig-row:nth-child(2) i,
-.signal.green .sig-row:last-child i{color:var(--ink)}
-.sig-lamp{
-  position:relative;display:block;width:15px;height:15px;border-radius:50%;
-  background:radial-gradient(circle at 34% 30%,#1D3038,#081216 72%);
-  box-shadow:inset 0 0 0 1px rgba(0,0,0,.6),inset 0 2px 3px rgba(0,0,0,.7);
-  transition:background .25s ease,box-shadow .25s ease,opacity .25s ease
+.bench .opp-marker b{box-shadow:0 0 12px rgba(var(--brass-rgb),.5)}
+/* Taking the suggestion. The tile keeps the quick-sale figure - still the answer to
+   "what do I type to sell this now" - and this is the other one. */
+.opp-take{
+  display:flex;align-items:baseline;justify-content:space-between;gap:10px;width:100%;
+  margin:9px 0 0;padding:8px 12px;cursor:pointer;text-align:left;
+  border:1px solid var(--brass-deep);border-radius:9px;
+  background:var(--panel);color:var(--brass);
+  transition:border-color .18s ease,color .18s ease
 }
-.sig-lamp::before{
-  content:"";position:absolute;left:-3px;right:-3px;top:-4px;height:6px;
-  border-radius:6px 6px 2px 2px;background:linear-gradient(180deg,#1E3139,#0F1D23)
-}
-.sig-lamp::after{
-  content:"";position:absolute;left:3px;top:2px;width:6px;height:4px;border-radius:50%;
-  background:rgba(255,255,255,.15)
-}
-.signal.red .sig-lamp.red{
-  background:radial-gradient(circle at 34% 30%,#F2AD84,var(--rust) 60%,#713516 100%);
-  box-shadow:inset 0 0 0 1px rgba(0,0,0,.45),0 0 11px 2px rgba(194,112,63,.5)
-}
-.signal.amber .sig-lamp.amber{
-  background:radial-gradient(circle at 34% 30%,#F6DFA6,var(--brass) 60%,#75570F 100%);
-  box-shadow:inset 0 0 0 1px rgba(0,0,0,.45),0 0 11px 2px rgba(var(--brass-rgb),.5)
-}
-.signal.green .sig-lamp.green{
-  background:radial-gradient(circle at 34% 30%,#CBF2E8,var(--verdigris) 60%,#296A5F 100%);
-  box-shadow:inset 0 0 0 1px rgba(0,0,0,.45),0 0 11px 2px rgba(107,184,168,.5)
-}
-.signal.red .sig-lamp.red,.signal.amber .sig-lamp.amber,.signal.green .sig-lamp.green{
-  animation:sigBreathe 2.8s ease-in-out infinite
-}
-@keyframes sigBreathe{0%,100%{filter:brightness(1)}50%{filter:brightness(1.3)}}
-/* Reading the market walks the head rather than lighting a verdict it does not have. */
-.signal.busy .sig-lamp{
-  background:radial-gradient(circle at 34% 30%,#F6DFA6,var(--brass) 60%,#75570F 100%);
-  opacity:.14;animation:sigScan 1.05s linear infinite
-}
-.signal.busy .sig-lamp.amber{animation-delay:.35s}
-.signal.busy .sig-lamp.green{animation-delay:.7s}
-@keyframes sigScan{0%,58%,100%{opacity:.14}18%{opacity:1}}
-@media(prefers-reduced-motion:reduce){.sig-lamp{animation:none!important}}
-.sig-cap{
-  display:block;margin-bottom:7px;font-family:"Saira Condensed",sans-serif;font-weight:700;
-  font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--brass);
-  text-align:center;line-height:1.1
-}
-/* The price the light is about, and the one thing on the head worth taking away. */
-.sig-price{
-  margin-top:3px;padding:2px 7px;border-radius:5px;cursor:pointer;
-  border:1px solid var(--brass-deep);background:var(--panel-2);color:var(--brass);
-  font-family:"IBM Plex Mono",monospace;font-size:13px;font-weight:600;
-  font-variant-numeric:tabular-nums
-}
-.sig-price:hover{border-color:var(--brass)}
-.sig-price.took{border-color:var(--verdigris);color:var(--verdigris)}
-.signal.green .sig-price{border-color:var(--verdigris);color:var(--verdigris)}
-.sig-word{
-  margin-top:8px;font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:13px;
+.opp-take small{
+  font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:9px;
   letter-spacing:.14em;text-transform:uppercase;color:var(--dim)
 }
-.signal.red .sig-word{color:var(--rust)}
-.signal.amber .sig-word,.signal.busy .sig-word{color:var(--brass)}
-.signal.green .sig-word{color:var(--verdigris)}
-/* How many comparable listings sit ahead of the price. It is the one number the light
-   reads and the only one the page cannot work out for you. */
-.sig-count{display:flex;align-items:stretch;gap:3px;margin:6px 0 5px;width:100%}
-.sig-count[hidden]{display:none}
-.sig-count button{
-  flex:none;width:21px;padding:0;cursor:pointer;border-radius:5px;
-  border:1px solid var(--line);background:var(--panel-2);color:var(--brass);
-  font-size:13px;line-height:1
+.opp-take b{
+  font-family:"IBM Plex Mono",monospace;font-size:17px;font-weight:600;
+  font-variant-numeric:tabular-nums
 }
-.sig-count button:hover{border-color:var(--brass)}
-.sig-count input{
-  flex:1 1 auto;min-width:0;width:auto;height:22px;padding:0;text-align:center;
-  font-size:12px;border-radius:5px
+.opp-take:hover{border-color:var(--brass)}
+/* A price the light has called safe should not be offered in the same colour as one it
+   has called risky. */
+.bench #opportunityDepth.safe .opp-take{border-color:var(--verdigris);color:var(--verdigris)}
+.bench #opportunityDepth.risky .opp-take{border-color:var(--rust);color:var(--rust)}
+.opp-take.took{border-color:var(--verdigris);color:var(--verdigris)}
+.opp-take.took small::after{content:" \00b7 copied";color:var(--verdigris)}
+/* Why there is no light. A dark bar with no explanation reads as broken. */
+.bench-why{
+  margin:11px 0 0;padding-top:10px;border-top:1px solid rgba(var(--brass-rgb),.16);
+  font-size:11.5px;line-height:1.4;color:var(--dim)
 }
-.sig-count input::placeholder{font-size:11px;opacity:.6}
-.sig-sub{
-  display:block;font-size:9.5px;line-height:1.25;letter-spacing:.02em;color:var(--dim);
-  overflow-wrap:anywhere
-}
-
+.bench-why b{font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:9px;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--brass);display:block;margin-bottom:2px}
 /* ---- The outfeed --------------------------------------------------------------
    The belt runs only while something is on it. A background that moves all the time is
    a thing to look away from, not a thing that means anything. */
@@ -3332,22 +3289,52 @@ h1 .title-word{white-space:nowrap}
           </span>
           <span class="wp-stamp" id="wpStamp" aria-hidden="true">Copied</span>
         </button>
-        <div class="signal" id="signalHead" role="status" aria-live="polite">
-          <span class="sig-cap">Higher price</span>
-          <span class="sig-housing">
-            <span class="sig-row"><span class="sig-lamp red" aria-hidden="true"></span><i id="sigRiskyRange">&mdash;</i></span>
-            <span class="sig-row"><span class="sig-lamp amber" aria-hidden="true"></span><i id="sigCautionRange">&mdash;</i></span>
-            <span class="sig-row"><span class="sig-lamp green" aria-hidden="true"></span><i id="sigSafeRange">&mdash;</i></span>
-          </span>
-          <b class="sig-word" id="sigWord">&mdash;</b>
-          <button type="button" class="sig-price" id="sigPrice" hidden>&mdash;</button>
-          <span class="sig-count" id="sigCount" hidden>
-            <button type="button" id="aheadMinus" aria-label="One fewer listing ahead">&minus;</button>
-            <input type="number" id="aheadCount" min="0" max="99" step="1" inputmode="numeric" placeholder="?" aria-label="Comparable or better listings ahead of your price">
-            <button type="button" id="aheadPlus" aria-label="One more listing ahead">+</button>
-          </span>
-          <small class="sig-sub" id="sigSub">no reading</small>
+      </div>
+
+      <p class="bench-why" id="benchWhy" hidden></p>
+      <div class="opportunity-depth" id="opportunityDepth" hidden>
+        <div class="opp-head">
+          <div class="opp-head-copy">
+            <span>LIVE DEPTH CHECK</span>
+            <strong id="oppRange">—</strong>
+            <small id="oppProfit">—</small>
+          </div>
+          <div class="opp-count-wrap">
+            <label for="oppCount">Listings between</label>
+            <div class="opp-count-control">
+              <button type="button" id="oppMinus" aria-label="One fewer listing">−</button>
+              <input type="number" id="oppCount" min="0" max="99" step="1" inputmode="numeric" placeholder="?" aria-label="Comparable or better listings between the current floor and opportunity price">
+              <button type="button" id="oppPlus" aria-label="One more listing">+</button>
+            </div>
+          </div>
         </div>
+
+        <div class="opp-risk-wrap">
+          <div class="opp-riskbar" id="oppRiskBar" aria-label="Opportunity competition risk">
+            <div class="opp-zone safe">
+              <span>SAFE</span>
+              <b id="oppSafeRange">—</b>
+            </div>
+            <div class="opp-zone caution">
+              <span>LESS SAFE</span>
+              <b id="oppCautionRange">—</b>
+            </div>
+            <div class="opp-zone risky">
+              <span>RISKY</span>
+              <b id="oppRiskRange">—</b>
+            </div>
+            <i class="opp-marker" id="oppMarker" hidden>
+              <b id="oppMarkerCount">0</b>
+            </i>
+          </div>
+        </div>
+
+      <button type="button" class="opp-take" id="oppTake">
+        <small>Type this for the opportunity</small><b id="oppTakeVal">&mdash;</b>
+      </button>
+
+      <p class="opp-depth-text" id="oppDepthText">Count comparable-or-better listings priced above the current floor and below the opportunity price. Include any extra listings tied at the floor.</p>
+        <p class="opp-velocity" id="oppVelocity">—</p>
       </div>
 
       <div class="belt" id="belt">
@@ -3514,46 +3501,6 @@ h1 .title-word{white-space:nowrap}
                   <button type="button" class="trend-mini-btn" id="expandTrendData">Expand data</button>
                 </div>
 
-                <div class="opportunity-depth" id="opportunityDepth" hidden>
-                  <div class="opp-head">
-                    <div class="opp-head-copy">
-                      <span>LIVE DEPTH CHECK</span>
-                      <strong id="oppRange">—</strong>
-                      <small id="oppProfit">—</small>
-                    </div>
-                    <div class="opp-count-wrap">
-                      <label for="oppCount">Listings between</label>
-                      <div class="opp-count-control">
-                        <button type="button" id="oppMinus" aria-label="One fewer listing">−</button>
-                        <input type="number" id="oppCount" min="0" max="99" step="1" inputmode="numeric" placeholder="?" aria-label="Comparable or better listings between the current floor and opportunity price">
-                        <button type="button" id="oppPlus" aria-label="One more listing">+</button>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="opp-risk-wrap">
-                    <div class="opp-riskbar" id="oppRiskBar" aria-label="Opportunity competition risk">
-                      <div class="opp-zone safe">
-                        <span>SAFE</span>
-                        <b id="oppSafeRange">—</b>
-                      </div>
-                      <div class="opp-zone caution">
-                        <span>LESS SAFE</span>
-                        <b id="oppCautionRange">—</b>
-                      </div>
-                      <div class="opp-zone risky">
-                        <span>RISKY</span>
-                        <b id="oppRiskRange">—</b>
-                      </div>
-                      <i class="opp-marker" id="oppMarker" hidden>
-                        <b id="oppMarkerCount">0</b>
-                      </i>
-                    </div>
-                  </div>
-
-                  <p class="opp-depth-text" id="oppDepthText">Count comparable-or-better listings priced above the current floor and below the opportunity price. Include any extra listings tied at the floor.</p>
-                  <p class="opp-velocity" id="oppVelocity">—</p>
-                </div>
               </div>
 
               <details class="market-more" id="marketMore">
@@ -7593,7 +7540,8 @@ function renderOpportunityDepth(m){
   var box=$('opportunityDepth');
   if(!box)return;
   if(!m||!m.higher){
-    box.hidden=true;
+    box.hidden=true;box.className='opportunity-depth';
+    paintWhy();
     return
   }
 
@@ -7602,6 +7550,15 @@ function renderOpportunityDepth(m){
   $('oppRange').textContent=fmt(state.floor)+' floor → '+fmt(target)+' opportunity';
   $('oppProfit').textContent='+'+fmt(Math.max(0,target-quick))+' vs quick sale '+fmt(quick);
 
+  /* The price the light is about, ready to be taken. Tax is worked in the same way the
+     tile's own figure works it in, so this is the number the game wants typed. */
+  var xEntry=null;
+  try{xEntry=entryForDisplayed(target,false)}catch(e){xEntry=null}
+  var take=xEntry?decStr(xEntry):fmt(target);
+  if($('oppTakeVal').textContent!==take){
+    $('oppTakeVal').textContent=take;
+    $('oppTake').classList.remove('took')
+  }
   $('oppSafeRange').textContent=bands.safeMax===0?'0':('0–'+bands.safeMax);
   $('oppCautionRange').textContent=opportunityRangeText(bands.safeMax+1,bands.cautionMax);
   $('oppRiskRange').textContent=(bands.cautionMax+1)+'+';
@@ -7614,6 +7571,8 @@ function renderOpportunityDepth(m){
   var raw=String($('oppCount').value||'').trim();
   var hasCount=raw!==''&&Number.isFinite(Number(raw))&&Number(raw)>=0;
   if(!hasCount){
+    box.className='opportunity-depth';
+    $('oppRiskBar').className='opp-riskbar';
     $('oppMarker').hidden=true;
     $('oppDepthText').textContent='Count comparable-or-better listings priced above the current floor and below the opportunity price. Include any extra listings tied at the floor.';
     return
@@ -7623,6 +7582,10 @@ function renderOpportunityDepth(m){
   state.opportunityCount=count;
   $('oppCount').value=String(count);
   var risk=opportunityRiskForCount(count,bands);
+  // The lit zone is the answer; the other two sink back, or the bar is three colours with
+  // a marker somewhere on it and the reader has to work out which one they are in.
+  $('oppRiskBar').className='opp-riskbar '+risk;
+  box.className='opportunity-depth '+risk;
   var marker=$('oppMarker');
   marker.hidden=false;
   marker.style.left=opportunityMarkerPosition(count,bands)+'%';
@@ -9693,118 +9656,28 @@ if(window.matchMedia){try{
 function benchStill(){
   try{return window.matchMedia('(prefers-reduced-motion:reduce)').matches}catch(e){return false}
 }
-/* ---- The higher-price light ----------------------------------------------------
-   This is the live-depth check from the Trends card, moved up next to the tile, because
-   it is the one reading that changes what you do and it was the furthest down the page.
-
-   It answers one question and only that one: history says this roll clears above the
-   floor you are looking at - is it safe to list up there, or will you sit behind a queue?
-   That depends on how many comparable-or-better listings sit between the floor and the
-   opportunity, against how fast the roll actually sells. Safe is inside about one normal
-   sale cycle, less safe is one to three, risky is past that.
-
-   Both bands move with the item, so the head prints the count that lights each lens: on a
-   sniper that sells twice a day it is 0 / 1 / 2+, on something turning over hourly it is
-   far wider. Counting the listings is the reader's job - the marketplace does not publish
-   which of them are comparable - and everything else is worked out.
-
-   With no opportunity there is nothing for a light to say, so it says why instead: the
-   history stops at the floor, the score is under 70, the floor has gone stale, or sellers
-   are already undercutting each other. Below the scrap floor none of it applies. */
-function benchBands(){
-  var m=state.model;
-  if(!m||!m.higher)return null;
-  try{return opportunityDepthBands(m)}catch(e){return null}
-}
+/* ---- Why there is no light ------------------------------------------------------
+   The depth check hides itself when there is no higher price to check, which on a page
+   that has just been asked to analyse something reads as a failure rather than an
+   answer. These are the four gates it is behind, in the order the model applies them. */
 function noLiftReason(m){
-  if(!(Number(m.histTarget)>Number(state.floor)+.0005))return 'history stops at the floor';
-  if(Number(m.confidenceScore)<70)return 'confidence under 70';
-  if(m.signal&&m.signal.key==='stale')return 'the floor has gone stale';
-  if(m.pressureActive)return 'sellers are undercutting';
-  return 'no lift supported'
+  if(!(Number(m.histTarget)>Number(state.floor)+.0005))
+    return 'The history stops at the floor. Undercutting it is the whole opportunity.';
+  if(Number(m.confidenceScore)<70)
+    return 'Confidence is '+m.confidenceScore+', under the 70 this needs \u2014 too few comparable sales to list above the floor on.';
+  if(m.signal&&m.signal.key==='stale')
+    return 'The floor has gone stale, so what cleared historically is not what is clearing now.';
+  if(m.pressureActive)
+    return 'Sellers are undercutting each other here, so a price above the floor sits behind all of them.';
+  return 'No lift supported by the history.'
 }
-/* What to type for the opportunity: the historical target, with tax worked in the same
-   way the tile's own figure is. */
-function benchLiftEntry(m){
-  var e=null;
-  try{e=entryForDisplayed(m.histTarget,false)}catch(err){e=null}
-  return e?decStr(e):fmt(m.histTarget)
+function paintWhy(){
+  var el=$('benchWhy');if(!el)return;
+  var m=state.model,shown=!$('opportunityDepth').hidden;
+  if(shown||state.marketLoading||state.listFigure||!m){el.hidden=true;return}
+  el.hidden=false;
+  el.innerHTML='<b>No higher price</b>'+esc(noLiftReason(m))
 }
-function benchSignal(){
-  if(state.marketLoading)
-    return {lamp:'busy',word:'Reading',sub:'checking the market',bands:null,price:null};
-  if(state.listFigure)
-    return {lamp:'red',word:'Dismantle',sub:'below its scrap floor',bands:null,price:null};
-  var m=state.model;
-  if(!m)
-    return {lamp:'',word:'\u2014',sub:tierKnown()?'describe the piece':'no reading',bands:null,price:null};
-  if(!m.higher)
-    return {lamp:'',word:'No lift',sub:noLiftReason(m),bands:null,price:null};
-  var bands=benchBands(),price=benchLiftEntry(m);
-  if(!bands)
-    return {lamp:'',word:'\u2014',sub:'no depth to judge by',bands:null,price:price};
-  var n=aheadNow();
-  if(n==null)
-    return {lamp:'',word:'Count',sub:'listings between floor and it',bands:bands,price:price};
-  var risk=opportunityRiskForCount(n,bands),
-      lamp=risk==='safe'?'green':(risk==='caution'?'amber':'red'),
-      // The floor itself is already one listing ahead of the opportunity price.
-      hours=bands.velocity>0?(n+1)/bands.velocity:Infinity;
-  return {
-    lamp:lamp,
-    word:risk==='safe'?'Safe':(risk==='caution'?'Less safe':'Risky'),
-    sub:(n+' between'+(Number.isFinite(hours)?(' \u00b7 ~'+niceDuration(hours)+' to clear'):'')),
-    bands:bands,price:price
-  }
-}
-function paintSignal(){
-  var head=$('signalHead');if(!head)return;
-  var s=benchSignal(),b=s.bands;
-  head.className='signal'+(s.lamp?' '+s.lamp:'');
-  $('sigWord').textContent=s.word;
-  $('sigSub').textContent=s.sub;
-  $('sigSafeRange').textContent=b?(b.safeMax===0?'0':('0\u2013'+b.safeMax)):'\u2014';
-  $('sigCautionRange').textContent=b?opportunityRangeText(b.safeMax+1,b.cautionMax):'\u2014';
-  $('sigRiskyRange').textContent=b?((b.cautionMax+1)+'+'):'\u2014';
-  var pr=$('sigPrice');
-  pr.hidden=!s.price;
-  if(s.price&&pr.textContent!==s.price){pr.textContent=s.price;pr.classList.remove('took')}
-  var cur=$('aheadCount'),want=(aheadNow()==null?'':String(aheadNow()));
-  if(document.activeElement!==cur&&cur.value!==want)cur.value=want;
-  // Nothing to count between until there is an opportunity to count towards, and a stepper
-  // that moves a number no lamp is reading is a control that lies about having an effect.
-  $('sigCount').hidden=!b;
-  cur.disabled=!b;$('aheadMinus').disabled=!b;$('aheadPlus').disabled=!b
-}
-/* Taking the suggestion. The tile keeps the quick-sale figure - that is still the answer
-   to "what do I type to sell this now" - and this is the other one. */
-$('sigPrice').addEventListener('click',function(){
-  var v=this.textContent;
-  if(!v||v==='\u2014')return;
-  copyTextSafe(v);
-  this.classList.add('took');
-  playCopySound(true)
-});
-/* One count, two places to set it: the head here and the depth bar in the Trends card.
-   Both go through setOpportunityCount, so neither can hold a number the other does not. */
-function setAhead(v){setOpportunityCount(v);paintBench()}
-$('aheadCount').addEventListener('input',function(){
-  var raw=String(this.value||'').trim();
-  if(raw===''){state.opportunityCount=null;$('oppCount').value='';renderOpportunityDepth(state.model);paintBench();return}
-  setAhead(this.value)
-});
-/* Number(null) is 0, so reading the count straight off an unset state stepped the first
-   press to 1 and skipped the count that matters most - nobody ahead of you at all. */
-function aheadNow(){
-  var v=state.opportunityCount;
-  return (v==null||!Number.isFinite(Number(v)))?null:Math.max(0,Math.floor(Number(v)))
-}
-$('aheadMinus').addEventListener('click',function(){
-  var cur=aheadNow();setAhead(cur==null?0:Math.max(0,cur-1))
-});
-$('aheadPlus').addEventListener('click',function(){
-  var cur=aheadNow();setAhead(cur==null?0:cur+1)
-});
 function paintBench(){
   var wp=$('workpiece');if(!wp)return;
   var known=tierKnown(),art=$('wpArt');
@@ -9840,7 +9713,7 @@ function paintBench(){
   $('wpRef').innerHTML=ref;
   $('benchStep').textContent=!known?'1 \u00b7 price it'
     :(!state.slot||!hasAllRolls()?'2 \u00b7 describe it':'3 \u00b7 shipped');
-  paintSignal()
+  paintWhy()
 }
 /* The ring opens on the tile, on the tile's own face, which is where the thing being
    described is. Same stage, same target as the picker it replaces. */
@@ -9884,6 +9757,14 @@ function shipTile(){
     if(fly.parentNode)fly.parentNode.removeChild(fly)
   }
 }
+
+$('oppTake').addEventListener('click',function(){
+  var v=$('oppTakeVal').textContent;
+  if(!v||v==='\u2014')return;
+  copyTextSafe(v);
+  this.classList.add('took');
+  playCopySound(true)
+});
 
 /* Every write to the docket is a repaint of the tile, without any of those paths having
    to know the tile is there. */
