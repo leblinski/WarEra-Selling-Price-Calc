@@ -2968,8 +2968,8 @@ h1 .title-word{white-space:nowrap}
 .bench .gobtn{width:33px;height:30px;right:4px;font-size:16px;border-radius:7px}
 
 /* The deck: the workpiece, and the light it is judged by. */
-.bench-deck{display:grid;grid-template-columns:minmax(0,1fr) 88px;gap:10px;align-items:stretch}
-@media(max-width:359px){.bench-deck{grid-template-columns:minmax(0,1fr) 78px;gap:8px}}
+.bench-deck{display:grid;grid-template-columns:minmax(0,1fr) 106px;gap:10px;align-items:stretch}
+@media(max-width:359px){.bench-deck{grid-template-columns:minmax(0,1fr) 98px;gap:8px}}
 
 .workpiece{
   position:relative;display:grid;grid-template-columns:48px minmax(0,1fr);gap:10px;
@@ -2999,12 +2999,13 @@ h1 .title-word{white-space:nowrap}
   padding:0 3px
 }
 .wp-copy{display:flex;flex-direction:column;gap:1px;min-width:0}
-.wp-copy b,.wp-copy small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wp-copy b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wp-copy small{overflow-wrap:break-word}
 .wp-copy b{
   font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:13px;
   letter-spacing:.07em;text-transform:uppercase;color:var(--brass)
 }
-.wp-copy>small{font-size:10.5px;color:var(--dim)}
+.wp-copy>small{font-size:10.5px;line-height:1.3;color:var(--dim)}
 /* A price broken across two lines stops being one number, so the figure is sized to the
    column rather than wrapped inside it. The verdict that replaces it below the scrap floor
    is words, and wraps like words. */
@@ -3021,7 +3022,7 @@ h1 .title-word{white-space:nowrap}
 /* A screen with room gives it to the answer and to the light, which are the two things
    being looked at. */
 @media(min-width:621px){
-  .bench-deck{grid-template-columns:minmax(0,1fr) 104px;gap:12px}
+  .bench-deck{grid-template-columns:minmax(0,1fr) 118px;gap:12px}
   .workpiece{grid-template-columns:56px minmax(0,1fr);gap:13px;padding:13px 15px 13px 17px}
   .wp-art{width:56px;height:56px}
   .wp-copy b{font-size:14px}
@@ -3031,13 +3032,19 @@ h1 .title-word{white-space:nowrap}
   .sig-lamp::before{left:-4px;right:-4px;top:-5px;height:7px}
   .sig-word{font-size:14px}
   .sig-sub{font-size:10.5px}
+  .sig-row i{font-size:10.5px}
+  .sig-count input{height:25px;font-size:13px}
+  .sig-count button{width:23px}
 }
 .workpiece.success{border-color:var(--verdigris)}
 /* The price you typed, kept for checking the answer against and nothing else. */
 .wp-ref{
   display:block;margin-top:2px;font-family:"IBM Plex Mono",monospace;font-size:10.5px;
-  letter-spacing:.02em;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+  line-height:1.3;letter-spacing:.02em;color:var(--dim)
 }
+.wp-ref b{font-weight:600;color:var(--brass)}
+.wp-ref b.high{color:var(--verdigris)}
+.wp-ref b.low{color:var(--rust)}
 .wp-stamp{
   position:absolute;right:9px;top:9px;padding:2px 8px;border-radius:4px;
   border:1px solid var(--verdigris);color:var(--verdigris);
@@ -3055,16 +3062,27 @@ h1 .title-word{white-space:nowrap}
    all either of them was being read for. The hoods are most of what makes a signal
    head recognisable at this size, so each lens gets one. */
 .signal{
-  display:flex;flex-direction:column;align-items:center;padding:9px 5px 8px;
+  display:flex;flex-direction:column;align-items:center;padding:9px 6px 8px;
   border:1px solid var(--line);border-radius:var(--radius);
   background:linear-gradient(180deg,var(--panel),#0A161A);text-align:center
 }
+/* Each lens is labelled with the count that lights it, because the bands move with the
+   item: on something that sells four times an hour, nine listings ahead of you is nothing,
+   and on something that sells twice a day it is most of a week. */
 .sig-housing{
-  display:flex;flex-direction:column;gap:7px;padding:7px 7px 8px;border-radius:11px;
+  display:flex;flex-direction:column;gap:6px;padding:7px 8px 8px;border-radius:11px;
   border:1px solid rgba(var(--brass-rgb),.3);
   background:linear-gradient(180deg,#0A161A,#050D10);
   box-shadow:inset 0 1px 0 rgba(var(--brass-rgb),.14)
 }
+.sig-row{display:flex;align-items:center;gap:6px}
+.sig-row i{
+  font-family:"IBM Plex Mono",monospace;font-style:normal;font-size:9.5px;
+  font-variant-numeric:tabular-nums;color:var(--dim);white-space:nowrap
+}
+.signal.red .sig-row:first-child i,
+.signal.amber .sig-row:nth-child(2) i,
+.signal.green .sig-row:last-child i{color:var(--ink)}
 .sig-lamp{
   position:relative;display:block;width:15px;height:15px;border-radius:50%;
   background:radial-gradient(circle at 34% 30%,#1D3038,#081216 72%);
@@ -3111,16 +3129,20 @@ h1 .title-word{white-space:nowrap}
 .signal.red .sig-word{color:var(--rust)}
 .signal.amber .sig-word,.signal.busy .sig-word{color:var(--brass)}
 .signal.green .sig-word{color:var(--verdigris)}
-.sig-meter{
-  display:block;width:100%;height:3px;margin:6px 0 5px;border-radius:2px;
-  background:rgba(var(--brass-rgb),.15);overflow:hidden
+/* How many comparable listings sit ahead of the price. It is the one number the light
+   reads and the only one the page cannot work out for you. */
+.sig-count{display:flex;align-items:stretch;gap:3px;margin:6px 0 5px;width:100%}
+.sig-count button{
+  flex:none;width:21px;padding:0;cursor:pointer;border-radius:5px;
+  border:1px solid var(--line);background:var(--panel-2);color:var(--brass);
+  font-size:13px;line-height:1
 }
-.sig-meter i{
-  display:block;height:100%;width:0;background:var(--brass);
-  transition:width .5s cubic-bezier(.2,.7,.2,1),background .25s ease
+.sig-count button:hover{border-color:var(--brass)}
+.sig-count input{
+  flex:1 1 auto;min-width:0;width:auto;height:22px;padding:0;text-align:center;
+  font-size:12px;border-radius:5px
 }
-.signal.red .sig-meter i{background:var(--rust)}
-.signal.green .sig-meter i{background:var(--verdigris)}
+.sig-count input::placeholder{font-size:11px;opacity:.6}
 .sig-sub{
   display:block;font-size:9.5px;line-height:1.25;letter-spacing:.02em;color:var(--dim);
   overflow-wrap:anywhere
@@ -3131,7 +3153,7 @@ h1 .title-word{white-space:nowrap}
    a thing to look away from, not a thing that means anything. */
 .belt{
   position:relative;display:flex;align-items:center;justify-content:flex-end;
-  height:26px;margin:11px -12px 0;padding:0 10px;
+  height:19px;margin:11px -12px 0;padding:0 11px;
   border-top:1px solid var(--line);background:linear-gradient(180deg,#0A161A,var(--ground));
   overflow:hidden
 }
@@ -3143,14 +3165,10 @@ h1 .title-word{white-space:nowrap}
 .belt.running .belt-tread{opacity:.65;animation:beltRun .46s linear infinite}
 @keyframes beltRun{from{background-position:0 0}to{background-position:15px 0}}
 @media(prefers-reduced-motion:reduce){.belt.running .belt-tread{animation:none}}
-.belt-ship{
-  position:relative;padding:3px 11px;border-radius:5px;cursor:pointer;
-  border:1px solid var(--brass-deep);background:var(--panel);color:var(--brass);
-  font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:10px;
-  letter-spacing:.15em;text-transform:uppercase
+.belt-to{
+  position:relative;font-family:"Saira Condensed",sans-serif;font-weight:700;font-size:9px;
+  letter-spacing:.15em;text-transform:uppercase;color:var(--dim)
 }
-.belt-ship:hover:not(:disabled){border-color:var(--brass);background:var(--panel-2)}
-.belt-ship:disabled{opacity:.4;cursor:default}
 
 /* The tile that rides the belt. It is the finished tile, started at the workpiece's
    footprint, so what lands in the strip is visibly the thing that was on the bench. */
@@ -3299,20 +3317,24 @@ h1 .title-word{white-space:nowrap}
           <span class="wp-stamp" id="wpStamp" aria-hidden="true">Copied</span>
         </button>
         <div class="signal" id="signalHead" role="status" aria-live="polite">
-          <span class="sig-housing" aria-hidden="true">
-            <span class="sig-lamp red"></span>
-            <span class="sig-lamp amber"></span>
-            <span class="sig-lamp green"></span>
+          <span class="sig-housing">
+            <span class="sig-row"><span class="sig-lamp red" aria-hidden="true"></span><i id="sigRiskyRange">&mdash;</i></span>
+            <span class="sig-row"><span class="sig-lamp amber" aria-hidden="true"></span><i id="sigCautionRange">&mdash;</i></span>
+            <span class="sig-row"><span class="sig-lamp green" aria-hidden="true"></span><i id="sigSafeRange">&mdash;</i></span>
           </span>
           <b class="sig-word" id="sigWord">&mdash;</b>
-          <span class="sig-meter" aria-hidden="true"><i id="sigMeter"></i></span>
+          <span class="sig-count">
+            <button type="button" id="aheadMinus" aria-label="One fewer listing ahead">&minus;</button>
+            <input type="number" id="aheadCount" min="0" max="99" step="1" inputmode="numeric" placeholder="?" aria-label="Comparable or better listings ahead of your price">
+            <button type="button" id="aheadPlus" aria-label="One more listing ahead">+</button>
+          </span>
           <small class="sig-sub" id="sigSub">no reading</small>
         </div>
       </div>
 
       <div class="belt" id="belt">
         <span class="belt-tread" aria-hidden="true"></span>
-        <button type="button" class="belt-ship" id="beltShip" disabled>Ship &#9654;</button>
+        <span class="belt-to">to Recent &#9654;</span>
       </div>
       </section>
 
@@ -3450,7 +3472,7 @@ h1 .title-word{white-space:nowrap}
             </section>
 
             <section class="trend-card trend-card-rolls" id="trendRollCard" hidden>
-              <div class="trend-card-label">2 · Roll</div>
+              <div class="trend-card-label">Roll detail</div>
               <div class="rollgrid" id="rollGrid" hidden></div>
               <div class="rollfacts" id="rollFacts" hidden></div>
               <p class="shape-note" id="shapeNote" hidden></p>
@@ -3458,7 +3480,7 @@ h1 .title-word{white-space:nowrap}
             </section>
 
             <section class="trend-card trend-card-data" id="trendDataCard" hidden>
-              <div class="trend-card-label">3 · Market</div>
+              <div class="trend-card-label">Market</div>
               <div class="marketopts" id="marketOpts" hidden>
               <button type="button" class="analysebtn" id="analyseBtn" disabled>Analyse market</button>
               <button type="button" class="deepbtn" id="deepBtn" hidden>Check deeper</button>
@@ -9235,7 +9257,13 @@ function liveTarget(){
       if(x.rolls)for(k in x.rolls){v=x.rolls[k];if(v!=null&&Number.isFinite(Number(v)))out[k]=Number(v)}
       state.rolls=out;
       state.higherCheaper=false;$('higherCheaper').checked=false;
-      resetAnalysis();buildSlots();buildRolls();describeRecent();prefetchSelected()
+      resetAnalysis();buildSlots();buildRolls();describeRecent();prefetchSelected();
+      /* Releasing on the last roll is the whole answer, and a button asking whether you
+         meant it is a button with one answer. Finishing the description recalculates
+         against the piece that has just been named - a slot and a rarity move the scrap
+         floor, so the figure is not the one the price alone produced - copies it, and
+         ships the tile. */
+      if(state.slot&&hasAllRolls()){coreCalc(true);copyCore()}
     }
   }
 }
@@ -9647,35 +9675,81 @@ if(window.matchMedia){try{
 function benchStill(){
   try{return window.matchMedia('(prefers-reduced-motion:reduce)').matches}catch(e){return false}
 }
-/* Three lamps out of two pills. Confidence says whether the history supports the price;
-   the floor signal says whether the cheapest listing is still worth undercutting. Green
-   needs both - a High reading against a floor that has sat there for days is not a green
-   light, it is a stale one. The scrap floor overrides everything: there is no price to
-   list at, so there is nothing to go on. */
-function benchSignal(){
-  if(state.marketLoading)return {lamp:'busy',word:'Reading',sub:'checking the market',score:null};
-  if(state.listFigure)return {lamp:'red',word:'Hold',sub:'below its dismantle floor',score:100};
+/* The light reads competition, not confidence. What decides whether a price is worth
+   listing at is how many comparable-or-better listings sit ahead of it, and how long the
+   item takes to sell: safe is inside about one normal sale cycle, less safe is one to
+   three, risky is past that. Both bands move with the item - on something that sells four
+   times an hour, nine ahead of you is nothing, and on something that sells twice a day it
+   is most of a week - so the head prints the counts beside its own lenses.
+
+   The counting is the reader's; the marketplace does not publish which listings are
+   comparable. Everything else on the head is worked out.
+
+   The scrap floor overrides all of it: below it there is no price to list at, so there is
+   nothing for a count to be about. */
+function benchBands(){
   var m=state.model;
-  if(!m)return {lamp:'',word:'\u2014',sub:tierKnown()?'describe the piece':'no reading',score:null};
-  var band=m.confidence,score=Number(m.confidenceScore),sg=m.signal||{},lamp;
-  if(band==='Low')lamp='red';
-  else if(band==='High'&&sg.key!=='stale')lamp='green';
-  else lamp='amber';
+  if(!m)return null;
+  try{return opportunityDepthBands(m)}catch(e){return null}
+}
+function benchSignal(){
+  if(state.marketLoading)
+    return {lamp:'busy',word:'Reading',sub:'checking the market',bands:null};
+  if(state.listFigure)
+    return {lamp:'red',word:'Dismantle',sub:'below its scrap floor',bands:null};
+  var bands=benchBands();
+  if(!bands)
+    return {lamp:'',word:'\u2014',sub:tierKnown()?'describe the piece':'no reading',bands:null};
+  var n=state.opportunityCount;
+  if(n==null||!Number.isFinite(Number(n)))
+    return {lamp:'',word:'Count',sub:'how many are ahead of you',bands:bands};
+  n=Math.max(0,Math.floor(Number(n)));
+  var risk=opportunityRiskForCount(n,bands),
+      lamp=risk==='safe'?'green':(risk==='caution'?'amber':'red'),
+      ahead=n+1,
+      hours=bands.velocity>0?ahead/bands.velocity:Infinity;
   return {
     lamp:lamp,
-    word:lamp==='green'?'Go':(lamp==='amber'?'Watch':'Hold'),
-    sub:(sg.key&&sg.key!=='unknown')?sg.label:(band.toLowerCase()+' confidence'),
-    score:Number.isFinite(score)?score:null
+    word:risk==='safe'?'Safe':(risk==='caution'?'Less safe':'Risky'),
+    sub:Number.isFinite(hours)?('~'+niceDuration(hours)+' to clear'):'no sale rate to judge by',
+    bands:bands
   }
 }
 function paintSignal(){
   var head=$('signalHead');if(!head)return;
-  var s=benchSignal();
+  var s=benchSignal(),b=s.bands;
   head.className='signal'+(s.lamp?' '+s.lamp:'');
   $('sigWord').textContent=s.word;
   $('sigSub').textContent=s.sub;
-  $('sigMeter').style.width=(s.score==null?0:Math.max(4,Math.min(100,s.score)))+'%'
+  $('sigSafeRange').textContent=b?(b.safeMax===0?'0':('0\u2013'+b.safeMax)):'\u2014';
+  $('sigCautionRange').textContent=b?opportunityRangeText(b.safeMax+1,b.cautionMax):'\u2014';
+  $('sigRiskyRange').textContent=b?((b.cautionMax+1)+'+'):'\u2014';
+  var cur=$('aheadCount'),want=(state.opportunityCount==null?'':String(state.opportunityCount));
+  if(document.activeElement!==cur&&cur.value!==want)cur.value=want;
+  // Nothing to count against until the market has been read, and a stepper that moves a
+  // number no lamp is reading is a control that lies about having an effect.
+  cur.disabled=!b;$('aheadMinus').disabled=!b;$('aheadPlus').disabled=!b
 }
+/* One count, two places to set it: the head here and the depth bar in the Trends card.
+   Both go through setOpportunityCount, so neither can hold a number the other does not. */
+function setAhead(v){setOpportunityCount(v);paintBench()}
+$('aheadCount').addEventListener('input',function(){
+  var raw=String(this.value||'').trim();
+  if(raw===''){state.opportunityCount=null;$('oppCount').value='';renderOpportunityDepth(state.model);paintBench();return}
+  setAhead(this.value)
+});
+/* Number(null) is 0, so reading the count straight off an unset state stepped the first
+   press to 1 and skipped the count that matters most - nobody ahead of you at all. */
+function aheadNow(){
+  var v=state.opportunityCount;
+  return (v==null||!Number.isFinite(Number(v)))?null:Math.max(0,Math.floor(Number(v)))
+}
+$('aheadMinus').addEventListener('click',function(){
+  var cur=aheadNow();setAhead(cur==null?0:Math.max(0,cur-1))
+});
+$('aheadPlus').addEventListener('click',function(){
+  var cur=aheadNow();setAhead(cur==null?0:cur+1)
+});
 function paintBench(){
   var wp=$('workpiece');if(!wp)return;
   var known=tierKnown(),art=$('wpArt');
@@ -9701,10 +9775,16 @@ function paintBench(){
   wp.classList.toggle('is-copied',cls.contains('is-copied'));
   wp.classList.toggle('is-failed',cls.contains('is-failed'));
   $('wpStamp').textContent=$('stamp').textContent||'Copied';
-  $('wpRef').textContent=state.lastPrice?('you typed '+state.lastPrice):'no price yet';
+  /* The confidence has no lamp any more, and it should not need one - it is not what to
+     do, it is how much the history behind the answer is worth. It rides the reference
+     line, which is the other thing kept for checking against. */
+  var ref=state.lastPrice?('from '+esc(state.lastPrice)):'no price yet';
+  if(state.model&&!state.marketLoading)
+    ref+=' \u00b7 <b class="'+confidenceClass(state.model.confidence)+'">'+
+         esc(state.model.confidence.toLowerCase())+' '+esc(String(state.model.confidenceScore))+'</b>';
+  $('wpRef').innerHTML=ref;
   $('benchStep').textContent=!known?'1 \u00b7 price it'
-    :(!state.slot||!hasAllRolls()?'2 \u00b7 describe it':'3 \u00b7 ship it');
-  $('beltShip').disabled=!coreCopyValue();
+    :(!state.slot||!hasAllRolls()?'2 \u00b7 describe it':'3 \u00b7 shipped');
   paintSignal()
 }
 /* The ring opens on the tile, on the tile's own face, which is where the thing being
@@ -9716,8 +9796,6 @@ $('workpiece').addEventListener('pointerdown',function(e){
   e.preventDefault();
   openWheel(st,liveTarget(),e.clientX,e.clientY)
 });
-$('beltShip').addEventListener('click',function(){copyCore()});
-
 /* ---- Shipping ------------------------------------------------------------------
    The strip already gets the tile; this is only the half-second that says where it came
    from. The flyer is the finished tile itself, started at the workpiece's footprint and
