@@ -5653,9 +5653,9 @@ function paintCraft(){
     mine.scrapQty.toLocaleString()+' scraps + '+mine.steelQty.toLocaleString()+
     ' steel cost '+craftMoney(mine.cost)+', at '+(many?'an average ':'')+
     mine.sc.unit.toFixed(3)+' and '+mine.st.unit.toFixed(3)+'. '+
-    (many?'The '+batch+' pieces sell for '+craftMoney(mine.gross)
-         :'The piece sells for '+mine.gross.toFixed(3))+
-    ' after tax'+(many?', or '+craftSigned(mine.profit/batch,3)+' each':'')+'.';
+    (many?'The '+batch+' pieces are worth '+craftMoney(mine.gross)
+         :'The piece is worth '+mine.gross.toFixed(3))+
+    ' to you'+(many?', or '+craftSigned(mine.profit/batch,3)+' each':'')+'.';
   // A break-even at or below zero means no input price rescues the tier: the piece is
   // worth less than the other input costs on its own.
   var head2=mine.beScrap<=0
@@ -6109,8 +6109,8 @@ function paintCase(){
          :', a bid resting where you put it')+
         ' instead of taking the '+(cost.lift!=null?cost.lift.toFixed(3):'ask')
        :', taking the cheapest offers')+
-    '. '+(many?'Each returns ':'It returns ')+gross.toFixed(3)+' after tax'+
-    (many?', or '+craftSigned(profit/n,3)+' each':'')+
+    '. What comes out is worth '+gross.toFixed(3)+' to you'+
+    (many?', or '+craftSigned(profit/n,3)+' a case':'')+
     ', which is also where it breaks even.';
 
   var cov=space?Math.round(covered/space*100):0;
@@ -6247,6 +6247,12 @@ function pctField(id,dflt){
 function marketTax(){return pctField('mktTax',1)}
 /* Silence here would be the card asserting the gap does not exist. Said once, plainly,
    and only when there is a gap to report. */
+/* What a piece is "worth to you" is the collected median sale price converted to what
+   reaches your hand: the medians are prices the market displayed, which carry the sellers'
+   tax, and you pay yours. Equal rates cancel and the figure is the median itself - which is
+   why this is not "after tax", and why nothing is deducted when the rates match. Only
+   equipment is taxed at all; scraps, steel and cases are not, so a piece counted at its
+   dismantle value carries no tax either. */
 function taxGapNote(){
   var mine=pctField('tax',1),mkt=marketTax();
   if(Math.abs(mine-mkt)<1e-9)return '';
