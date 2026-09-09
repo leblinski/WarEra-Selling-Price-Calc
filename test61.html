@@ -4727,8 +4727,18 @@ function flipCheckCore(shown){
   $('flip').hidden=false;
   if(buyI3<=0n){$('flipFigure').textContent='—';$('sliderWrap').hidden=true;return}
   var s3=(10n*(buyI3+1n)*frac.num+5n*frac.den)/(10n*frac.den)+1n;
-  var target=(buyI3*105n)/100n;
+  /* Where the track ends. It used to end at five percent over what you paid, which is not a
+     fact about anything - a flip pays whatever the gap between the two cheapest listings
+     happens to be, and a 404 buy against a 433 second offer is seven percent, off the end
+     of it. A quarter up is the floor of the range now, and where the history says the piece
+     clears higher than that, the track reaches that instead: there is no point offering to
+     model a second offer the market has never paid, and every point in reaching one it
+     has. */
+  var target=(buyI3*125n)/100n;
   var top=(10n*target*frac.num+5n*frac.den)/(10n*frac.den)+1n;
+  var hist=state.model&&Number.isFinite(Number(state.model.histTarget))
+    ? BigInt(Math.round(Number(state.model.histTarget)*1000)) : 0n;
+  if(hist>top)top=hist;
   if(top<=s3)top=s3+20n;
   var changed=flipState.buy!==buyI3;
   flipState={buy:buyI3,min:s3,max:top,num:frac.num,den:frac.den};
@@ -7501,10 +7511,27 @@ function opportunityDepthBands(m){
   // We know the current floor itself is already one blocker. The user only
   // enters the *additional* relevant listings between floor and opportunity.
   var salesPerCycle=Math.max(.1,velocity*cycle);
-  var totalSafe=Math.max(1,Math.round(salesPerCycle));          // <= ~1 cycle
-  var totalCaution=Math.max(totalSafe+1,Math.ceil(salesPerCycle*3)); // <= ~3 cycles
-  var safeBetween=Math.max(0,totalSafe-1);
-  var cautionBetween=Math.max(safeBetween+1,totalCaution-1);
+  /* How many listings ahead of you clear inside one normal cycle, and inside three. The
+     floor is always one of them, so what the reader counts is the rest.
+
+     Both bands used to be forced to exist - max(1,...) on safe, max(safeBetween+1,...) on
+     caution - and on a slow item that manufactured verdicts the same block then argued
+     with. A sniper at 1.33/h on a 34m cycle clears 0.75 of a comparable per cycle: nothing
+     clears inside one cycle, not even the floor by itself, yet the bar read SAFE 0 while
+     the line under it said that position takes 1.3 cycles. At 0.03/h it read LESS SAFE 0
+     over a clearance of 42 cycles.
+
+     A band is now exactly what it claims: the depths that clear inside one cycle, and
+     inside three. Where nothing does, the band is empty and says so, and being second in
+     line lands in whichever band the arithmetic puts it in. On a slow item that is RISKY,
+     which is the truth about listing above the floor on something nobody is buying.
+
+     round() went with it, for the same reason: at 6.5 sales per cycle it claimed seven
+     listings clear inside one. Six do. */
+  var totalSafe=Math.floor(salesPerCycle);        // clear inside ~1 cycle
+  var totalCaution=Math.floor(salesPerCycle*3);   // clear inside ~3 cycles
+  var safeBetween=totalSafe-1;
+  var cautionBetween=totalCaution-1;
 
   return {
     velocity:velocity,
@@ -7559,8 +7586,11 @@ function renderOpportunityDepth(m){
     $('oppTakeVal').textContent=take;
     $('oppTake').classList.remove('took')
   }
-  $('oppSafeRange').textContent=bands.safeMax===0?'0':('0–'+bands.safeMax);
-  $('oppCautionRange').textContent=opportunityRangeText(bands.safeMax+1,bands.cautionMax);
+  /* An item slow enough has no safe depth, and a slower one has no cautious depth either.
+     Saying "none" is the reading; printing 0--1 would be a range nobody can be in. */
+  $('oppSafeRange').textContent=bands.safeMax<0?'none':(bands.safeMax===0?'0':('0–'+bands.safeMax));
+  $('oppCautionRange').textContent=bands.cautionMax<bands.safeMax+1
+    ?'none':opportunityRangeText(bands.safeMax+1,bands.cautionMax);
   $('oppRiskRange').textContent=(bands.cautionMax+1)+'+';
 
   var sampleNote=bands.durationCount>=3
@@ -7568,19 +7598,17 @@ function renderOpportunityDepth(m){
     :'thin sold-in sample · estimated cycle ~'+niceDuration(bands.cycleHours);
   $('oppVelocity').textContent='Comparable velocity '+bands.velocity.toFixed(2)+'/h · '+sampleNote+'.';
 
+  /* Nobody is asked to type the zero. The listing at the floor is the price already on
+     the bench, so the page knows about it; what the field takes is the ones in between,
+     and until told otherwise there are none. The light reads on arrival, and the line
+     underneath says which of it was assumed rather than counted. */
   var raw=String($('oppCount').value||'').trim();
-  var hasCount=raw!==''&&Number.isFinite(Number(raw))&&Number(raw)>=0;
-  if(!hasCount){
-    box.className='opportunity-depth';
-    $('oppRiskBar').className='opp-riskbar';
-    $('oppMarker').hidden=true;
-    $('oppDepthText').textContent='Count comparable-or-better listings priced above the current floor and below the opportunity price. Include any extra listings tied at the floor.';
-    return
-  }
+  var assumed=!(raw!==''&&Number.isFinite(Number(raw))&&Number(raw)>=0);
+  if(assumed)raw='0';
 
   var count=Math.max(0,Math.min(99,Math.floor(Number(raw))));
   state.opportunityCount=count;
-  $('oppCount').value=String(count);
+  if(!assumed)$('oppCount').value=String(count);
   var risk=opportunityRiskForCount(count,bands);
   // The lit zone is the answer; the other two sink back, or the bar is three colours with
   // a marker somewhere on it and the reader has to work out which one they are in.
@@ -7602,7 +7630,8 @@ function renderOpportunityDepth(m){
       ?'This likely needs roughly one to three normal comparable-sale cycles to clear.'
       :'This depth is beyond roughly three normal comparable-sale cycles.');
 
-  $('oppDepthText').textContent=count+' listing'+(count===1?'':'s')+' between · '+label+' · '+why;
+  $('oppDepthText').textContent=count+' listing'+(count===1?'':'s')+' between · '+label+' · '+why+
+    (assumed?' Nothing between is assumed, not counted \u2014 press + for each comparable listing you can see above the floor and below the opportunity.':'');
   $('oppVelocity').textContent='Comparable velocity '+bands.velocity.toFixed(2)+'/h · '
     +(Number.isFinite(clearHours)?'~'+niceDuration(clearHours)+' expected clearance · ':'')
     +(Number.isFinite(cycles)?cycles.toFixed(1)+' cycles · ':'')
@@ -7698,6 +7727,11 @@ function renderModel(m,meta){
     setWorkMode('sales');scheduleAutoAnalyse()
   }
   paintTrendPick();
+  /* The flip track's ceiling can reach as high as the history says the piece clears, and
+     the history is not there yet when the card is drawn: typing a price clears the model
+     before coreCalc runs, and the reading lands afterwards. Redraw it on the same buy
+     price, which keeps wherever the reader had dragged to. */
+  if(state.lastPrice)flipCheckCore(state.lastPrice);
   debug(meta,m);renderRawInspector();
 
   if(!isDesktop()){
@@ -8978,8 +9012,15 @@ $('listAnyway').addEventListener('click',function(){
 });
 
 $('secondSlider').addEventListener('input',paintFlipSlider);
-$('stepDown').addEventListener('click',function(){var s=$('secondSlider');s.value=String(Math.max(Number(s.min),Number(s.value)-1));paintFlipSlider()});
-$('stepUp').addEventListener('click',function(){var s=$('secondSlider');s.value=String(Math.min(Number(s.max),Number(s.value)+1));paintFlipSlider()});
+/* A nudge is a fraction of the track, not a thousandth of a gold. At the old five-percent
+   range one press moved a pixel's worth; at the range the track covers now it would take
+   a hundred thousand of them to cross, so the button would be a decoration. */
+function flipNudge(){
+  var span=Number(flipState.max-flipState.min);
+  return Math.max(1,Math.round(span/400))
+}
+$('stepDown').addEventListener('click',function(){var s=$('secondSlider');s.value=String(Math.max(Number(s.min),Number(s.value)-flipNudge()));paintFlipSlider()});
+$('stepUp').addEventListener('click',function(){var s=$('secondSlider');s.value=String(Math.min(Number(s.max),Number(s.value)+flipNudge()));paintFlipSlider()});
 document.querySelector('.scrap-tabs').addEventListener('click',function(e){
   var b=e.target.closest('[data-view]');if(!b)return;
   scrapView=b.getAttribute('data-view');try{localStorage.setItem('warera-calc-scrapview',scrapView)}catch(e){}

@@ -4474,8 +4474,18 @@ function flipCheckCore(shown){
   $('flip').hidden=false;
   if(buyI3<=0n){$('flipFigure').textContent='—';$('sliderWrap').hidden=true;return}
   var s3=(10n*(buyI3+1n)*frac.num+5n*frac.den)/(10n*frac.den)+1n;
-  var target=(buyI3*105n)/100n;
+  /* Where the track ends. It used to end at five percent over what you paid, which is not a
+     fact about anything - a flip pays whatever the gap between the two cheapest listings
+     happens to be, and a 404 buy against a 433 second offer is seven percent, off the end
+     of it. A quarter up is the floor of the range now, and where the history says the piece
+     clears higher than that, the track reaches that instead: there is no point offering to
+     model a second offer the market has never paid, and every point in reaching one it
+     has. */
+  var target=(buyI3*125n)/100n;
   var top=(10n*target*frac.num+5n*frac.den)/(10n*frac.den)+1n;
+  var hist=state.model&&Number.isFinite(Number(state.model.histTarget))
+    ? BigInt(Math.round(Number(state.model.histTarget)*1000)) : 0n;
+  if(hist>top)top=hist;
   if(top<=s3)top=s3+20n;
   var changed=flipState.buy!==buyI3;
   flipState={buy:buyI3,min:s3,max:top,num:frac.num,den:frac.den};
@@ -7429,6 +7439,11 @@ function renderModel(m,meta){
     setWorkMode('sales');scheduleAutoAnalyse()
   }
   paintTrendPick();
+  /* The flip track's ceiling can reach as high as the history says the piece clears, and
+     the history is not there yet when the card is drawn: typing a price clears the model
+     before coreCalc runs, and the reading lands afterwards. Redraw it on the same buy
+     price, which keeps wherever the reader had dragged to. */
+  if(state.lastPrice)flipCheckCore(state.lastPrice);
   debug(meta,m);renderRawInspector();
 
   if(!isDesktop()){
@@ -8709,8 +8724,15 @@ $('listAnyway').addEventListener('click',function(){
 });
 
 $('secondSlider').addEventListener('input',paintFlipSlider);
-$('stepDown').addEventListener('click',function(){var s=$('secondSlider');s.value=String(Math.max(Number(s.min),Number(s.value)-1));paintFlipSlider()});
-$('stepUp').addEventListener('click',function(){var s=$('secondSlider');s.value=String(Math.min(Number(s.max),Number(s.value)+1));paintFlipSlider()});
+/* A nudge is a fraction of the track, not a thousandth of a gold. At the old five-percent
+   range one press moved a pixel's worth; at the range the track covers now it would take
+   a hundred thousand of them to cross, so the button would be a decoration. */
+function flipNudge(){
+  var span=Number(flipState.max-flipState.min);
+  return Math.max(1,Math.round(span/400))
+}
+$('stepDown').addEventListener('click',function(){var s=$('secondSlider');s.value=String(Math.max(Number(s.min),Number(s.value)-flipNudge()));paintFlipSlider()});
+$('stepUp').addEventListener('click',function(){var s=$('secondSlider');s.value=String(Math.min(Number(s.max),Number(s.value)+flipNudge()));paintFlipSlider()});
 document.querySelector('.scrap-tabs').addEventListener('click',function(e){
   var b=e.target.closest('[data-view]');if(!b)return;
   scrapView=b.getAttribute('data-view');try{localStorage.setItem('warera-calc-scrapview',scrapView)}catch(e){}
