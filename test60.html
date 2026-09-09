@@ -4600,10 +4600,15 @@ var craftState={summary:null,books:null,error:null,loading:false,src:'book',
                 entry:{},
                 live:null,liveAt:0,liveError:null,liveLoading:false};
 try{
-  // 'live' and 'ask' were choices before the book became unconditional; read them forward
-  // rather than leaving somebody pinned to a mode that no longer exists.
-  var savedSrc=localStorage.getItem('warera-calc-craftsrc')||'book';
-  craftState.src=savedSrc==='own'?'own':'book';
+  /* The craft tab opens on the live book, every time. Typing your own input prices is
+     something you do to answer one question - what would this cost me at 0.20 scraps - and
+     it was being remembered across sessions, so a page opened days later quietly priced
+     a craft off numbers from a market that had moved. The switch still holds for as long
+     as the tab is open; it just does not outlive it.
+
+     'live' and 'ask' were choices before the book became unconditional, and the key is
+     removed rather than read forward, since nothing is stored under it now. */
+  localStorage.removeItem('warera-calc-craftsrc');
   // The weapon-roll weighting was briefly a choice. Weighting rolls by how often each one
   // trades measures which rolls people choose to list, not which ones a craft hands you -
   // and a craft hands you one at random - so the option is gone and the keys with it.
@@ -6162,7 +6167,6 @@ function paintCase(){
    price you typed to test something. The one button says which way it takes you. */
 function setCraftSource(src){
   craftState.src=src==='own'?'own':'book';
-  try{localStorage.setItem('warera-calc-craftsrc',craftState.src)}catch(e){}
   var b=document.querySelector('#craftSrcBtns [data-craftsrc]');
   if(b){
     var own=craftState.src==='own';
