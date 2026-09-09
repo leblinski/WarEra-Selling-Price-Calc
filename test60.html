@@ -3096,7 +3096,7 @@ h1 .title-word{white-space:nowrap}
         holding, and type that price here. Everything else on the page follows from it.</p>
         <p style="margin:0 0 7px"><b>Tax</b> is the market rate in your country. It is added on top of what you type,
         so buyers see a higher figure than the one you receive. A rate above other sellers&rsquo; means typing less to
-        land at the same displayed price &mdash; which is the only way it changes what you should list at.</p>
+        land at the same displayed price. That is the only way it changes what you should list at.</p>
         <p style="margin:0">Type the price, then <kbd>Enter</kbd> or the <b>&#10003;</b> beside the field. Either one
         calculates, copies the figure, and fills in the flip and dismantle tiles below.</p>
       </div>
@@ -3474,7 +3474,7 @@ h1 .title-word{white-space:nowrap}
         <p class="flip-label"><i aria-hidden="true" class="res res-case res-in"></i>Open a case?<button type="button" class="q" data-q="cases" aria-expanded="false" aria-label="How to read this table">?</button></p>
         <div class="qbody" data-qof="cases"><b>Odds</b> are the game&rsquo;s own. <b>Worth</b> is what an average piece
         of that rarity fetches. <b>Break</b> is how often that rarity is worth dismantling rather than listing.
-        <b>Adds</b> is that rarity&rsquo;s share of a case&rsquo;s value &mdash; the six add up to what a case holds.</div>
+        <b>Adds</b> is that rarity&rsquo;s share of a case&rsquo;s value, and the six add up to what a case holds.</div>
         <p class="flip-lead" id="caseLead">Buy a Case I, open it, sell what is worth selling and break the rest</p>
         <p class="flip-figure" id="caseVerdict">—</p>
         <p class="flip-detail" id="caseDetail">Reading case prices…</p>
@@ -3523,10 +3523,10 @@ h1 .title-word{white-space:nowrap}
       <div class="tabpane" id="panesort" hidden>
       <section class="flip" id="sortBox">
         <p class="flip-label">Sell it or break it?<button type="button" class="q" data-q="sort" aria-expanded="false" aria-label="How to read these rows">?</button></p>
-        <div class="qbody" data-qof="sort"><b>Sell</b> is the rule for keeping a roll &mdash; anything at or above it
+        <div class="qbody" data-qof="sort"><b>Sell</b> is the rule for keeping a roll: anything at or above it
         earns a listing. <b>Per 1,000</b> is how many of that slot&rsquo;s thousand possible rolls clear the rule.
         <b>Gold</b> is what clearing it is worth on an average roll. Tap a row to see every roll behind it.
-        Figures on this tab are gold you receive, not the price the market shows &mdash; the two differ by your
+        Figures on this tab are gold you receive, not the price the market shows. The two differ by your
         market tax.</div>
         <p class="flip-lead" id="sortLead">Every roll, by rarity, against what its scraps are worth</p>
         <p class="flip-detail" id="sortDetail">Reading the collector's sale history…</p>
@@ -4813,14 +4813,14 @@ var TOURS={
           'card to copy it.'},
     {sel:'#goBtn',title:'It is already copied',
      body:'You never have to select that number. <b>Enter</b> on the keyboard, or this tick, '+
-          'calculates and puts the figure straight on your clipboard &mdash; switch to the '+
+          'calculates and puts the figure straight on your clipboard. Switch to the '+
           'game and paste.'},
     {sel:'#quickScrap',title:'When not to sell at all',
      body:'Every piece breaks down into scraps. Below this figure the scraps are worth more '+
           'than the sale, so breaking it beats listing it.'},
     {sel:'#tabBar',title:'The other three tabs',
      body:'The first two, <b>Price</b> and <b>Sort</b>, are for things you already have. The '+
-          'last two, <b>Craft</b> and <b>Cases</b>, say whether buying in pays &mdash; the '+
+          'last two, <b>Craft</b> and <b>Cases</b>, say whether buying in pays. The '+
           'figure on the tab is the edge right now. Each has a walkthrough of its own, and every heading has a <b>?</b> '+
           'when you want the detail behind a number.'},
     {sel:'.history',title:'Everything you priced stays here',
@@ -4835,7 +4835,7 @@ var TOURS={
           'all six: what the inputs cost, what the piece sells for, and how often that '+
           'rarity is worth breaking instead.'},
     {sel:'#craftBooks',title:'Where the input prices come from',
-     body:'Live order books. You are not obliged to pay the asking price &mdash; rest a buy '+
+     body:'Live order books. You do not have to pay the asking price. Rest a buy '+
           'order one step above a <b>wall</b> and you pay less, but you wait. The ladder '+
           'shows what is ahead of you at each level.'},
     {sel:'#craftSimBtns',title:'The average is not the experience',
@@ -4846,19 +4846,19 @@ var TOURS={
   ],
   cases:[
     {sel:'#caseVerdict',title:'A case is a bet on six rarities',
-     body:'One Case I hands you a random piece. This is what the average case holds against '+
-          'what a case costs you right now &mdash; the whole tab exists to answer whether '+
-          'that gap is positive.'},
+     body:'One Case I hands you a random piece. This tab weighs what the average case '+
+          'returns against what one costs right now, and tells you whether that gap is '+
+          'positive.'},
     {sel:'#caseRows',title:'Where the number comes from',
      body:'<b>Odds</b> are the game&rsquo;s own. <b>Worth</b> is what an average piece of that '+
           'rarity fetches. <b>Adds</b> is that rarity&rsquo;s share of a case&rsquo;s value, '+
           'and the six add up to what a case holds.'},
     {sel:'#caseSwing',title:'Read this before you buy a hundred',
      body:'The edge is small and a single case swings far wider than it. This says how many '+
-          'cases it takes before profit reliably beats the swing &mdash; below that, a losing '+
-          'run is normal rather than evidence the edge is wrong.'},
+          'cases it takes before profit reliably beats the swing. Below that, a losing '+
+          'run is normal and says nothing about the edge.'},
     {sel:'#caseBid',title:'Price it at your own bid',
-     body:'You can set the price you would actually pay rather than the market&rsquo;s. Leave '+
+     body:'You can set the price you would actually pay instead of the market&rsquo;s. Leave '+
           'it empty and the card prices at the top of the book, or tap one of the resting '+
           'places below it.',
      next:'Done'}
@@ -4866,11 +4866,11 @@ var TOURS={
   sort:[
     {sel:'#sortPick',title:'One rarity at a time',
      body:'Pick a rarity and every roll it can produce is measured against what that '+
-          'roll&rsquo;s own scraps fetch. This is the tab for a stack of pieces rather than '+
-          'one in your hand.'},
+          'roll&rsquo;s own scraps fetch. Use this tab for a stack of pieces; the Price tab '+
+          'is for the one in your hand.'},
     {sel:'#sortRows',title:'The rule for keeping a roll',
-     body:'<b>Sell</b> is the cut line for that slot &mdash; anything at or above it earns a '+
-          'listing and the rest is scrap. Tap a row to see every roll behind the rule.'},
+     body:'<b>Sell</b> is the cut line for that slot: anything at or above it earns a '+
+          'listing, and the rest is scrap. Tap a row to see every roll behind the rule.'},
     {sel:'#sortGate',title:'How much better than scrap is worth it',
      body:'A piece that only just beats its scraps is not worth the listing slot. This is how '+
           'far ahead it has to be, and the Craft and Cases tabs use the same bar.',
@@ -5618,7 +5618,7 @@ function paintCraft(){
       '<span>'+craftMoney(cost)+'</span>'+
       '<span>'+craftMoney(gross)+'</span>'+
       '<span class="'+cls+'">'+craftSigned(pct,1)+'%</span>'+
-      '<span>'+(beScrap>0?beScrap.toFixed(4):'—')+'</span></div>';
+      '<span>'+(beScrap>0?beScrap.toFixed(3):'—')+'</span></div>';
     if(known&&t===state.tier){
       mine={t:t,scrapQty:scrapQty,steelQty:steelQty,sc:sc,st:st,exp:exp,gross:gross,
             cost:cost,profit:profit,pct:pct,beScrap:beScrap,beSteel:beSteel};
@@ -5647,20 +5647,22 @@ function paintCraft(){
     :'Craft one '+RARITIES[mine.t-1].name+' piece and resell it';
   $('craftVerdict').textContent=craftSigned(mine.profit,3);
   $('craftVerdict').className='flip-figure '+(mine.profit>=0?'up':'down');
+  /* Three short sentences instead of one long one, and no figure said twice. The market
+     quotes three decimal places and will not take a fourth, so neither does this. */
   var head=craftSigned(mine.pct,2)+'% '+(many?'over '+batch+' crafts':'per craft')+'. '+
     mine.scrapQty.toLocaleString()+' scraps + '+mine.steelQty.toLocaleString()+
-    ' steel cost '+craftMoney(mine.cost)+' at '+(many?'an average ':'')+
-    mine.sc.unit.toFixed(5)+' and '+mine.st.unit.toFixed(4)+'; '+
-    (many?'the '+batch+' pieces sell for '+craftMoney(mine.gross)
-         :'the average piece sells for '+mine.gross.toFixed(3))+
-    ' to the seller'+(many?', or '+craftSigned(mine.profit/batch,3)+' each':'')+'.';
+    ' steel cost '+craftMoney(mine.cost)+', at '+(many?'an average ':'')+
+    mine.sc.unit.toFixed(3)+' and '+mine.st.unit.toFixed(3)+'. '+
+    (many?'The '+batch+' pieces sell for '+craftMoney(mine.gross)
+         :'The piece sells for '+mine.gross.toFixed(3))+
+    ' after tax'+(many?', or '+craftSigned(mine.profit/batch,3)+' each':'')+'.';
   // A break-even at or below zero means no input price rescues the tier: the piece is
   // worth less than the other input costs on its own.
   var head2=mine.beScrap<=0
     ?' Free scraps would still lose money at this tier.'
-    :' Break even at '+mine.beScrap.toFixed(5)+' scraps ('+
-      (mine.sc.unit>0?craftSigned((mine.beScrap/mine.sc.unit-1)*100,2)+'% from what you would pay now':'—')+')'+
-      (mine.beSteel!==null&&mine.beSteel>0?' or '+mine.beSteel.toFixed(4)+' steel':'')+'.';
+    :' Breaks even at '+mine.beScrap.toFixed(3)+' scraps'+
+      (mine.sc.unit>0?' ('+craftSigned((mine.beScrap/mine.sc.unit-1)*100,1)+'% from now)':'')+
+      (mine.beSteel!==null&&mine.beSteel>0?', or '+mine.beSteel.toFixed(3)+' steel':'')+'.';
   $('craftDetail').textContent=head+head2;
 
   var cov=mine.exp.space?Math.round(mine.exp.covered/mine.exp.space*100):0;
@@ -6083,7 +6085,7 @@ function paintCase(){
       '<span>'+(pr.odds*100).toFixed(2)+'%</span>'+
       '<span>'+craftMoney(pr.net)+'</span>'+
       '<span>'+Math.round(pr.broken*100)+'%</span>'+
-      '<span>'+pr.add.toFixed(4)+'</span></div>'
+      '<span>'+pr.add.toFixed(3)+'</span></div>'
   }
   rowsEl.innerHTML=rows;
 
@@ -6094,20 +6096,22 @@ function paintCase(){
     ', sell what is worth selling and break the rest';
   $('caseVerdict').textContent=craftSigned(profit,3);
   $('caseVerdict').className='flip-figure '+(profit>=0?'up':'down');
+  /* What a case returns and the price it breaks even at are the same number, and the gap
+     between them is the percentage already at the front of the line. Saying all three was
+     saying one thing three times. */
   $('caseDetail').textContent=craftSigned(pct,2)+'% '+(many?'over '+n+' cases':'per case')+'. '+
-    (many?n+' cases cost '+craftMoney(cost.cost)+' at '+cost.unit.toFixed(5)+' each'
-        :'A case costs '+cost.unit.toFixed(5))+
+    (many?n+' cases cost '+craftMoney(cost.cost)+', at '+cost.unit.toFixed(3)+' each'
+        :'A case costs '+cost.unit.toFixed(3))+
     (cost.posted
-       ?(cost.top?', resting a tick above the best bid'
-         :cost.wall?', resting a tick above the '+bookQty(cost.wall.wall)+'-deep wall at '+
+       ?(cost.top?', a bid resting a tick over the best one'
+         :cost.wall?', a bid resting a tick over the '+bookQty(cost.wall.wall)+'-deep wall at '+
                      cost.wall.wallPrice.toFixed(3)
-         :', resting where you put it')+
-        ' rather than lifting the '+(cost.lift!=null?cost.lift.toFixed(5):'ask')
-       :', lifting the cheapest offers')+
-    '; the average case holds '+gross.toFixed(4)+' to the seller'+
-    (many?', or '+craftSigned(profit/n,4)+' each':'')+
-    '. Break even at a case price of '+gross.toFixed(4)+' ('+
-    craftSigned((gross/cost.unit-1)*100,2)+'% from what you would pay now).';
+         :', a bid resting where you put it')+
+        ' instead of taking the '+(cost.lift!=null?cost.lift.toFixed(3):'ask')
+       :', taking the cheapest offers')+
+    '. '+(many?'Each returns ':'It returns ')+gross.toFixed(3)+' after tax'+
+    (many?', or '+craftSigned(profit/n,3)+' each':'')+
+    ', which is also where it breaks even.';
 
   var cov=space?Math.round(covered/space*100):0;
   // Nine lines of prose explaining four columns is a wall nobody reads. One line of
@@ -6126,12 +6130,11 @@ function paintCase(){
       (cost.wall?', a tick above the '+bookQty(cost.wall.wall)+' resting at '+
         cost.wall.wallPrice.toFixed(3)+', with '+bookQty(cost.wall.ahead)+
         ' ahead of it to fill first':' at the top of the book')+
-      '. It adds liquidity rather than taking it, so it does not walk the book and the'+
-      ' price does not move with size - but it is a price you wait for, not one you are'+
-      ' guaranteed. Lifting the offers instead costs '+
-      (cost.lift!=null?cost.lift.toFixed(5):'more')+' a case and fills now.'
-    : ' The spread is one tick, so a posted bid would rest at the offer anyway and the cost'+
-      ' shown simply lifts it.';
+      '. A resting bid does not move with size, but you wait for it and it can go'+
+      ' unfilled. Taking the offers costs '+
+      (cost.lift!=null?cost.lift.toFixed(3):'more')+' a case and fills now.'
+    : ' The spread is one tick, so a posted bid would rest at the offer anyway and this'+
+      ' cost just takes it.';
   var edge=gross-cost.unit;
   var swingEl=$('caseSwing');
   if(swingEl){
@@ -6173,8 +6176,8 @@ function setCraftSource(src){
 function syncCraftInputs(){
   if(craftState.src==='own')return;
   var sc=craftAcquire('scraps',1),st=craftAcquire('steel',1);
-  if(sc)$('craftScrap').value=sc.unit.toFixed(5);
-  if(st)$('craftSteel').value=st.unit.toFixed(4)
+  if(sc)$('craftScrap').value=sc.unit.toFixed(3);
+  if(st)$('craftSteel').value=st.unit.toFixed(3)
 }
 // A refresh confirmation holds the line briefly so the periodic repaint cannot wipe it.
 var dataStampHold=0;
@@ -6473,7 +6476,7 @@ function untradedNote(exp){
   if(exp.unwanted)out+=' '+exp.unwanted+' roll'+(one?'':'s')+' never traded in a slot that '+
     'trades often enough for that to mean nobody wants '+(one?'it':'them')+', so '+
     (one?'it counts':'they count')+' at what '+(one?'it breaks':'they break')+
-    ' for rather than being left out of the average.';
+    ' for instead of being dropped from the average.';
   if(exp.quiet)out+=' '+exp.quiet+' more never traded in slots too thinly dealt to read '+
     'anything into that, and are assumed to price like the ones that did.';
   return out
