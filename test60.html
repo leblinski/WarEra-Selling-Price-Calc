@@ -4507,7 +4507,18 @@ function paintFlipSlider(){
 
 var SCRAP_YIELDS=[6,18,54,162,486,1458];
 var scrapMarket={bid:null,ask:null};
-function scrapSource(){try{return localStorage.getItem('warera-calc-scrapsrc')||'bid'}catch(e){return'bid'}}
+/* The dismantle floor opens on the live book, every time. Which side of it you value
+   scraps at is a real preference and is kept, but "your figure" is not: a typed scrap price
+   answers one question and then goes stale, and a page opened days later was pricing the
+   floor off it with only the small note under the field to say so. The switch holds while
+   the tab is open and no longer. */
+function scrapStoredSource(){
+  try{
+    var s=localStorage.getItem('warera-calc-scrapsrc');
+    return (s==='bid'||s==='ask'||s==='mid')?s:'bid'
+  }catch(e){return'bid'}
+}
+function scrapSource(){return scrapSrcNow||scrapStoredSource()}
 function scrapPriceFor(src){
   if(src==='own')return extractNumber($('scrapPrice').value);
   if(src==='bid')return scrapMarket.bid;
@@ -4564,8 +4575,13 @@ function paintScrap(shown){
   return wins
 }
 
+var scrapSrcNow=null;
 function setScrapSource(src){
-  try{localStorage.setItem('warera-calc-scrapsrc',src)}catch(e){}
+  scrapSrcNow=src;
+  /* Only the live sides are written; see scrapSource. Picking "own" leaves whichever side
+     was there, so coming back lands on the side you chose rather than resetting to the bid,
+     and a stale 'own' from before this change is ignored by the reader anyway. */
+  try{if(src!=='own')localStorage.setItem('warera-calc-scrapsrc',src)}catch(e){}
   document.querySelectorAll('.scrap-btns [data-src]').forEach(function(b){b.setAttribute('aria-pressed',b.getAttribute('data-src')===src?'true':'false')});
   var v=scrapPriceFor(src);if(src!=='own'&&v)$('scrapPrice').value=v;
   $('scrapPrice').readOnly=src!=='own';
