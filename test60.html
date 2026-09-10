@@ -6756,20 +6756,28 @@ function copyCore(){
    result as a new piece. It is the piece that is already there, so nothing is filed and the
    group the reader arranged stays as they arranged it. */
 var recentQuiet=false;
-function addRecentCore(inp,out,scrap){
-  if(recentQuiet)return;
-  var a=readRecent(),entry={
+/* One description of a tile, because there are two ways to file one and a tile written by
+   the short way came out as a grey plate with a question mark: the piece, its roll and its
+   rarity were simply not on it, and renderRecent draws what it is given. */
+function recentEntry(inp,out,scrap){
+  return {
     price:out,scrap:!!scrap,inp:inp==null?'':String(inp),
     item:itemName()||(tierKnown()?tier().name:'Calculator'),
     sname:state.slot?slotNameAt(state.slot,state.tier):'',
     roll:state.slot?describeRoll():'',short:state.slot?compactRoll():'',
     tier:tierKnown()?state.tier:0,slot:state.slot||'',
-    mode:$('beatMode').checked?'beat':'convert',t:Date.now()};
+    mode:$('beatMode').checked?'beat':'convert',t:Date.now()}
+}
+function fileRecent(entry){
   // The same piece priced twice is one tile, kept where it already sits in the group.
-  a=a.filter(function(x){
+  var a=readRecent().filter(function(x){
     return !(x.price===entry.price&&x.item===entry.item&&x.roll===entry.roll)
   });
   a.unshift(entry);saveRecent(a);renderRecent()
+}
+function addRecentCore(inp,out,scrap){
+  if(recentQuiet)return;
+  fileRecent(recentEntry(inp,out,scrap))
 }
 function scrollToCard(el){
   try{var y=el.getBoundingClientRect().top+window.pageYOffset-12;window.scrollTo(0,Math.max(0,y))}catch(e){}
@@ -8263,12 +8271,12 @@ function compactRoll(){
   }
   return out.join('/')
 }
+/* Filed when the answer is shown rather than when it is copied, so it does not ship the
+   tile down the belt - but it describes the same piece, in the same words. */
 function addRecent(price){
-  if(!state.slot)return;
-  var p=Number(price),shown=Number.isFinite(p)?fmt(p):String(price);
-  var a=readRecent(),entry={price:shown,item:itemName(),roll:describeRoll(),mode:state.mode,t:Date.now()};
-  a=a.filter(function(x){return !(x.price===entry.price&&x.item===entry.item&&x.roll===entry.roll)});
-  a.unshift(entry);saveRecent(a);renderRecent()
+  if(recentQuiet||!state.slot)return;
+  var p=Number(price);
+  fileRecent(recentEntry(state.lastPrice,Number.isFinite(p)?fmt(p):String(price),false))
 }
 function renderRecent(){
   var a=readRecent();$('histClear').hidden=!a.length;$('histEmpty').hidden=!!a.length;
