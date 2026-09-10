@@ -1815,7 +1815,14 @@ kbd{
     display:flex!important;gap:8px;align-items:flex-end;position:static!important;
     padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important
   }
-  .tax-editor #tax,.tax-editor #mktTax{display:block;width:100%}
+  /* A rate is one or two digits. At 100% of a pair nothing constrained, each box asked for
+     221px and the pair took 450 - and a grid item does not shrink below its content, so the
+     whole 450 came out of the price field next to it. At 860px wide the price input was 57px
+     with the check button sitting on top of it, which is the width at which the price field
+     stops being visible at all. */
+  .fields{grid-template-columns:minmax(170px,1fr) auto}
+  .taxfield,.tax-editor{min-width:0}
+  .tax-editor #tax,.tax-editor #mktTax{display:block;width:66px;min-width:0}
   .tax-pair{display:flex;flex-direction:column;gap:2px;min-width:0}
   .tax-pair label{
     font-family:"Saira Condensed",sans-serif;font-size:9px;letter-spacing:.11em;
