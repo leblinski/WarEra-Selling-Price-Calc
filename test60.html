@@ -9376,10 +9376,20 @@ function returnedFromAway(){
   return gone>700
 }
 window.addEventListener('blur',function(){markAway();coreCalc(true)});
-window.addEventListener('focus',function(){if(returnedFromAway())armInput()});
+/* Coming back from another window, the keyboard must not still be pointed at the button
+   that was last pressed: the check recalculates and recopies on Space or Enter, so the
+   first keystroke after an Alt+Tab went to a button instead of the price. Quick Input then
+   puts the caret in the price field; with Quick Input off the press is simply let go, and
+   the page stays inert until the reader chooses where to type. */
+function releasePressed(){
+  var a=document.activeElement;
+  if(a&&a!==document.body&&a.tagName==='BUTTON'&&a.blur){try{a.blur()}catch(e){}}
+}
+function backFromAway(){releasePressed();armInput()}
+window.addEventListener('focus',function(){if(returnedFromAway())backFromAway()});
 document.addEventListener('visibilitychange',function(){
   if(document.hidden){markAway();coreCalc(true)}
-  else if(returnedFromAway())armInput()
+  else if(returnedFromAway())backFromAway()
 });
 
 document.addEventListener('keydown',function(e){
