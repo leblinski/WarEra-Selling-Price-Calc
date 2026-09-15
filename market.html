@@ -82,7 +82,14 @@ tbody tr.sel{background:rgba(var(--brass-rgb),.15)}
 .err b{color:var(--rust)}
 .err pre{margin:6px 0 0;padding:6px;overflow-x:auto;background:var(--ground);
   border-radius:5px;font-family:var(--mono);font-size:11px;color:var(--dim)}
-.ladder{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line)}
+.ladder{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);
+  max-height:430px;overflow-y:auto}
+/* Specific enough to beat `.ladder > div`, which sets display:flex: losing that fight made
+   the header one cell instead of two and shifted every row by one, so bids drew in the ask
+   column. */
+.ladder > .ladder-head{display:contents}
+.ladder > .ladder-head > div{position:sticky;top:0;z-index:2;background:var(--panel-2);
+  font-family:var(--sans);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
 .ladder > div{background:var(--panel);padding:5px 8px;font-family:var(--mono);font-size:11.5px;
   display:flex;justify-content:space-between;gap:8px}
 .ladder .bar-bg{position:relative}
@@ -168,7 +175,19 @@ progress{width:130px;height:8px}
 
   <div>
     <div class="card" style="margin-bottom:10px">
-      <div class="card-head"><b id="dtitle">Pick a good</b><span id="dsub"></span></div>
+      <div class="card-head"><b id="dtitle">Pick a good</b>
+        <span>
+          <label class="ctl">Depth
+            <select id="depth">
+              <option value="12">12</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </label>
+          <span id="dsub"></span>
+        </span>
+      </div>
       <div class="spread-strip" id="strip"></div>
       <div class="ladder" id="ladder"></div>
       <div class="foot" id="bookfoot">The book is 100 orders a side, which is the API's cap.</div>
@@ -637,17 +656,37 @@ function renderBook(code){
     cell('Spread %',(bid!=null&&ask!=null&&bid>0)?((ask-bid)/bid*100).toFixed(2):'—','')+
     cell('Mid',px(mid),'')+
     cell('Imbalance',imb==null?'—':(imb>0?'+':'')+Math.round(imb)+'%',imb==null?'':(imb>0?'up':'down'));
+  var rows=bookDepth();
+  var shown=Math.min(rows,Math.max(b.bids.length,b.asks.length))||1;
+  /* Scaled to the deepest order on screen rather than in the whole book, so widening the
+     ladder does not flatten every bar against one outlier further down. */
   var depth=Math.max(
-    b.bids.slice(0,12).reduce(function(m,o){return Math.max(m,o.qty)},0),
-    b.asks.slice(0,12).reduce(function(m,o){return Math.max(m,o.qty)},0),1);
-  var html='';
-  for(var i=0;i<12;i++){
+    b.bids.slice(0,shown).reduce(function(m,o){return Math.max(m,o.qty)},0),
+    b.asks.slice(0,shown).reduce(function(m,o){return Math.max(m,o.qty)},0),1);
+  var html='<div class="ladder-head"><div><span>Bid</span><span>Size</span></div>'+
+           '<div><span>Ask</span><span>Size</span></div></div>';
+  for(var i=0;i<shown;i++){
     html+=side(b.bids[i],depth,'bid')+side(b.asks[i],depth,'ask');
   }
   lad.innerHTML=html;
+  /* A hundred orders is not a hundred prices: scraps puts all hundred asks on one price,
+     fish spreads them over seventy. The level count is what says which kind of book it is. */
+  var bl=priceLevels(b.bids),al=priceLevels(b.asks);
   $('bookfoot').textContent=
-    'Bids '+units(bq)+' over '+b.bids.length+' orders · asks '+units(aq)+' over '+b.asks.length+
-    ' orders. The API returns at most 100 a side, so a fuller queue reads as exactly 100.';
+    'Bids '+units(bq)+' over '+b.bids.length+' orders at '+bl+(bl===1?' price':' prices')+
+    ' · asks '+units(aq)+' over '+b.asks.length+' orders at '+al+(al===1?' price':' prices')+'. '+
+    ((b.bids.length>=100||b.asks.length>=100)
+      ? 'A side showing 100 orders is at the API\u2019s cap, so the queue behind it is unknown.'
+      : 'Both sides are under the 100-order cap, so this is the whole book.');
+}
+function bookDepth(){return Number($('depth').value)||12}
+function priceLevels(side){
+  var seen={},n=0;
+  for(var i=0;i<side.length;i++){
+    var k=side[i].price.toFixed(6);
+    if(!seen[k]){seen[k]=1;n++}
+  }
+  return n;
 }
 function cell(label,value,k){
   return '<div><small>'+esc(label)+'</small><b class="'+(k||'')+'">'+esc(value)+'</b></div>';
@@ -773,11 +812,15 @@ function boot(){
   $('pctl').value=getPref('pctl','2');
   $('win').value=getPref('win','48');
   $('every').value=getPref('every','300');
+  $('depth').value=getPref('depth','12');
 
   $('sync').addEventListener('click',function(){syncAll()});
   $('pctl').addEventListener('change',function(){setPref('pctl',this.value);recompute()});
   $('win').addEventListener('change',function(){setPref('win',this.value);recompute()});
   $('every').addEventListener('change',arm);
+  $('depth').addEventListener('change',function(){
+    setPref('depth',this.value);renderBook(STATE.sel);
+  });
 
   $('ovbody').addEventListener('click',function(e){
     var tr=e.target.closest('tr[data-code]');
