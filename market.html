@@ -94,6 +94,9 @@ tbody tr.sel{background:rgba(var(--brass-rgb),.15)}
 .ladder > div{background:var(--panel);padding:5px 8px;font-family:var(--mono);font-size:11.5px;
   display:flex;justify-content:space-between;gap:8px}
 .ladder .bar-bg{position:relative}
+.ladder .whale{color:var(--brass);font-weight:600}
+.ladder .age{color:var(--dim);font-size:10px;min-width:32px;text-align:right}
+.ladder .mine{box-shadow:inset 2px 0 0 var(--brass)}
 .ladder .bar-bg i{position:absolute;inset:0 auto 0 0;opacity:.17;pointer-events:none}
 .ask i{background:var(--rust)} .bid i{background:var(--verdigris)}
 .ladder span{position:relative}
@@ -194,6 +197,7 @@ progress{width:130px;height:8px}
       <div class="spread-strip" id="strip"></div>
       <div class="foot" id="livefoot" hidden></div>
       <div class="ladder" id="ladder"></div>
+      <div class="foot" id="restfoot" hidden></div>
       <div class="foot" id="bookfoot">The book is 100 orders a side, which is the API's cap.</div>
     </div>
 
@@ -405,11 +409,17 @@ function bookFor(code){
 function cell(label,value,k){
   return '<div><small>'+esc(label)+'</small><b class="'+(k||'')+'">'+esc(value)+'</b></div>';
 }
-function side(o,depth,k){
+function side(o,depth,k,whales){
   if(!o)return '<div class="'+k+'"><span>—</span><span></span></div>';
   var w=Math.max(2,Math.round(o.quantity/depth*100));
-  return '<div class="'+k+' bar-bg"><i style="width:'+w+'%"></i>'+
-    '<span>'+px(o.price)+'</span><span>'+units(o.quantity)+'</span></div>';
+  var mine=whales&&o.user&&whales[o.user];
+  var rested=restedFor(o),who=USERS&&o.user&&USERS[o.user];
+  return '<div class="'+k+' bar-bg'+(mine?' mine':'')+'"'+
+    (o.user?(' title="'+esc((who||o.user)+(rested==null?'':' resting '+age(rested)))+'"'):'')+
+    '><i style="width:'+w+'%"></i>'+
+    '<span'+(mine?' class="whale"':'')+'>'+(mine?'\u25c6 ':'')+px(o.price)+'</span>'+
+    '<span class="age">'+esc(age(rested))+'</span>'+
+    '<span>'+units(o.quantity)+'</span></div>';
 }
 
 function renderBook(code){
@@ -438,10 +448,14 @@ function renderBook(code){
   var depth=Math.max(
     b.bids.slice(0,shown).reduce(function(m,o){return Math.max(m,o.quantity)},0),
     b.asks.slice(0,shown).reduce(function(m,o){return Math.max(m,o.quantity)},0),1);
-  var html='<div class="ladder-head"><div><span>Bid</span><span>Size</span></div>'+
-           '<div><span>Ask</span><span>Size</span></div></div>';
-  for(var i=0;i<shown;i++)html+=side(b.bids[i],depth,'bid')+side(b.asks[i],depth,'ask');
+  var whales=b.live?whaleSet():null;
+  var html='<div class="ladder-head">'+
+    '<div><span>Bid</span><span>Rested</span><span>Size</span></div>'+
+    '<div><span>Ask</span><span>Rested</span><span>Size</span></div></div>';
+  for(var i=0;i<shown;i++)
+    html+=side(b.bids[i],depth,'bid',whales)+side(b.asks[i],depth,'ask',whales);
   lad.innerHTML=html;
+  renderResting(b,whales);
   var bl=priceLevels(b.bids),al=priceLevels(b.asks);
   $('bookfoot').textContent=
     'Bids '+units(bq)+' over '+b.bids.length+' orders at '+bl+(bl===1?' price':' prices')+
@@ -456,6 +470,46 @@ function renderBook(code){
    Straight from the published windows. They nest rather than partition, so the hour is
    inside the six and the six inside the day; the rate column is what makes them
    comparable. */
+/* A resting order is evidence a filled one is not: it says who is standing there now and
+   how long they have stood. A wall that has sat a day without clearing is not the same
+   thing as one placed a minute ago, and only one of them is demand. */
+function renderResting(b,whales){
+  var el=$('restfoot');
+  if(!b.live||!whales){el.hidden=true;return}
+  function look(side){
+    var qty=0,whaleQty=0,whaleOrders=0,top=null;
+    for(var i=0;i<side.length;i++){
+      var o=side[i];
+      qty+=o.quantity;
+      if(o.user&&whales[o.user]){whaleQty+=o.quantity;whaleOrders++}
+      if(!top||o.quantity>top.quantity)top=o;
+    }
+    return {qty:qty,whaleQty:whaleQty,whaleOrders:whaleOrders,orders:side.length,top:top};
+  }
+  /* A share rounded to a whole percent reads as none when a whale holds a small order, so
+     the count is said as well: one order from the top slice is a different fact from zero,
+     however little size it carries. */
+  function share(x){
+    if(!x.whaleOrders)return 'none from the top '+STATE.pctl+'%';
+    var pc=x.whaleQty/x.qty*100;
+    return x.whaleOrders+(x.whaleOrders===1?' order':' orders')+' from the top '+STATE.pctl+
+      '%, holding '+(pc<1?pc.toFixed(2):Math.round(pc))+'%';
+  }
+  function line(label,x){
+    if(!x.qty||!x.top)return label+' empty';
+    var t=x.top,tr=restedFor(t),who=(USERS&&t.user&&USERS[t.user])||null;
+    var mine=t.user&&whales[t.user];
+    return label+' '+units(x.qty)+' over '+x.orders+' orders, '+share(x)+
+      '; largest is '+units(t.quantity)+' at '+px(t.price)+
+      (who?(' from '+who):'')+(mine?' (top slice)':'')+
+      (tr==null?'':(', resting '+age(tr)));
+  }
+  var bid=look(b.bids),ask=look(b.asks);
+  el.hidden=false;
+  el.innerHTML='<b>Who is standing there</b> '+esc(line('Bids',bid))+'. '+esc(line('Asks',ask))+
+    '. Resting time is how long an order has sat unfilled, which a cleared trade cannot tell you.';
+}
+
 function renderVelocity(code){
   var g=flowGood(code);
   if(!g){$('velbody').innerHTML='<tr><td colspan="5" class="empty">No data.</td></tr>';return}
@@ -608,6 +662,27 @@ async function goLive(){
     $('liveage').hidden=true;
   }
   $('live').disabled=false;busy=false;
+}
+
+function whaleSet(){
+  var r=FLOW&&FLOW.whale_roster&&FLOW.whale_roster.ranked;
+  if(!r)return null;
+  var acc=(FLOW.whale_accounts||{})[String(STATE.pctl)]||{};
+  var take=Math.min(r.length,acc.whales||r.length);
+  var out={};
+  for(var i=0;i<take;i++)out[r[i][0]]=true;
+  return out;
+}
+function restedFor(order){
+  var at=order&&(order.offerAt||order.offer_at);
+  var t=at?Date.parse(at):NaN;
+  return Number.isFinite(t)?Math.max(0,(now()-t)/3600000):null;
+}
+function age(hours){
+  if(hours==null)return '';
+  if(hours<1)return Math.round(hours*60)+'m';
+  if(hours<48)return hours.toFixed(0)+'h';
+  return (hours/24).toFixed(0)+'d';
 }
 
 function livePrice(code){
