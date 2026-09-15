@@ -140,6 +140,8 @@ progress{width:130px;height:8px}
     </select>
   </label>
   <button id="sync" class="primary">Refresh</button>
+  <button id="live" title="Ask the game for prices right now, to cover the gap since the collector last ran">Live prices</button>
+  <span id="liveage" class="pill" hidden>live</span>
   <span id="state" class="pill">idle</span>
   <progress id="prog" value="0" max="1" hidden></progress>
 </div>
@@ -190,6 +192,7 @@ progress{width:130px;height:8px}
         </span>
       </div>
       <div class="spread-strip" id="strip"></div>
+      <div class="foot" id="livefoot" hidden></div>
       <div class="ladder" id="ladder"></div>
       <div class="foot" id="bookfoot">The book is 100 orders a side, which is the API's cap.</div>
     </div>
@@ -386,6 +389,14 @@ function priceLevels(side){
   return n;
 }
 function bookFor(code){
+  if(LIVE.book&&LIVE.bookCode===code){
+    /* The collector sorts before it publishes; the game does not promise to, so the live
+       book is sorted here rather than trusted to arrive touch-first. */
+    var raw=LIVE.book;
+    var bids=(raw.buyOrders||[]).slice().sort(function(a,b){return b.price-a.price});
+    var asks=(raw.sellOrders||[]).slice().sort(function(a,b){return a.price-b.price});
+    return {bids:bids,asks:asks,at:new Date(LIVE.at).toISOString(),live:true};
+  }
   var row=BOOKS&&BOOKS.commodities&&BOOKS.commodities[code];
   var b=(row&&row.order_book)||null;
   if(!b)return null;
@@ -435,6 +446,7 @@ function renderBook(code){
   $('bookfoot').textContent=
     'Bids '+units(bq)+' over '+b.bids.length+' orders at '+bl+(bl===1?' price':' prices')+
     ' · asks '+units(aq)+' over '+b.asks.length+' orders at '+al+(al===1?' price':' prices')+'. '+
+    (b.live?'Live from the game. ':'')+
     ((b.bids.length>=100||b.asks.length>=100)
       ? 'A side showing 100 orders is at the game’s cap, so the queue behind it is unknown.'
       : 'Both sides are under the 100-order cap, so this is the whole book.');
@@ -544,9 +556,75 @@ function renderWho(code){
 function renderDetail(){
   var code=STATE.sel;
   if(!flowGood(code))code=STATE.sel=CODES[0];
-  renderBook(code);renderVelocity(code);renderWho(code);
+  renderBook(code);renderLive(code);renderVelocity(code);renderWho(code);
 }
 function renderAll(){renderOverview();renderDetail()}
+
+/* ---- The gap since the collector last ran -------------------------------------------
+   The collector republishes every quarter of an hour, so everything above is up to that
+   old. itemTrading.getPrices answers an unauthenticated request with all twenty-three
+   prices at once, which is cheap enough to be a button rather than a poll.
+
+   The trade feed is not so generous: transaction.getPaginatedTransactions wants a key, so
+   volume, velocity and whales stay as the collector last measured them. Only the price
+   moves here, and the page says which numbers are which. */
+var GAME='https://api2.warera.io/trpc/';
+var LIVE={prices:null,at:0,book:null,bookCode:null};
+
+async function askGame(proc,input){
+  var url=GAME+proc+(input?('?input='+encodeURIComponent(JSON.stringify(input))):'');
+  var res=await fetch(url,{headers:{Accept:'application/json'}});
+  if(!res.ok)throw new Error(proc+': HTTP '+res.status);
+  var body=await res.json();
+  var data=body&&body.result&&body.result.data;
+  if(data&&typeof data==='object'&&'json' in data&&
+     Object.keys(data).every(function(k){return k==='json'||k==='meta'}))data=data.json;
+  if(data===undefined)throw new Error(proc+': no result.data');
+  return data;
+}
+
+async function goLive(){
+  if(busy)return;
+  busy=true;$('live').disabled=true;
+  try{
+    var prices=await askGame('itemTrading.getPrices',null);
+    var clean={};
+    for(var code in prices){
+      var v=Number(prices[code]&&prices[code].price!=null?prices[code].price:prices[code]);
+      if(Number.isFinite(v)&&v>0)clean[code]=v;
+    }
+    LIVE.prices=clean;LIVE.at=now();
+    /* The book is a separate call per good, so only the open one is asked for. It may well
+       want a key; if it does, the prices still landed and the page says so. */
+    try{
+      LIVE.book=await askGame('tradingOrder.getTopOrders',{itemCode:STATE.sel,limit:100});
+      LIVE.bookCode=STATE.sel;
+    }catch(e){LIVE.book=null;LIVE.bookCode=null}
+    clearError();
+    $('liveage').hidden=false;
+    renderAll();
+  }catch(e){
+    showError('The game would not answer this page directly:',e);
+    $('liveage').hidden=true;
+  }
+  $('live').disabled=false;busy=false;
+}
+
+function livePrice(code){
+  return (LIVE.prices&&Number.isFinite(LIVE.prices[code]))?LIVE.prices[code]:null;
+}
+function renderLive(code){
+  var el=$('livefoot'),live=livePrice(code),g=flowGood(code);
+  if(live==null||!g||!g.price){el.hidden=true;return}
+  var drift=(live/g.price-1)*100;
+  var mins=Math.round((now()-Date.parse(FLOW.generated_at))/60000);
+  el.hidden=false;
+  el.innerHTML='Live '+px(live)+' against '+px(g.price)+' when the collector ran '+mins+
+    ' min ago: <b class="'+cls(drift)+'">'+(drift>0?'+':'')+drift.toFixed(2)+'%</b>. '+
+    'Everything else on this page is that '+mins+'-minute-old measurement'+
+    (LIVE.bookCode===code?' except the book, which is live too':'')+'.';
+  $('liveage').textContent='live \u00b7 '+Math.max(0,Math.round((now()-LIVE.at)/1000))+'s';
+}
 
 /* ---- Loading ----------------------------------------------------------------------- */
 var busy=false;
@@ -618,6 +696,7 @@ function boot(){
   STATE.winH=Number($('win').value)||48;
 
   $('sync').addEventListener('click',function(){refresh()});
+  $('live').addEventListener('click',function(){goLive()});
   $('pctl').addEventListener('change',function(){
     setPref('pctl',this.value);STATE.pctl=Number(this.value)||2;renderAll();
   });
