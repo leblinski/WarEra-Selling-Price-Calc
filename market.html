@@ -1,0 +1,826 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WarEra Market Floor</title>
+<style>
+:root{
+  --ground:#0E1A20; --panel:#15252D; --panel-2:#1C3039; --line:#2A4553;
+  --ink:#EAF0F2; --dim:#8FA8B3; --brass:#C89B3C; --brass-rgb:200,155,60;
+  --verdigris:#6BB8A8; --rust:#C2703F;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,"DejaVu Sans Mono",monospace;
+  --sans:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;padding:14px;background:var(--ground);color:var(--ink);
+  font-family:var(--sans);font-size:13px;line-height:1.45
+}
+h1{
+  margin:0;font-family:var(--sans);font-size:15px;font-weight:700;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--brass)
+}
+.sub{color:var(--dim);font-size:11px;letter-spacing:.04em}
+.bar{
+  display:flex;flex-wrap:wrap;gap:10px;align-items:center;
+  padding:10px 12px;margin-bottom:10px;
+  border:1px solid var(--line);border-radius:9px;background:var(--panel)
+}
+.bar .grow{flex:1 1 auto;min-width:120px}
+label.ctl{display:inline-flex;align-items:center;gap:5px;color:var(--dim);font-size:11px;
+  letter-spacing:.09em;text-transform:uppercase}
+select,button,input{
+  font-family:var(--sans);font-size:12px;color:var(--ink);
+  background:var(--panel-2);border:1px solid var(--line);border-radius:6px;
+  padding:5px 8px;min-height:30px
+}
+button{cursor:pointer;color:var(--brass);border-color:rgba(var(--brass-rgb),.45);font-weight:600}
+button:hover:not(:disabled){background:rgba(var(--brass-rgb),.14)}
+button:disabled{opacity:.5;cursor:default}
+button.primary{background:rgba(var(--brass-rgb),.16)}
+.pill{
+  display:inline-block;padding:2px 8px;border-radius:999px;font-family:var(--mono);
+  font-size:11px;border:1px solid var(--line);color:var(--dim)
+}
+.pill.live{border-color:var(--verdigris);color:var(--verdigris)}
+.pill.warn{border-color:var(--rust);color:var(--rust)}
+.grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr);gap:10px;align-items:start}
+@media(max-width:1000px){.grid{grid-template-columns:minmax(0,1fr)}}
+.card{border:1px solid var(--line);border-radius:9px;background:var(--panel);overflow:hidden}
+.card-head{
+  display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+  padding:8px 11px;border-bottom:1px solid var(--line);background:var(--panel-2)
+}
+.card-head b{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--brass);font-weight:700}
+.card-head span{font-size:10.5px;color:var(--dim)}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:12px}
+th,td{padding:5px 8px;text-align:right;white-space:nowrap;border-bottom:1px solid rgba(42,69,83,.55)}
+th{
+  position:sticky;top:0;z-index:2;background:var(--panel-2);color:var(--dim);
+  font-family:var(--sans);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  font-weight:700;cursor:pointer;user-select:none
+}
+th.up::after{content:" \25B2";color:var(--brass)}
+th.down::after{content:" \25BC";color:var(--brass)}
+td.good,th.good{text-align:left}
+tbody tr{cursor:pointer}
+tbody tr:hover{background:rgba(var(--brass-rgb),.08)}
+tbody tr.sel{background:rgba(var(--brass-rgb),.15)}
+.num{font-variant-numeric:tabular-nums}
+.up{color:var(--verdigris)} .down{color:var(--rust)} .flat{color:var(--dim)}
+.heat{
+  display:inline-block;min-width:44px;padding:1px 5px;border-radius:4px;
+  font-variant-numeric:tabular-nums;text-align:right
+}
+.empty{padding:18px 12px;color:var(--dim);text-align:center;font-size:12px}
+.err{
+  margin-bottom:10px;padding:9px 11px;border:1px solid var(--rust);border-radius:8px;
+  background:rgba(194,112,63,.12);color:var(--ink);font-size:12px
+}
+.err b{color:var(--rust)}
+.err pre{margin:6px 0 0;padding:6px;overflow-x:auto;background:var(--ground);
+  border-radius:5px;font-family:var(--mono);font-size:11px;color:var(--dim)}
+.ladder{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line)}
+.ladder > div{background:var(--panel);padding:5px 8px;font-family:var(--mono);font-size:11.5px;
+  display:flex;justify-content:space-between;gap:8px}
+.ladder .bar-bg{position:relative}
+.ladder .bar-bg i{position:absolute;inset:0 auto 0 0;opacity:.17;pointer-events:none}
+.ask i{background:var(--rust)} .bid i{background:var(--verdigris)}
+.ladder span{position:relative}
+.spread-strip{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(78px,1fr));gap:1px;background:var(--line)
+}
+.spread-strip div{background:var(--panel);padding:6px 8px}
+.spread-strip small{display:block;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.spread-strip b{font-family:var(--mono);font-size:14px;font-weight:600}
+.rows{max-height:260px;overflow-y:auto}
+.foot{padding:8px 11px;color:var(--dim);font-size:10.5px;border-top:1px solid var(--line)}
+.foot code{font-family:var(--mono);color:var(--brass)}
+.legend{display:flex;flex-wrap:wrap;gap:12px;padding:8px 11px;color:var(--dim);font-size:10.5px}
+.legend b{color:var(--ink);font-weight:600}
+progress{width:130px;height:8px}
+</style>
+</head>
+<body>
+<div class="bar">
+  <div class="grow">
+    <h1>Market Floor</h1>
+    <div class="sub">Who is trading, how fast it clears, and where the spread is worth taking.</div>
+  </div>
+  <label class="ctl">Whales
+    <select id="pctl">
+      <option value="1">top 1%</option>
+      <option value="2" selected>top 2%</option>
+      <option value="5">top 5%</option>
+      <option value="10">top 10%</option>
+    </select>
+  </label>
+  <label class="ctl">Window
+    <select id="win">
+      <option value="24">24 h</option>
+      <option value="48" selected>48 h</option>
+    </select>
+  </label>
+  <label class="ctl">Auto
+    <select id="every">
+      <option value="0">off</option>
+      <option value="120">2 min</option>
+      <option value="300" selected>5 min</option>
+      <option value="900">15 min</option>
+    </select>
+  </label>
+  <button id="sync" class="primary">Sync now</button>
+  <span id="state" class="pill">idle</span>
+  <progress id="prog" value="0" max="1" hidden></progress>
+</div>
+
+<div id="errbox" hidden></div>
+
+<div class="grid">
+  <div class="card">
+    <div class="card-head">
+      <b>Goods</b>
+      <span id="ovnote">no data yet</span>
+    </div>
+    <div class="scroll">
+      <table id="ovtable">
+        <thead><tr>
+          <th class="good" data-k="name">Good</th>
+          <th data-k="gold" title="Gold traded in the window">Gold</th>
+          <th data-k="fast" title="Units per hour over the last hour">u/h 1h</th>
+          <th data-k="slow" title="Units per hour across the history actually held for this good">u/h avg</th>
+          <th data-k="mom" title="Recent rate against the window average">Mom</th>
+          <th data-k="spread" title="Ask over bid">Spr%</th>
+          <th data-k="whale" title="Share of gold with a whale on either side">Whale</th>
+          <th data-k="net" title="Whale buying minus whale selling">Net</th>
+        </tr></thead>
+        <tbody id="ovbody"><tr><td colspan="8" class="empty">Press Sync to pull the market.</td></tr></tbody>
+      </table>
+    </div>
+    <div class="legend">
+      <span><b>Mom</b> above 1 means it is clearing faster than its own average, measured over the history held rather than the window asked for.</span>
+      <span><b>Whale</b> is the share of gold with a top-percentile account on either side.</span>
+      <span><b>Net</b> is whale buying minus whale selling: positive is accumulation.</span>
+    </div>
+  </div>
+
+  <div>
+    <div class="card" style="margin-bottom:10px">
+      <div class="card-head"><b id="dtitle">Pick a good</b><span id="dsub"></span></div>
+      <div class="spread-strip" id="strip"></div>
+      <div class="ladder" id="ladder"></div>
+      <div class="foot" id="bookfoot">The book is 100 orders a side, which is the API's cap.</div>
+    </div>
+
+    <div class="card" style="margin-bottom:10px">
+      <div class="card-head"><b>Clearing rate</b><span id="velsub"></span></div>
+      <div class="scroll"><table id="veltable">
+        <thead><tr><th class="good">Window</th><th>Units</th><th>Gold</th><th>u/h</th><th>vs avg</th></tr></thead>
+        <tbody id="velbody"></tbody>
+      </table></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><b>Who is trading it</b><span id="whosub"></span></div>
+      <div class="scroll rows"><table id="whotable">
+        <thead><tr><th class="good">Account</th><th>Bought</th><th>Sold</th><th>Net</th></tr></thead>
+        <tbody id="whobody"></tbody>
+      </table></div>
+      <div class="foot">Names resolve in the background and are cached for a day.</div>
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:10px">
+  <div class="card-head"><b>How this is measured</b><span>read once, then ignore</span></div>
+  <div class="foot">
+    Trades come from <code>transaction.getPaginatedTransactions</code> filtered to
+    <code>transactionType: "trading"</code>, which is how goods actually fill. Every row names both
+    sides, so a whale is measured rather than guessed: accounts are ranked by gold moved across all
+    goods in the window, and only those with at least three trades or two different goods qualify,
+    so the one-off counterparty of a large fill is not mistaken for one.
+    Books come from <code>tradingOrder.getTopOrders</code>, capped at 100 orders a side by the API,
+    so a deeper queue than that reads as exactly 100. Momentum compares the last hour against the
+    window's own average, so it says "unusual for this good" rather than "busy".
+    Everything is held in your browser; nothing is uploaded.
+  </div>
+</div>
+<script>
+(function(){
+'use strict';
+
+/* ---- What the market is made of --------------------------------------------------- */
+var GOODS={ammo:'Ammo',bread:'Bread',case1:'Case I',case2:'Case II',coca:'Coca',
+  cocain:'Cocain',concrete:'Concrete',cookedFish:'Cooked Fish',fish:'Fish',grain:'Grain',
+  heavyAmmo:'Heavy Ammo',iron:'Iron',lead:'Lead',lightAmmo:'Light Ammo',limestone:'Limestone',
+  livestock:'Livestock',oil:'Oil',paper:'Paper',petroleum:'Petroleum',scraps:'Scrap',
+  steak:'Steak',steel:'Steel',wood:'Wood'};
+var CODES=Object.keys(GOODS);
+
+var API='https://api2.warera.io/trpc/';
+var GAP=650;               /* the community's stated etiquette is 600ms; sit just outside it */
+var PAGE=100;              /* the server's own page size */
+var MAX_PAGES=8;           /* a cold good needs several; a warm one stops on the first */
+var KEEP_H=48;             /* nothing older than this is worth holding */
+var NAME_TTL=24*3600*1000;
+var NAMES_PER_SYNC=12;     /* names are a nicety, so they trickle rather than block a cycle */
+
+/* ---- Small change ------------------------------------------------------------------ */
+function $(id){return document.getElementById(id)}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function num(v){var n=Number(v);return Number.isFinite(n)?n:null}
+function gold(n){
+  if(n==null||!Number.isFinite(n))return '—';
+  var a=Math.abs(n);
+  if(a>=1e6)return (n/1e6).toFixed(2)+'M';
+  if(a>=1e4)return Math.round(n/1e3)+'k';
+  if(a>=1000)return (n/1e3).toFixed(1)+'k';
+  return a>=10?n.toFixed(0):n.toFixed(2);
+}
+function units(n){
+  if(n==null||!Number.isFinite(n))return '—';
+  var a=Math.abs(n);
+  if(a>=1e6)return (n/1e6).toFixed(2)+'M';
+  if(a>=1e4)return Math.round(n/1e3)+'k';
+  if(a>=1000)return (n/1e3).toFixed(1)+'k';
+  return Math.round(n).toString();
+}
+function px(n,d){return n==null||!Number.isFinite(n)?'—':n.toFixed(d==null?3:d)}
+function sleep(ms){return new Promise(function(r){setTimeout(r,ms)})}
+function now(){return Date.now()}
+
+/* ---- Settings ---------------------------------------------------------------------- */
+function getPref(k,d){try{var v=localStorage.getItem('floor:'+k);return v==null?d:v}catch(e){return d}}
+function setPref(k,v){try{localStorage.setItem('floor:'+k,String(v))}catch(e){}}
+
+/* ---- The error box tells you what actually came back ------------------------------- */
+var lastPayload=null;
+function showError(what,err){
+  var box=$('errbox');
+  box.hidden=false;
+  box.className='err';
+  box.innerHTML='<b>'+esc(what)+'</b> '+esc(err&&err.message?err.message:String(err))+
+    (lastPayload?'<pre>'+esc(JSON.stringify(lastPayload).slice(0,600))+'</pre>':'');
+}
+function clearError(){var b=$('errbox');b.hidden=true;b.innerHTML=''}
+
+/* ---- Talking to the game ----------------------------------------------------------- */
+var lastCall=0;
+async function trpc(proc,input){
+  var wait=GAP-(now()-lastCall);
+  if(wait>0)await sleep(wait);
+  lastCall=now();
+  var url=API+proc+'?input='+encodeURIComponent(JSON.stringify(input||{}));
+  var res=await fetch(url,{headers:{Accept:'application/json'}});
+  if(!res.ok)throw new Error(proc+': HTTP '+res.status);
+  var body=await res.json();
+  lastPayload=body;
+  return trpcData(body,proc);
+}
+/* The envelope has two shapes in the wild and both are answered the same way. */
+function trpcData(body,proc){
+  if(Array.isArray(body)&&body.length===1)body=body[0];
+  if(!body||typeof body!=='object')throw new Error(proc+': response is not an object');
+  if(body.error){
+    var e=body.error.json||body.error;
+    var st=e&&e.data&&e.data.httpStatus;
+    throw new Error(proc+': rejected'+(st?' (HTTP '+st+')':''));
+  }
+  var data=body.result&&body.result.data;
+  if(data===undefined)throw new Error(proc+': no result.data');
+  if(data&&typeof data==='object'&&'json' in data){
+    var keys=Object.keys(data);
+    if(keys.every(function(k){return k==='json'||k==='meta'}))data=data.json;
+  }
+  return data;
+}
+
+/* Field names are taken defensively: the same row has been seen with and without each
+   alias, and a rename upstream should cost a wrong column rather than a blank page. */
+function normTx(raw,code){
+  if(!raw||typeof raw!=='object')return null;
+  var id=raw._id||raw.id;
+  var money=num(raw.money);
+  var qty=num(raw.quantity!=null?raw.quantity:1);
+  var when=Date.parse(raw.createdAt||raw.soldAt||raw.date);
+  if(!id||money==null||qty==null||qty<=0||money<=0||!Number.isFinite(when))return null;
+  return {id:String(id),code:raw.itemCode||code,t:when,
+    price:money/qty,qty:qty,gold:money,
+    s:raw.sellerId||raw.seller||null,b:raw.buyerId||raw.buyer||null};
+}
+function normSide(rows){
+  if(!Array.isArray(rows))return [];
+  var out=[];
+  for(var i=0;i<rows.length;i++){
+    var p=num(rows[i]&&rows[i].price),q=num(rows[i]&&rows[i].quantity);
+    if(p==null||q==null||p<=0||q<=0)continue;
+    out.push({price:p,qty:q});
+  }
+  return out;
+}
+function normBook(raw){
+  if(!raw||typeof raw!=='object')return {bids:[],asks:[]};
+  var bids=normSide(raw.buyOrders||raw.bids),asks=normSide(raw.sellOrders||raw.asks);
+  bids.sort(function(a,b){return b.price-a.price});
+  asks.sort(function(a,b){return a.price-b.price});
+  return {bids:bids,asks:asks};
+}
+
+/* ---- Where the window lives -------------------------------------------------------
+   Forty-eight hours of every good is tens of thousands of rows, which is past what
+   localStorage will hold, so trades go to IndexedDB and only the small things - the
+   sync heads and the settings - stay in localStorage. */
+var DB=null;
+function openDB(){
+  return new Promise(function(resolve,reject){
+    var req=indexedDB.open('wareraFloor',1);
+    req.onupgradeneeded=function(ev){
+      var db=ev.target.result;
+      if(!db.objectStoreNames.contains('trades')){
+        var s=db.createObjectStore('trades',{keyPath:'id'});
+        s.createIndex('code','code',{unique:false});
+        s.createIndex('t','t',{unique:false});
+      }
+      if(!db.objectStoreNames.contains('users'))db.createObjectStore('users',{keyPath:'id'});
+    };
+    req.onsuccess=function(){resolve(req.result)};
+    req.onerror=function(){reject(req.error||new Error('IndexedDB refused to open'))};
+  });
+}
+function tx(store,mode){return DB.transaction(store,mode).objectStore(store)}
+function done(t){return new Promise(function(res,rej){
+  t.oncomplete=function(){res()};t.onerror=function(){rej(t.error)};t.onabort=function(){rej(t.error)};
+})}
+function putAll(store,rows){
+  if(!rows.length)return Promise.resolve();
+  var t=DB.transaction(store,'readwrite'),s=t.objectStore(store);
+  for(var i=0;i<rows.length;i++)s.put(rows[i]);
+  return done(t);
+}
+function allTrades(since){
+  return new Promise(function(resolve,reject){
+    var out=[],s=tx('trades','readonly').index('t');
+    var req=s.openCursor(IDBKeyRange.lowerBound(since));
+    req.onsuccess=function(){
+      var c=req.result;
+      if(!c){resolve(out);return}
+      out.push(c.value);c.continue();
+    };
+    req.onerror=function(){reject(req.error)};
+  });
+}
+function pruneTrades(before){
+  return new Promise(function(resolve){
+    var t=DB.transaction('trades','readwrite'),s=t.objectStore('trades').index('t');
+    var req=s.openCursor(IDBKeyRange.upperBound(before));
+    req.onsuccess=function(){
+      var c=req.result;
+      if(!c){resolve();return}
+      c.delete();c.continue();
+    };
+    req.onerror=function(){resolve()};
+  });
+}
+function loadUsers(){
+  return new Promise(function(resolve){
+    var out={},req=tx('users','readonly').openCursor();
+    req.onsuccess=function(){
+      var c=req.result;
+      if(!c){resolve(out);return}
+      out[c.value.id]=c.value;c.continue();
+    };
+    req.onerror=function(){resolve(out)};
+  });
+}
+
+/* ---- Pulling the window forward ---------------------------------------------------
+   Incremental by design: each good remembers the newest trade it has, and paging stops
+   as soon as it reaches that row again. A cold good walks back to the window edge; a
+   warm one reads a single page. */
+var USERS={};
+async function syncTrades(code,cutoff){
+  var head=Number(getPref('head:'+code,0))||0;
+  var cursor=null,fetched=0,fresh=[],stop=null;
+  for(var page=0;page<MAX_PAGES;page++){
+    var input={itemCode:code,transactionType:'trading',limit:PAGE};
+    if(cursor)input.cursor=cursor;
+    var data=await trpc('transaction.getPaginatedTransactions',input);
+    var items=data&&Array.isArray(data.items)?data.items:null;
+    if(!items)throw new Error('transaction.getPaginatedTransactions: no items array');
+    cursor=data.nextCursor||null;
+    for(var i=0;i<items.length;i++){
+      var row=normTx(items[i],code);
+      if(!row)continue;
+      fetched++;
+      if(row.t<=cutoff){stop=stop||'window';continue}
+      if(head&&row.t<=head){stop=stop||'known';continue}
+      fresh.push(row);
+    }
+    if(stop||!cursor||!items.length)break;
+  }
+  if(fresh.length){
+    await putAll('trades',fresh);
+    var newest=fresh.reduce(function(m,r){return r.t>m?r.t:m},head);
+    setPref('head:'+code,newest);
+  }
+  return {added:fresh.length,seen:fetched,stop:stop||'pages'};
+}
+
+var BOOKS={};
+async function syncBook(code){
+  var raw=await trpc('tradingOrder.getTopOrders',{itemCode:code,limit:100});
+  BOOKS[code]=normBook(raw);
+  BOOKS[code].at=now();
+}
+
+async function resolveNames(ids){
+  var want=[],seen={};
+  for(var i=0;i<ids.length&&want.length<NAMES_PER_SYNC;i++){
+    var id=ids[i];
+    if(!id||seen[id])continue;
+    seen[id]=1;
+    var u=USERS[id];
+    if(u&&u.name&&now()-u.at<NAME_TTL)continue;
+    want.push(id);
+  }
+  var got=[];
+  for(var j=0;j<want.length;j++){
+    try{
+      var d=await trpc('user.getUserLite',{userId:want[j]});
+      var name=d&&(d.username||d.name);
+      if(name){var rec={id:want[j],name:String(name),at:now()};USERS[want[j]]=rec;got.push(rec)}
+    }catch(e){/* a name is never worth failing a cycle over */}
+  }
+  if(got.length)await putAll('users',got);
+  return got.length;
+}
+
+/* ---- Reading the window -----------------------------------------------------------
+   One pass builds everything: a whale is an account ranked by the gold it moved across
+   all goods, not within one, because that is what makes it a whale rather than a
+   regular of a thin market. */
+var STATE={rows:[],stats:[],whales:{},cut:0,winH:48,pctl:2,sel:getPref('sel','scraps')};
+
+function qualifies(a){return a.n>=3||a.goods.size>=2}
+
+function rankWhales(rows,pctl){
+  var by={};
+  for(var i=0;i<rows.length;i++){
+    var r=rows[i];
+    for(var k=0;k<2;k++){
+      var id=k?r.b:r.s;
+      if(!id)continue;
+      var a=by[id]||(by[id]={id:id,gold:0,n:0,goods:new Set()});
+      a.gold+=r.gold;a.n++;a.goods.add(r.code);
+    }
+  }
+  var ranked=Object.keys(by).map(function(k){return by[k]}).filter(qualifies);
+  ranked.sort(function(x,y){return y.gold-x.gold});
+  var take=Math.max(1,Math.round(ranked.length*pctl/100));
+  var set={};
+  for(var j=0;j<take&&j<ranked.length;j++)set[ranked[j].id]=true;
+  return {set:set,accounts:by,ranked:ranked,take:take,
+          cutoff:ranked.length?(ranked[Math.min(take,ranked.length)-1].gold):0};
+}
+
+function statsFor(rows,whales,winH,ref){
+  var byCode={};
+  for(var i=0;i<rows.length;i++){
+    var r=rows[i];
+    (byCode[r.code]||(byCode[r.code]=[])).push(r);
+  }
+  var out=[];
+  for(var code in GOODS){
+    var list=byCode[code]||[];
+    var hourAgo=ref-3600*1000;
+    var g=0,u=0,fastU=0,wg=0,inflow=0,outflow=0,oldest=ref;
+    for(var j=0;j<list.length;j++){
+      var t=list[j];
+      g+=t.gold;u+=t.qty;
+      if(t.t<oldest)oldest=t.t;
+      if(t.t>=hourAgo)fastU+=t.qty;
+      var wb=whales.set[t.b],ws=whales.set[t.s];
+      if(wb||ws)wg+=t.gold;
+      if(wb)inflow+=t.gold;
+      if(ws)outflow+=t.gold;
+    }
+    /* Against the history actually held, not the window asked for. A good first synced an
+       hour ago has one hour of rows, and dividing those by 48 made its own last hour look
+       forty-eight times normal - every fresh install read as a market on fire. */
+    var spanH=Math.max(1,Math.min(winH,(ref-oldest)/3600000));
+    var slow=u/spanH;
+    var book=BOOKS[code],bid=null,ask=null;
+    if(book&&book.bids.length)bid=book.bids[0].price;
+    if(book&&book.asks.length)ask=book.asks[0].price;
+    out.push({
+      code:code,name:GOODS[code],n:list.length,
+      gold:g,units:u,fast:fastU,slow:slow,span:spanH,
+      mom:slow>0?fastU/slow:null,
+      bid:bid,ask:ask,
+      spread:(bid!=null&&ask!=null&&bid>0)?(ask-bid)/bid*100:null,
+      whale:g>0?wg/g*100:null,net:inflow-outflow
+    });
+  }
+  return out;
+}
+
+function traderTable(code,whales){
+  var by={};
+  for(var i=0;i<STATE.rows.length;i++){
+    var r=STATE.rows[i];
+    if(r.code!==code)continue;
+    if(r.b){var b=by[r.b]||(by[r.b]={id:r.b,bought:0,sold:0});b.bought+=r.gold}
+    if(r.s){var s=by[r.s]||(by[r.s]={id:r.s,bought:0,sold:0});s.sold+=r.gold}
+  }
+  var list=Object.keys(by).map(function(k){
+    var a=by[k];a.net=a.bought-a.sold;a.vol=a.bought+a.sold;a.whale=!!whales.set[a.id];return a;
+  });
+  list.sort(function(x,y){return y.vol-x.vol});
+  return list;
+}
+
+function velocityRows(code,ref,winH){
+  var all=STATE.rows.filter(function(r){return r.code===code});
+  var oldest=ref;
+  for(var z=0;z<all.length;z++)if(all[z].t<oldest)oldest=all[z].t;
+  var spanH=Math.max(1,Math.min(winH,(ref-oldest)/3600000));
+  var wins=[{k:'5 min',h:1/12},{k:'1 hour',h:1},{k:'6 hours',h:6},{k:'24 hours',h:24},
+            {k:'held ('+spanH.toFixed(0)+' h)',h:spanH}];
+  var base=null,out=[];
+  for(var i=0;i<wins.length;i++){
+    var h=Math.min(wins[i].h,spanH);
+    var from=ref-h*3600*1000,u=0,g=0;
+    for(var j=0;j<all.length;j++)if(all[j].t>=from){u+=all[j].qty;g+=all[j].gold}
+    var rate=h>0?u/h:0;
+    if(i===wins.length-1)base=rate;
+    out.push({k:wins[i].k,u:u,g:g,rate:rate});
+  }
+  for(var m=0;m<out.length;m++)out[m].rel=base>0?out[m].rate/base:null;
+  return out;
+}
+
+/* ---- Drawing it -------------------------------------------------------------------- */
+var SORT={k:getPref('sortk','gold'),dir:Number(getPref('sortd',-1))||-1};
+
+function heat(pc){
+  /* Whale share earns colour because it is the column that changes what you do. */
+  if(pc==null)return '';
+  var a=Math.max(0,Math.min(1,(pc-30)/60));
+  return 'background:rgba(194,112,63,'+(a*0.42).toFixed(3)+')';
+}
+function cls(v,good){
+  if(v==null||!Number.isFinite(v))return 'flat';
+  if(Math.abs(v)<1e-9)return 'flat';
+  return (v>0)===(good!==false)?'up':'down';
+}
+
+function renderOverview(){
+  var body=$('ovbody'),rows=STATE.stats.slice();
+  var traded=rows.filter(function(r){return r.n>0}).length;
+  $('ovnote').textContent=STATE.rows.length
+    ? traded+' of '+CODES.length+' trading · '+STATE.rows.length.toLocaleString()+' fills in '+STATE.winH+' h'
+    : 'no data yet';
+  if(!STATE.rows.length){
+    body.innerHTML='<tr><td colspan="8" class="empty">Press Sync to pull the market.</td></tr>';
+    return;
+  }
+  rows.sort(function(a,b){
+    var x=a[SORT.k],y=b[SORT.k];
+    if(SORT.k==='name')return SORT.dir*String(x).localeCompare(String(y));
+    if(x==null)return 1; if(y==null)return -1;
+    return SORT.dir*(x-y);
+  });
+  var html='';
+  for(var i=0;i<rows.length;i++){
+    var r=rows[i],dim=r.n?'':' style="opacity:.42"';
+    html+='<tr data-code="'+esc(r.code)+'"'+(r.code===STATE.sel?' class="sel"':'')+dim+'>'+
+      '<td class="good">'+esc(r.name)+'</td>'+
+      '<td class="num">'+gold(r.gold)+'</td>'+
+      '<td class="num">'+units(r.fast)+'</td>'+
+      '<td class="num">'+units(r.slow)+'</td>'+
+      '<td class="num '+(r.mom==null?'flat':(r.mom>=1.25?'up':r.mom<=0.75?'down':'flat'))+'">'+
+        (r.mom==null?'—':r.mom.toFixed(2)+'x')+'</td>'+
+      '<td class="num">'+(r.spread==null?'—':r.spread.toFixed(2))+'</td>'+
+      '<td class="num"><span class="heat" style="'+heat(r.whale)+'">'+
+        (r.whale==null?'—':Math.round(r.whale)+'%')+'</span></td>'+
+      '<td class="num '+cls(r.net)+'">'+(r.net?(r.net>0?'+':'−')+gold(Math.abs(r.net)):'—')+'</td>'+
+    '</tr>';
+  }
+  body.innerHTML=html;
+  var ths=$('ovtable').querySelectorAll('th');
+  for(var j=0;j<ths.length;j++){
+    ths[j].className=ths[j].dataset.k==='name'?'good':'';
+    if(ths[j].dataset.k===SORT.k)ths[j].className+=(SORT.dir>0?' up':' down');
+  }
+}
+
+function renderBook(code){
+  var b=BOOKS[code],strip=$('strip'),lad=$('ladder');
+  $('dtitle').textContent=GOODS[code]||code;
+  if(!b||(!b.bids.length&&!b.asks.length)){
+    $('dsub').textContent='no book yet';
+    strip.innerHTML='';lad.innerHTML='<div class="empty" style="grid-column:1/-1">No order book loaded.</div>';
+    return;
+  }
+  var bid=b.bids.length?b.bids[0].price:null,ask=b.asks.length?b.asks[0].price:null;
+  var mid=(bid!=null&&ask!=null)?(bid+ask)/2:null;
+  var bq=b.bids.reduce(function(s,o){return s+o.qty},0);
+  var aq=b.asks.reduce(function(s,o){return s+o.qty},0);
+  var imb=(bq+aq)>0?(bq-aq)/(bq+aq)*100:null;
+  $('dsub').textContent=Math.round((now()-(b.at||now()))/1000)+'s ago';
+  strip.innerHTML=
+    cell('Bid',px(bid),'up')+cell('Ask',px(ask),'down')+
+    cell('Spread',(bid!=null&&ask!=null)?px(ask-bid):'—','')+
+    cell('Spread %',(bid!=null&&ask!=null&&bid>0)?((ask-bid)/bid*100).toFixed(2):'—','')+
+    cell('Mid',px(mid),'')+
+    cell('Imbalance',imb==null?'—':(imb>0?'+':'')+Math.round(imb)+'%',imb==null?'':(imb>0?'up':'down'));
+  var depth=Math.max(
+    b.bids.slice(0,12).reduce(function(m,o){return Math.max(m,o.qty)},0),
+    b.asks.slice(0,12).reduce(function(m,o){return Math.max(m,o.qty)},0),1);
+  var html='';
+  for(var i=0;i<12;i++){
+    html+=side(b.bids[i],depth,'bid')+side(b.asks[i],depth,'ask');
+  }
+  lad.innerHTML=html;
+  $('bookfoot').textContent=
+    'Bids '+units(bq)+' over '+b.bids.length+' orders · asks '+units(aq)+' over '+b.asks.length+
+    ' orders. The API returns at most 100 a side, so a fuller queue reads as exactly 100.';
+}
+function cell(label,value,k){
+  return '<div><small>'+esc(label)+'</small><b class="'+(k||'')+'">'+esc(value)+'</b></div>';
+}
+function side(o,depth,k){
+  if(!o)return '<div class="'+k+'"><span class="dim">—</span><span></span></div>';
+  var w=Math.max(2,Math.round(o.qty/depth*100));
+  return '<div class="'+k+' bar-bg"><i style="width:'+w+'%"></i>'+
+    '<span>'+px(o.price)+'</span><span>'+units(o.qty)+'</span></div>';
+}
+
+function renderVelocity(code){
+  var rows=velocityRows(code,STATE.ref,STATE.winH),html='';
+  for(var i=0;i<rows.length;i++){
+    var r=rows[i];
+    html+='<tr><td class="good">'+esc(r.k)+'</td>'+
+      '<td class="num">'+units(r.u)+'</td>'+
+      '<td class="num">'+gold(r.g)+'</td>'+
+      '<td class="num">'+units(r.rate)+'</td>'+
+      '<td class="num '+(r.rel==null?'flat':(r.rel>=1.25?'up':r.rel<=0.75?'down':'flat'))+'">'+
+        (r.rel==null?'—':r.rel.toFixed(2)+'x')+'</td></tr>';
+  }
+  $('velbody').innerHTML=html||'<tr><td colspan="5" class="empty">No fills in the window.</td></tr>';
+  var s=STATE.stats.filter(function(x){return x.code===code})[0];
+  $('velsub').textContent=s&&s.n?s.n.toLocaleString()+' fills':'quiet';
+}
+
+function renderWho(code){
+  var list=traderTable(code,STATE.whales).slice(0,25),html='';
+  for(var i=0;i<list.length;i++){
+    var a=list[i],u=USERS[a.id];
+    var label=u&&u.name?u.name:a.id.slice(0,8)+'…';
+    html+='<tr><td class="good">'+(a.whale?'<span style="color:var(--brass)">◆ </span>':'')+
+      esc(label)+'</td>'+
+      '<td class="num">'+gold(a.bought)+'</td>'+
+      '<td class="num">'+gold(a.sold)+'</td>'+
+      '<td class="num '+cls(a.net)+'">'+(a.net?(a.net>0?'+':'−')+gold(Math.abs(a.net)):'0')+'</td></tr>';
+  }
+  $('whobody').innerHTML=html||'<tr><td colspan="4" class="empty">Nobody traded this in the window.</td></tr>';
+  var w=STATE.whales;
+  $('whosub').textContent=w.ranked?('◆ = top '+STATE.pctl+'%, '+w.take+' of '+
+    w.ranked.length.toLocaleString()+' accounts'):'';
+}
+
+function renderDetail(){
+  var code=STATE.sel;
+  if(!GOODS[code])code=STATE.sel=CODES[0];
+  renderBook(code);renderVelocity(code);renderWho(code);
+}
+function renderAll(){renderOverview();renderDetail()}
+
+/* ---- Recompute from whatever is held ----------------------------------------------- */
+async function recompute(){
+  STATE.winH=Number($('win').value)||48;
+  STATE.pctl=Number($('pctl').value)||2;
+  STATE.ref=now();
+  STATE.cut=STATE.ref-STATE.winH*3600*1000;
+  STATE.rows=await allTrades(STATE.cut);
+  STATE.whales=rankWhales(STATE.rows,STATE.pctl);
+  STATE.stats=statsFor(STATE.rows,STATE.whales,STATE.winH,STATE.ref);
+  renderAll();
+}
+
+/* ---- A cycle ----------------------------------------------------------------------- */
+var busy=false;
+function setState(text,kind){
+  var el=$('state');
+  el.textContent=text;
+  el.className='pill'+(kind?' '+kind:'');
+}
+async function syncAll(){
+  if(busy)return;
+  busy=true;
+  $('sync').disabled=true;
+  var prog=$('prog');
+  prog.hidden=false;prog.max=CODES.length;prog.value=0;
+  clearError();
+  var added=0,failed=[];
+  var cutoff=now()-KEEP_H*3600*1000;
+  for(var i=0;i<CODES.length;i++){
+    var code=CODES[i];
+    setState('syncing '+GOODS[code],'');
+    try{
+      var r=await syncTrades(code,cutoff);
+      added+=r.added;
+      await syncBook(code);
+    }catch(e){
+      failed.push(code);
+      showError('While reading '+GOODS[code]+':',e);
+    }
+    prog.value=i+1;
+  }
+  try{await pruneTrades(cutoff)}catch(e){}
+  await recompute();
+  /* Names for the accounts actually on screen, a handful per cycle. */
+  try{
+    var want=traderTable(STATE.sel,STATE.whales).slice(0,25).map(function(a){return a.id});
+    var top=STATE.whales.ranked?STATE.whales.ranked.slice(0,NAMES_PER_SYNC).map(function(a){return a.id}):[];
+    var n=await resolveNames(want.concat(top));
+    if(n)renderWho(STATE.sel);
+  }catch(e){}
+  prog.hidden=true;
+  $('sync').disabled=false;
+  busy=false;
+  setState(failed.length?(failed.length+' failed'):('updated '+new Date().toLocaleTimeString()),
+           failed.length?'warn':'live');
+  if(!failed.length)clearError();
+  setPref('lastSync',now());
+}
+
+/* ---- Wiring ------------------------------------------------------------------------ */
+var timer=null;
+function arm(){
+  if(timer){clearInterval(timer);timer=null}
+  var secs=Number($('every').value)||0;
+  setPref('every',secs);
+  if(secs>0)timer=setInterval(function(){
+    if(!document.hidden)syncAll();
+  },secs*1000);
+}
+
+function boot(){
+  $('pctl').value=getPref('pctl','2');
+  $('win').value=getPref('win','48');
+  $('every').value=getPref('every','300');
+
+  $('sync').addEventListener('click',function(){syncAll()});
+  $('pctl').addEventListener('change',function(){setPref('pctl',this.value);recompute()});
+  $('win').addEventListener('change',function(){setPref('win',this.value);recompute()});
+  $('every').addEventListener('change',arm);
+
+  $('ovbody').addEventListener('click',function(e){
+    var tr=e.target.closest('tr[data-code]');
+    if(!tr)return;
+    STATE.sel=tr.dataset.code;
+    setPref('sel',STATE.sel);
+    renderOverview();renderDetail();
+  });
+  $('ovtable').querySelector('thead').addEventListener('click',function(e){
+    var th=e.target.closest('th[data-k]');
+    if(!th)return;
+    var k=th.dataset.k;
+    if(SORT.k===k)SORT.dir=-SORT.dir; else {SORT.k=k;SORT.dir=k==='name'?1:-1}
+    setPref('sortk',SORT.k);setPref('sortd',SORT.dir);
+    renderOverview();
+  });
+  document.addEventListener('visibilitychange',function(){
+    if(!document.hidden&&Number($('every').value)>0){
+      var last=Number(getPref('lastSync',0))||0;
+      if(now()-last>Number($('every').value)*1000)syncAll();
+    }
+  });
+  arm();
+}
+
+/* ---- Start ------------------------------------------------------------------------- */
+(async function(){
+  try{
+    DB=await openDB();
+  }catch(e){
+    showError('Storage is unavailable, so nothing can be kept between visits:',e);
+    return;
+  }
+  boot();
+  try{USERS=await loadUsers()}catch(e){USERS={}}
+  try{
+    await recompute();
+    if(STATE.rows.length)setState('held '+STATE.rows.length.toLocaleString()+' fills','');
+    else setState('empty · press Sync','');
+  }catch(e){showError('While reading what was held:',e)}
+})();
+
+})();
+</script>
+</body>
+</html>
