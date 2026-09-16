@@ -145,6 +145,7 @@ progress{width:130px;height:8px}
   <button id="sync" class="primary">Refresh</button>
   <button id="live" title="Ask the game for prices right now, to cover the gap since the collector last ran">Live prices</button>
   <span id="liveage" class="pill" hidden>live</span>
+  <span id="fillage" class="pill" hidden>fills</span>
   <span id="state" class="pill">idle</span>
   <progress id="prog" value="0" max="1" hidden></progress>
 </div>
@@ -168,6 +169,7 @@ progress{width:130px;height:8px}
           <th data-k="spread" title="Ask over bid">Spr%</th>
           <th data-k="whale" title="Share of gold with a whale on either side">Whale</th>
           <th data-k="net" title="Whale buying minus whale selling">Net</th>
+          <th data-k="age" title="When this good&#39;s fills were last measured. Prices and the book are re-read every run; fills are read a few goods at a time, so this is older than the page heading.">Fills</th>
         </tr></thead>
         <tbody id="ovbody"><tr><td colspan="8" class="empty">Press Sync to pull the market.</td></tr></tbody>
       </table>
@@ -176,6 +178,7 @@ progress{width:130px;height:8px}
       <span><b>Mom</b> above 1 means it is clearing faster than its own average, measured over the history held rather than the window asked for.</span>
       <span><b>Whale</b> is the share of gold with a top-percentile account on either side.</span>
       <span><b>Net</b> is whale buying minus whale selling: positive is accumulation.</span>
+      <span><b>Fills</b> is when this good&rsquo;s trades were last read. Prices, books and spreads are re-read every run; fills are read a few goods at a time, so these columns are older than the heading. <b>Not measured</b> means nobody has read them yet &mdash; a zero there is a gap, not a quiet market.</span>
     </div>
   </div>
 
@@ -324,11 +327,28 @@ function statsFor(){
       gold:win.gold,units:win.units,fast:hour.units,slow:slow,span:span,
       mom:slow>0?hour.units/slow:null,
       bid:g.bid,ask:g.ask,spread:g.spread_pct,
-      whale:w.share==null?null:w.share,net:w.net==null?null:w.net});
+      whale:w.share==null?null:w.share,net:w.net==null?null:w.net,
+      age:g.trades_age_minutes==null?null:g.trades_age_minutes,tstatus:g.trades_status});
   }
   return out;
 }
 
+/* How old a good's fills are. The collector re-reads every price and every book each run,
+   but reads fills a few goods at a time in rotation, so these numbers trail the heading at
+   the top of the page - sometimes by minutes, sometimes by a day. Saying so is the whole
+   point of the column: a good nobody has measured publishes zero volume, which is
+   indistinguishable from a good nobody is trading unless the page draws the difference. */
+function ageText(mins){
+  if(mins==null)return 'not measured';
+  if(mins<1)return 'now';
+  if(mins<90)return mins+' min';
+  if(mins<48*60)return Math.round(mins/60)+' h';
+  return Math.round(mins/1440)+' d';
+}
+function ageCls(mins){
+  if(mins==null)return 'down';
+  return mins<=45?'flat':mins<=180?'':'down';
+}
 function heat(pc){
   if(pc==null)return '';
   var a=Math.max(0,Math.min(1,(pc-30)/60));
@@ -342,7 +362,7 @@ function cls(v){
 function renderOverview(){
   var body=$('ovbody');
   if(!FLOW){
-    body.innerHTML='<tr><td colspan="8" class="empty">Reading the collector…</td></tr>';
+    body.innerHTML='<tr><td colspan="9" class="empty">Reading the collector…</td></tr>';
     $('ovnote').textContent='no data yet';
     return;
   }
@@ -360,7 +380,7 @@ function renderOverview(){
   });
   var html='';
   for(var i=0;i<rows.length;i++){
-    var r=rows[i],dim=r.n?'':' style="opacity:.42"';
+    var r=rows[i],dim=(r.n||r.age==null)?'':' style="opacity:.42"';
     html+='<tr data-code="'+esc(r.code)+'"'+(r.code===STATE.sel?' class="sel"':'')+dim+'>'+
       '<td class="good">'+esc(r.name)+'</td>'+
       '<td class="num">'+gold(r.gold)+'</td>'+
@@ -372,6 +392,7 @@ function renderOverview(){
       '<td class="num"><span class="heat" style="'+heat(r.whale)+'">'+
         (r.whale==null?'—':Math.round(r.whale)+'%')+'</span></td>'+
       '<td class="num '+cls(r.net)+'">'+(r.net?(r.net>0?'+':'−')+gold(Math.abs(r.net)):'—')+'</td>'+
+      '<td class="num '+ageCls(r.age)+'">'+ageText(r.age)+'</td>'+
     '</tr>';
   }
   body.innerHTML=html;
@@ -535,7 +556,11 @@ function renderVelocity(code){
   }
   $('velbody').innerHTML=html;
   var w48=windowOf(code,STATE.winH);
-  $('velsub').textContent=w48.fills?w48.fills.toLocaleString()+' fills':'quiet';
+  var gap=Math.round((now()-Date.parse(FLOW.generated_at))/60000);
+  var age=g.trades_age_minutes==null?null:g.trades_age_minutes+gap;
+  $('velsub').textContent=age==null?'never measured'
+    :(w48.fills?w48.fills.toLocaleString()+' fills':'no fills')+' \u00b7 read '+ageText(age)+
+     (age<1?'':' ago');
 }
 
 /* ---- Who is trading it ------------------------------------------------------------
@@ -696,8 +721,9 @@ function renderLive(code){
   el.hidden=false;
   el.innerHTML='Live '+px(live)+' against '+px(g.price)+' when the collector ran '+mins+
     ' min ago: <b class="'+cls(drift)+'">'+(drift>0?'+':'')+drift.toFixed(2)+'%</b>. '+
-    'Everything else on this page is that '+mins+'-minute-old measurement'+
-    (LIVE.bookCode===code?' except the book, which is live too':'')+'.';
+    'The book and the spread are that '+mins+'-minute-old measurement'+
+    (LIVE.bookCode===code?', except here where it is live too':'')+
+    '; volume, velocity and whales are as old as the Fills column says.';
   $('liveage').textContent='live \u00b7 '+Math.max(0,Math.round((now()-LIVE.at)/1000))+'s';
 }
 
@@ -710,6 +736,23 @@ function stamp(){
   if(!FLOW||!FLOW.generated_at)return '';
   var age=Math.round((now()-Date.parse(FLOW.generated_at))/60000);
   return age<1?'just now':(age+' min old');
+}
+/* The file's age is the age of the prices, the books and the spreads. It is not the age of
+   the volume, velocity or whale columns, and reporting one number for both is what made
+   this page claim five minutes while drawing figures measured two days earlier. */
+function fillsPill(){
+  var el=$('fillage'),f=FLOW&&FLOW.trades_freshness;
+  if(!f){el.hidden=true;return}
+  var gap=Math.round((now()-Date.parse(FLOW.generated_at))/60000);
+  var newest=f.newest_minutes==null?null:f.newest_minutes+gap;
+  var oldest=f.oldest_minutes==null?null:f.oldest_minutes+gap;
+  var missing=f.goods-f.measured;
+  el.hidden=false;
+  el.textContent='fills · '+(oldest==null?'none measured'
+    :(ageText(newest)+'–'+ageText(oldest))+(missing?' · '+missing+' unmeasured':''));
+  el.className='pill'+((oldest!=null&&oldest<=180&&!missing)?'':' warn');
+  el.title=(f.measured+' of '+f.goods+' goods have ever had their fills read. Volume, '+
+    'velocity and whale figures are as old as this; prices, books and spreads are '+stamp()+'.');
 }
 
 async function refresh(){
@@ -728,7 +771,8 @@ async function refresh(){
     prog.value=2;
     clearError();
     renderAll();
-    setState('updated · '+stamp(),FLOW.status==='ok'?'live':'warn');
+    setState('prices · '+stamp(),FLOW.status==='ok'?'live':'warn');
+    fillsPill();
     await openGood(STATE.sel,false);
   }catch(e){
     showError('The collector’s feed could not be read:',e);
