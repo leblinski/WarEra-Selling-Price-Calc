@@ -1361,6 +1361,37 @@ kbd{
   border-radius:var(--radius);background:var(--panel)
 }
 .datastrip-text{font-size:12px;color:var(--dim)}
+.datastrip-actions{display:flex;align-items:center;gap:7px;margin-left:auto}
+.collector-health{position:relative}
+.collector-status{
+  display:inline-flex;align-items:center;gap:7px;min-height:36px;padding:0 12px;
+  border:1px solid var(--line);border-radius:999px;background:var(--panel-2);
+  color:var(--dim);cursor:pointer;font-family:"Saira Condensed",sans-serif;
+  font-size:11.5px;font-weight:700;letter-spacing:.04em
+}
+.collector-status:hover{background:var(--panel);border-color:var(--dim)}
+.collector-dot{width:8px;height:8px;border-radius:50%;background:var(--dim);box-shadow:0 0 0 3px rgba(143,168,179,.1)}
+.collector-status[data-level="good"]{color:var(--verdigris);border-color:rgba(107,184,168,.55)}
+.collector-status[data-level="good"] .collector-dot{background:var(--verdigris);box-shadow:0 0 0 3px rgba(107,184,168,.12)}
+.collector-status[data-level="warn"]{color:#E5B85C;border-color:rgba(229,184,92,.55)}
+.collector-status[data-level="warn"] .collector-dot{background:#E5B85C;box-shadow:0 0 0 3px rgba(229,184,92,.12)}
+.collector-status[data-level="bad"]{color:var(--rust);border-color:rgba(194,112,63,.65)}
+.collector-status[data-level="bad"] .collector-dot{background:var(--rust);box-shadow:0 0 0 3px rgba(194,112,63,.14)}
+.collector-panel{
+  position:absolute;z-index:40;right:0;bottom:calc(100% + 8px);width:min(360px,calc(100vw - 40px));
+  padding:13px;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel-2);
+  box-shadow:0 16px 40px rgba(0,0,0,.42);color:var(--ink)
+}
+.collector-panel h2{margin:0 0 4px;font-family:"Saira Condensed",sans-serif;font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:var(--brass)}
+.collector-panel p{margin:0 0 11px;color:var(--dim);font-size:12px;line-height:1.45}
+.collector-facts{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;margin:0 0 10px;font-size:11.5px}
+.collector-facts dt{color:var(--dim)}.collector-facts dd{margin:0;text-align:right;font-family:"IBM Plex Mono",monospace}
+.collector-note{padding-top:8px;border-top:1px solid var(--line);font-size:10.5px;color:var(--dim);line-height:1.45}
+.collector-note a{color:var(--brass)}
+@media(max-width:520px){
+  .datastrip-text{flex:1 0 100%}.datastrip-actions{width:100%;margin-left:0;justify-content:space-between}
+  .collector-panel{position:fixed;left:12px;right:12px;bottom:calc(12px + env(safe-area-inset-bottom));width:auto}
+}
 /* The one control on the page whose whole job is to be pressed when something looks wrong,
    so it carries the brass rather than the dim ink the other pill buttons rest at, and it
    is sized for a thumb rather than a cursor. */
@@ -3810,7 +3841,17 @@ h1 .title-word{white-space:nowrap}
 
       <div class="datastrip">
         <span class="datastrip-text" id="dataStamp">Loading collector prices…</span>
-        <button type="button" class="soundbtn" id="dataRefresh">Refresh</button>
+        <div class="datastrip-actions">
+          <div class="collector-health">
+            <button type="button" class="collector-status" id="collectorStatus" data-level="checking"
+              aria-expanded="false" aria-controls="collectorPanel">
+              <span class="collector-dot" aria-hidden="true"></span>
+              <span id="collectorStatusText">Checking collector</span>
+            </button>
+            <div class="collector-panel" id="collectorPanel" role="status" hidden></div>
+          </div>
+          <button type="button" class="soundbtn" id="dataRefresh">Refresh</button>
+        </div>
       </div>
 
       <a class="market" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:52px;margin:14px 0 24px;border:1px solid var(--brass-deep);border-radius:var(--radius);background:var(--panel);color:var(--brass);text-decoration:none;font-family:'Saira Condensed',sans-serif;font-weight:700;font-size:15px;letter-spacing:.09em;text-transform:uppercase" href="https://app.warera.io/market/equipments" target="_blank" rel="noopener">
@@ -6870,12 +6911,51 @@ function paintTabBadges(){
   set('cases',caseTabPct,caseTabPct)
 }
 var craftTabPct=null,caseTabPct=null;
+var collectorHealthFailure=false;
+function collectorMinutesSince(value){
+  var t=value?new Date(value).getTime():NaN;
+  return Number.isFinite(t)?Math.max(0,Math.round((Date.now()-t)/60000)):null
+}
+function collectorHealthModel(index){
+  if(!index&&!collectorHealthFailure)return {level:'checking',label:'Checking collector',title:'Checking collector status',
+    detail:'Waiting for the collector’s published health report.'};
+  if(collectorHealthFailure||!index)return {level:'bad',label:'Collector offline',title:'Collector status unavailable',
+    detail:'The published health feed could not be reached. Existing figures may still be visible, but freshness cannot be confirmed.'};
+  var attemptAge=collectorMinutesSince(index.generated_at),successAge=collectorMinutesSince(index.updated_at);
+  if(attemptAge==null||attemptAge>90||successAge==null||successAge>90)
+    return {level:'bad',label:'Collector stale',title:'Collector data is stale',
+      detail:'No fully healthy publication has arrived for more than 90 minutes. Treat prices as historical until collection recovers.'};
+  if(index.status!=='ok')return {level:'warn',label:'Partial data',title:'Collector is degraded',
+    detail:'The latest run kept the last valid data, but could not certify a complete update.'};
+  if(attemptAge>35||successAge>35)return {level:'warn',label:'Collector delayed',title:'Collector is behind schedule',
+    detail:'The feed is older than two normal 15-minute collection intervals. Prices are usable, but not current.'};
+  return {level:'good',label:'Collector healthy',title:'Collector is healthy',
+    detail:'All required equipment and pricing inputs were collected successfully.'}
+}
+function paintCollectorHealth(){
+  var index=collector.index,model=collectorHealthModel(index),health=index&&index.health||{};
+  var button=$('collectorStatus');if(!button)return;
+  button.dataset.level=model.level;$('collectorStatusText').textContent=model.label;
+  var total=Number(health.category_count)||36,ok=Number(health.categories_ok);
+  if(!Number.isFinite(ok))ok='—';
+  var failed=(health.failed_categories||[]).concat(health.failed_commodities||[]),notes=[];
+  if(failed.length)notes.push('Failed: '+failed.join(', '));
+  if(Number(health.quality_issue_count)>0)notes.push(health.quality_issue_count+' data-quality issue'+(health.quality_issue_count===1?'':'s'));
+  $('collectorPanel').innerHTML='<h2>'+esc(model.title)+'</h2><p>'+esc(model.detail)+'</p>'+
+    '<dl class="collector-facts"><dt>Latest attempt</dt><dd>'+esc(index?dataAgeText(index.generated_at):'unreachable')+'</dd>'+
+    '<dt>Last full success</dt><dd>'+esc(index?dataAgeText(index.updated_at):'unknown')+'</dd>'+
+    '<dt>Equipment coverage</dt><dd>'+esc(ok)+' / '+esc(total)+'</dd>'+
+    '<dt>Cached sales</dt><dd>'+esc(index&&Number.isFinite(Number(health.transaction_count))?Number(health.transaction_count).toLocaleString():'—')+'</dd></dl>'+
+    (notes.length?'<div class="collector-note">'+esc(notes.join(' · '))+'</div>':'')+
+    '<div class="collector-note">Updates every 15 minutes. <a href="https://github.com/leblinski/-warera-case1-collector/actions" target="_blank" rel="noopener">View collector runs ↗</a></div>'
+}
 function paintDataStamp(){
   var idx=collector.index;
   if(!$('dataStamp'))return;
   if(Date.now()<dataStampHold)return;
   var btn=$('dataRefresh');
   if(btn){btn.disabled=refreshBusy();btn.textContent=refreshBusy()?'Checking…':'Refresh'}
+  paintCollectorHealth();
   if(!idx){$('dataStamp').textContent='Collector prices not loaded yet.';return}
   var age=dataAgeText(idx.generated_at),
       t=new Date(idx.generated_at).getTime(),
@@ -6916,6 +6996,7 @@ function refreshCollector(){
   Promise.all(jobs.map(settle)).then(function(res){
     refreshStartedAt=0;
     var failed=res.filter(Boolean).length;
+    collectorHealthFailure=Boolean(res[0]);
     craftState.summary=collector.summary||craftState.summary;
     craftState.books=collector.books||craftState.books;
     craftState.error=craftState.summary&&craftState.books?null
@@ -6964,6 +7045,7 @@ function loadCraftData(bust){
   Promise.all([settle(loadSummary(bust)),settle(loadBooks(bust)),settle(loadIndex(bust))]).then(function(res){
     craftState.summary=res[0]||craftState.summary;
     craftState.books=res[1]||craftState.books;
+    collectorHealthFailure=!res[2];
     craftState.loading=false;
     craftState.error=craftState.summary&&craftState.books?null
       :!craftState.summary&&!craftState.books?'Collector prices are not reachable right now.'
@@ -8876,6 +8958,18 @@ $('dataRefresh').addEventListener('click',function(){
   // Pressed because the strip says the data is old, so it must not be the press that gets
   // ignored: clear a lock left behind by a fetch that never came back.
   refreshStartedAt=0;refreshCollector()
+});
+$('collectorStatus').addEventListener('click',function(){
+  var panel=$('collectorPanel'),open=panel.hidden;
+  panel.hidden=!open;this.setAttribute('aria-expanded',open?'true':'false')
+});
+document.addEventListener('click',function(e){
+  if(!e.target.closest('.collector-health')){
+    $('collectorPanel').hidden=true;$('collectorStatus').setAttribute('aria-expanded','false')
+  }
+});
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){$('collectorPanel').hidden=true;$('collectorStatus').setAttribute('aria-expanded','false')}
 });
 /* Choosing where to rest re-prices both cards, so it repaints both rather than only the
    one that was tapped - the lesson the weighting toggle taught. Tapping the chosen row
