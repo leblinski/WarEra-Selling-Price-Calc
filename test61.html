@@ -779,6 +779,11 @@ kbd{
 /* Inventory is worked one rarity at a time - the game itself filters that way - so the tab
    shows one, chosen with the same badges the price field already uses. Six blocks stacked was
    six times the page for five rarities nobody was reading. */
+.ev-window{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 12px}
+.ev-window span{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim)}
+.ev-window select{background:var(--panel-2);color:var(--ink);border:1px solid var(--line);
+  border-radius:6px;padding:5px 8px;font:inherit;font-size:13px;min-width:0;max-width:100%}
+.ev-window select:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 .sort-pick{margin:2px 0 12px;gap:6px}
 .sort-pick .rarity-btn{max-width:52px}
 #craftPick{margin:9px 0 4px}
@@ -3680,6 +3685,7 @@ h1 .title-word{white-space:nowrap}
         <p class="flip-lead" id="craftLead">Buy the inputs, craft one piece at random, sell it or break it</p>
         <p class="flip-figure" id="craftVerdict">—</p>
         <p class="flip-detail" id="craftDetail">Reading the collector's order books and sale history…</p>
+        <div class="ev-window"><span>Priced on sales from</span><select id="craftWindow" aria-label="Window of sales used to price rolls"><option value="auto">Auto (24h, 48h where thin)</option><option value="24">Last 24 hours</option><option value="48">Last 48 hours</option><option value="168">Last 7 days</option></select></div>
         <button type="button" class="tour-open" id="tourOpen-craft" data-tour="craft" hidden>First time? Walk me through it &rarr;</button>
         <div class="rarity-btns sort-pick" id="craftPick" role="tablist" aria-label="Rarity to craft"></div>
 
@@ -3737,6 +3743,7 @@ h1 .title-word{white-space:nowrap}
         <p class="flip-lead" id="caseLead">Buy a Case I, open it, sell what is worth selling and break the rest</p>
         <p class="flip-figure" id="caseVerdict">—</p>
         <p class="flip-detail" id="caseDetail">Reading case prices…</p>
+        <div class="ev-window"><span>Priced on sales from</span><select id="caseWindow" aria-label="Window of sales used to price rolls"><option value="auto">Auto (24h, 48h where thin)</option><option value="24">Last 24 hours</option><option value="48">Last 48 hours</option><option value="168">Last 7 days</option></select></div>
         <button type="button" class="tour-open" id="tourOpen-cases" data-tour="cases" hidden>First time? Walk me through it &rarr;</button>
         <div class="craft-rows" id="caseRows"></div>
         <p class="case-swing" id="caseSwing" hidden></p>
@@ -5390,6 +5397,66 @@ function craftRollKey(slot,skills){
   return !r||skills[r.key]==null?null:String(skills[r.key])
 }
 // What one piece of this slot is worth after tax, averaged over its roll space.
+/* ---- Which window prices a roll -----------------------------------------------------
+   The collector publishes every roll at three widths - 24h, 48h and the whole retained
+   week - and until now the page always took `selected`, which is 24h where that has
+   enough comps and 48h where it does not. That is the right default and it stays the
+   default, but it hides the thing you actually want to know when a price is moving:
+   whether the case is worth more today than it was on Tuesday.
+
+   A narrow window cannot simply drop the rolls it has no sale for. At 24h only about a
+   quarter of Mythic rolls have traded, so pricing the tier on that quarter is a survivor
+   average, not a fresh one. So an explicit window falls back to the next wider one per
+   roll, and the page reports how much of the answer really came from the window asked
+   for. The difference between windows is then a difference in price, not in sample. */
+var EV_WINDOWS=[['auto','Auto'],['24','24 h'],['48','48 h'],['168','7 d']];
+var evWindow='auto';
+try{var ew=localStorage.getItem('warera-ev-window');if(ew&&/^(auto|24|48|168)$/.test(ew))evWindow=ew}catch(e){}
+// Counted per paint so the note can say how much of the EV is really window-fresh.
+var evCover={asked:0,fell:0};
+function evReset(){evCover={asked:0,fell:0}}
+function rollStat(row){
+  if(!row)return null;
+  if(evWindow==='auto')return row.selected||row.fallback_48h||null;
+  var chain=evWindow==='24'?['primary_24h','fallback_48h','retained_window']
+           :evWindow==='48'?['fallback_48h','retained_window']
+           :['retained_window'];
+  for(var i=0;i<chain.length;i++){
+    var st=row[chain[i]];
+    if(st&&st.median!=null){
+      evCover.asked++;
+      if(i>0)evCover.fell++;
+      return st;
+    }
+  }
+  return null;
+}
+function evWindowLabel(){
+  for(var i=0;i<EV_WINDOWS.length;i++)if(EV_WINDOWS[i][0]===evWindow)return EV_WINDOWS[i][1];
+  return 'Auto';
+}
+function evCoverNote(){
+  if(evWindow==='auto'||!evCover.asked)return '';
+  var fresh=evCover.asked-evCover.fell;
+  var pc=Math.round(fresh/evCover.asked*100);
+  return fresh===evCover.asked
+    ? 'Every priced roll traded inside '+evWindowLabel()+'.'
+    : pc+'% of priced rolls traded inside '+evWindowLabel()+'; the rest fall back to a wider window rather than drop out.';
+}
+function setEvWindow(v){
+  if(evWindow===v)return;
+  evWindow=v;
+  try{localStorage.setItem('warera-ev-window',v)}catch(e){}
+  paintEvWindow();paintCraft();paintCase()
+}
+function paintEvWindow(){
+  var ids=['caseWindow','craftWindow'];
+  for(var i=0;i<ids.length;i++){
+    var el=document.getElementById(ids[i]);
+    if(el&&el.value!==evWindow)el.value=evWindow;
+  }
+}
+
 function craftSlotValue(slot,t,taxMul){
   var cat=((craftState.summary||{}).categories||{})[itemCodeForSlot(slot,t)];
   if(!cat)return null;
@@ -5430,7 +5497,7 @@ function craftSlotValue(slot,t,taxMul){
   var wsum=0,vsum=0,covered=0,samples=0,broken=0,unwanted=0;
   for(var i=0;i<space.length;i++){
     var row=seen[space[i]];
-    var stat=row&&(row.selected||row.fallback_48h);
+    var stat=rollStat(row);
     if(!stat||stat.median==null){
       // Seen often enough that silence is a verdict, so it counts, at what it breaks for.
       if(absenceMeans){unwanted++;broken++;wsum++;vsum+=dis}
@@ -5443,7 +5510,10 @@ function craftSlotValue(slot,t,taxMul){
     // bar counts as broken here too, because that is what you will actually do with it.
     var sale=stat.median*taxMul,sells=sale>need,best=sells?sale:dis;
     if(!sells)broken++;
-    covered++;samples+=(row.fallback_48h||{}).count||0;wsum++;vsum+=best
+    // The count that priced the roll, not a fixed 48h one. The foot reports these as
+    // the evidence behind the figure, so it has to move when the window does - and
+    // under Auto it was already over-counting a roll that 24h had priced.
+    covered++;samples+=stat.count||0;wsum++;vsum+=best
   }
   if(!wsum)return null;
   return {net:vsum/wsum,covered:covered,space:space.length,samples:samples,
@@ -5599,7 +5669,7 @@ function sortRolls(slot,t,taxMul){
   var each=(CASE_TIER_ODDS[t-1]||0)*(CRAFT_SLOT_WEIGHT[slot]||0)/(space.length||1);
   var kept=0,keptGold=0,dropped=0;
   for(var i=0;i<space.length;i++){
-    var row=seen[space[i]],stat=row&&(row.selected||row.fallback_48h);
+    var row=seen[space[i]],stat=rollStat(row);
     // The collector reports a wider window beside the comparison ones. It never prices
     // anything - a week-old sale is not a comparable - but it is the difference between
     // "nobody wants this roll" and "none of them traded since Tuesday", and only one of
@@ -5841,10 +5911,11 @@ function paintCraft(){
     craftState.liveAt,craftState.liveLoading?'L':'',craftState.liveError||'',
     craftState.src==='own'?$('craftScrap').value+'/'+$('craftSteel').value:'',
     craftState.summary?'s':'',craftState.books?'b':'',craftState.loading?'L':'',
-    sortMin.abs,sortMin.pct,sortMin.join,
+    sortMin.abs,sortMin.pct,sortMin.join,evWindow,
     craftState.error||''].join('|');
   if(sig===craftState.sig)return;
   craftState.sig=sig;
+  evReset();
   syncCraftInputs();
   var rowsEl=$('craftRows'),footEl=$('craftFoot'),noteEl=$('craftNote');
   var setNote=function(){
@@ -5963,6 +6034,7 @@ function paintCraft(){
     ' at once will push that down by an amount this cannot see.';
   foot+=untradedNote(mine.exp);
   foot+=taxGapNote();
+  var cover=evCoverNote();if(cover)foot+=' '+cover;
   paintFoot(footEl.id,foot);paintQAll()
 }
 
@@ -5994,7 +6066,7 @@ function craftRollTable(slot,t){
   var space=craftRollSpace(slot,t),out=[];
   for(var i=0;i<space.length;i++){
     var row=seen[space[i]];if(!row)continue;
-    var stat=row.selected||row.fallback_48h;
+    var stat=rollStat(row);
     if(!stat||stat.median==null)continue;
     out.push({key:space[i],median:stat.median,w:1,skills:(row.exact_roll||{}).skills||{}})
   }
@@ -6318,10 +6390,10 @@ function paintCase(){
   n=isFinite(n)&&n>0?Math.min(n,9999):1;
   var sig=[n,$('tax').value,$('mktTax').value,craftState.src,craftState.liveAt,state.tier,entrySig(),
            sortMin.abs,sortMin.pct,sortMin.join,
-           craftState.summary?'s':'',craftState.books?'b':''].join('|');
+           craftState.summary?'s':'',craftState.books?'b':'',evWindow].join('|');
   if(sig===craftState.caseSig)return;
   craftState.caseSig=sig;
-
+  evReset();
   var rowsEl=$('caseRows'),footEl=$('caseFoot'),noteEl=$('caseNote');
   var cost=craftState.books||craftState.live?craftAcquire('case1',n):null;
   if(!craftState.summary||!cost||!scrapKnown()){
@@ -6432,6 +6504,7 @@ function paintCase(){
     }else swingEl.hidden=true
   }
   foot+=' Selling what you open moves these prices, and the more you open at once the more it moves them.';
+  var cover=evCoverNote();if(cover)foot+=' '+cover;
   paintFoot(footEl.id,foot);
   $('caseBooks').innerHTML=bookPanel('case1','Case I','res-case',n,n===1?'case':'cases',gross);
   paintCaseBid();
@@ -8942,6 +9015,12 @@ $('craftSrcBtns').addEventListener('click',function(e){
 });
 $('craftCount').addEventListener('input',paintCraft);
 $('caseCount').addEventListener('input',paintCase);
+// One state, a control in each tab that prices rolls, so neither can change under you.
+['caseWindow','craftWindow'].forEach(function(id){
+  var el=$(id);
+  if(el)el.addEventListener('change',function(){setEvWindow(this.value)})
+});
+paintEvWindow();
 $('tabBar').addEventListener('click',function(e){
   var b=e.target.closest('[data-tab]');if(b)setTab(b.getAttribute('data-tab'),true)
 });
