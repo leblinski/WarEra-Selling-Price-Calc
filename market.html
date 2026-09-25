@@ -45,6 +45,32 @@ button.primary{background:rgba(var(--brass-rgb),.16)}
 }
 .pill.live{border-color:var(--verdigris);color:var(--verdigris)}
 .pill.warn{border-color:var(--rust);color:var(--rust)}
+.collector-health{position:relative}
+.collector-status{
+  display:inline-flex;align-items:center;gap:7px;min-height:30px;padding:5px 9px;
+  color:var(--dim);border-color:var(--line);font-family:var(--sans);font-size:11px
+}
+.collector-status:hover:not(:disabled){background:var(--panel-2)}
+.collector-dot{width:8px;height:8px;border-radius:50%;background:var(--dim);box-shadow:0 0 0 3px rgba(143,168,179,.1)}
+.collector-status[data-level="good"]{color:var(--verdigris);border-color:rgba(107,184,168,.55)}
+.collector-status[data-level="good"] .collector-dot{background:var(--verdigris);box-shadow:0 0 0 3px rgba(107,184,168,.12)}
+.collector-status[data-level="warn"]{color:#E5B85C;border-color:rgba(229,184,92,.55)}
+.collector-status[data-level="warn"] .collector-dot{background:#E5B85C;box-shadow:0 0 0 3px rgba(229,184,92,.12)}
+.collector-status[data-level="bad"]{color:var(--rust);border-color:rgba(194,112,63,.65)}
+.collector-status[data-level="bad"] .collector-dot{background:var(--rust);box-shadow:0 0 0 3px rgba(194,112,63,.14)}
+.collector-panel{
+  position:absolute;z-index:20;right:0;top:calc(100% + 7px);width:min(350px,calc(100vw - 28px));
+  padding:12px;border:1px solid var(--line);border-radius:9px;background:var(--panel-2);
+  box-shadow:0 14px 36px rgba(0,0,0,.38);color:var(--ink)
+}
+.collector-panel[hidden]{display:none}
+.collector-panel h2{margin:0 0 4px;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--brass)}
+.collector-panel p{margin:0 0 10px;color:var(--dim);font-size:11.5px}
+.collector-facts{display:grid;grid-template-columns:auto 1fr;gap:5px 12px;margin:0 0 10px;font-size:11px}
+.collector-facts dt{color:var(--dim)}.collector-facts dd{margin:0;text-align:right;font-family:var(--mono)}
+.collector-note{padding-top:8px;border-top:1px solid var(--line);font-size:10.5px;color:var(--dim)}
+.collector-note a{color:var(--brass)}
+@media(max-width:640px){.collector-panel{position:fixed;left:14px;right:14px;top:76px;width:auto}}
 .grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(320px,1fr);gap:10px;align-items:start}
 @media(max-width:1000px){.grid{grid-template-columns:minmax(0,1fr)}}
 .card{border:1px solid var(--line);border-radius:9px;background:var(--panel);overflow:hidden}
@@ -146,6 +172,14 @@ progress{width:130px;height:8px}
   <button id="live" title="Ask the game for prices right now, to cover the gap since the collector last ran">Live prices</button>
   <span id="liveage" class="pill" hidden>live</span>
   <span id="fillage" class="pill" hidden>fills</span>
+  <div class="collector-health">
+    <button id="collectorStatus" class="collector-status" type="button" data-level="checking"
+      aria-expanded="false" aria-controls="collectorPanel">
+      <span class="collector-dot" aria-hidden="true"></span>
+      <span id="collectorStatusText">Checking collector</span>
+    </button>
+    <div id="collectorPanel" class="collector-panel" role="status" hidden></div>
+  </div>
   <span id="state" class="pill">idle</span>
   <progress id="prog" value="0" max="1" hidden></progress>
 </div>
@@ -300,7 +334,7 @@ async function grab(path,bust){
 }
 
 /* ---- What is held ------------------------------------------------------------------ */
-var FLOW=null, BOOKS=null, USERS=null, TRADES={}, CODES=[], NAMES={};
+var FLOW=null, INDEX=null, BOOKS=null, USERS=null, TRADES={}, CODES=[], NAMES={};
 var STATE={pctl:2,winH:48,sel:getPref('sel','scraps')};
 var SORT={k:getPref('sortk','gold'),dir:Number(getPref('sortd',-1))||-1};
 
@@ -338,14 +372,14 @@ function statsFor(){
    the top of the page - sometimes by minutes, sometimes by a day. Saying so is the whole
    point of the column: a good nobody has measured publishes zero volume, which is
    indistinguishable from a good nobody is trading unless the page draws the difference. */
-function ageText(mins){
+function fillAge(mins){
   if(mins==null)return 'not measured';
   if(mins<1)return 'now';
   if(mins<90)return mins+' min';
   if(mins<48*60)return Math.round(mins/60)+' h';
   return Math.round(mins/1440)+' d';
 }
-function ageCls(mins){
+function fillAgeCls(mins){
   if(mins==null)return 'down';
   return mins<=45?'flat':mins<=180?'':'down';
 }
@@ -392,7 +426,7 @@ function renderOverview(){
       '<td class="num"><span class="heat" style="'+heat(r.whale)+'">'+
         (r.whale==null?'—':Math.round(r.whale)+'%')+'</span></td>'+
       '<td class="num '+cls(r.net)+'">'+(r.net?(r.net>0?'+':'−')+gold(Math.abs(r.net)):'—')+'</td>'+
-      '<td class="num '+ageCls(r.age)+'">'+ageText(r.age)+'</td>'+
+      '<td class="num '+fillAgeCls(r.age)+'">'+fillAge(r.age)+'</td>'+
     '</tr>';
   }
   body.innerHTML=html;
@@ -559,7 +593,7 @@ function renderVelocity(code){
   var gap=Math.round((now()-Date.parse(FLOW.generated_at))/60000);
   var age=g.trades_age_minutes==null?null:g.trades_age_minutes+gap;
   $('velsub').textContent=age==null?'never measured'
-    :(w48.fills?w48.fills.toLocaleString()+' fills':'no fills')+' \u00b7 read '+ageText(age)+
+    :(w48.fills?w48.fills.toLocaleString()+' fills':'no fills')+' \u00b7 read '+fillAge(age)+
      (age<1?'':' ago');
 }
 
@@ -732,6 +766,53 @@ var busy=false;
 function setState(text,kind){
   var el=$('state');el.textContent=text;el.className='pill'+(kind?' '+kind:'');
 }
+function minutesSince(value){
+  var t=value?Date.parse(value):NaN;
+  return Number.isFinite(t)?Math.max(0,Math.round((now()-t)/60000)):null;
+}
+function ageText(value){
+  var mins=minutesSince(value);
+  if(mins==null)return 'unknown';
+  if(mins<1)return 'just now';
+  if(mins===1)return '1 min ago';
+  if(mins<90)return mins+' min ago';
+  var hours=mins/60;
+  if(hours<48)return (hours<10?hours.toFixed(1):Math.round(hours))+'h ago';
+  var days=Math.round(hours/24);return days+(days===1?' day ago':' days ago');
+}
+function collectorModel(index,unreachable){
+  if(unreachable||!index)return {level:'bad',label:'Collector offline',title:'Collector status unavailable',
+    detail:'The published health feed could not be reached. Existing figures may still be visible, but freshness cannot be confirmed.'};
+  var attemptAge=minutesSince(index.generated_at),successAge=minutesSince(index.updated_at);
+  if(attemptAge==null||attemptAge>90||successAge==null||successAge>90)
+    return {level:'bad',label:'Collector stale',title:'Collector data is stale',
+      detail:'No fully healthy publication has arrived for more than 90 minutes. Treat the figures as historical until collection recovers.'};
+  if(index.status!=='ok')return {level:'warn',label:'Partial data',title:'Collector is degraded',
+    detail:'The latest run preserved usable cached data, but it could not certify a complete update.'};
+  if(attemptAge>35||successAge>35)return {level:'warn',label:'Collector delayed',title:'Collector is behind schedule',
+    detail:'The feed is older than two normal 15-minute collection intervals. The data is usable, but not current.'};
+  return {level:'good',label:'Collector healthy',title:'Collector is healthy',
+    detail:'All required equipment and market inputs were collected successfully.'};
+}
+function renderCollectorStatus(index,unreachable){
+  var model=collectorModel(index,unreachable),button=$('collectorStatus'),health=index&&index.health||{};
+  button.dataset.level=model.level;$('collectorStatusText').textContent=model.label;
+  var total=Number(health.category_count)||36,ok=Number(health.categories_ok);
+  if(!Number.isFinite(ok))ok='—';
+  var failed=(health.failed_categories||[]).concat(health.failed_commodities||[]);
+  var optional=health.degraded_commodities||[];
+  var detail=[];
+  if(failed.length)detail.push('Failed: '+failed.join(', '));
+  if(Number(health.quality_issue_count)>0)detail.push(health.quality_issue_count+' data-quality issue'+(health.quality_issue_count===1?'':'s'));
+  if(optional.length)detail.push('Optional feeds limited: '+optional.join(', '));
+  $('collectorPanel').innerHTML='<h2>'+esc(model.title)+'</h2><p>'+esc(model.detail)+'</p>'+
+    '<dl class="collector-facts"><dt>Latest attempt</dt><dd>'+esc(index?ageText(index.generated_at):'unreachable')+'</dd>'+
+    '<dt>Last full success</dt><dd>'+esc(index?ageText(index.updated_at):'unknown')+'</dd>'+
+    '<dt>Equipment coverage</dt><dd>'+esc(ok)+' / '+esc(total)+'</dd>'+
+    '<dt>Cached sales</dt><dd>'+esc(index&&Number.isFinite(Number(health.transaction_count))?Number(health.transaction_count).toLocaleString():'—')+'</dd></dl>'+
+    (detail.length?'<div class="collector-note">'+esc(detail.join(' · '))+'</div>':'')+
+    '<div class="collector-note">Updates every 15 minutes. <a href="https://github.com/leblinski/-warera-case1-collector/actions" target="_blank" rel="noopener">View collector runs ↗</a></div>';
+}
 function stamp(){
   if(!FLOW||!FLOW.generated_at)return '';
   var age=Math.round((now()-Date.parse(FLOW.generated_at))/60000);
@@ -749,7 +830,7 @@ function fillsPill(){
   var missing=f.goods-f.measured;
   el.hidden=false;
   el.textContent='fills · '+(oldest==null?'none measured'
-    :(ageText(newest)+'–'+ageText(oldest))+(missing?' · '+missing+' unmeasured':''));
+    :(fillAge(newest)+'–'+fillAge(oldest))+(missing?' · '+missing+' unmeasured':''));
   el.className='pill'+((oldest!=null&&oldest<=180&&!missing)?'':' warn');
   el.title=(f.measured+' of '+f.goods+' goods have ever had their fills read. Volume, '+
     'velocity and whale figures are as old as this; prices, books and spreads are '+stamp()+'.');
@@ -758,17 +839,19 @@ function fillsPill(){
 async function refresh(){
   if(busy)return;
   busy=true;$('sync').disabled=true;
-  var prog=$('prog');prog.hidden=false;prog.max=2;prog.value=0;
+  var prog=$('prog');prog.hidden=false;prog.max=3;prog.value=0;
   try{
     setState('reading the collector','');
-    FLOW=await grab('flow.json',true);
+    var feeds=await Promise.all([grab('flow.json',true),grab('index.json',true)]);
+    FLOW=feeds[0];INDEX=feeds[1];
+    renderCollectorStatus(INDEX,false);
     CODES=Object.keys(FLOW.goods||{});
     for(var i=0;i<CODES.length;i++)NAMES[CODES[i]]=FLOW.goods[CODES[i]].name;
-    prog.value=1;
+    prog.value=2;
     renderOverview();
     setState('books','');
     BOOKS=await grab('commodities.json',true);
-    prog.value=2;
+    prog.value=3;
     clearError();
     renderAll();
     setState('prices · '+stamp(),FLOW.status==='ok'?'live':'warn');
@@ -777,6 +860,7 @@ async function refresh(){
   }catch(e){
     showError('The collector’s feed could not be read:',e);
     setState('failed','warn');
+    renderCollectorStatus(INDEX,true);
   }
   prog.hidden=true;$('sync').disabled=false;busy=false;
 }
@@ -816,6 +900,18 @@ function boot(){
 
   $('sync').addEventListener('click',function(){refresh()});
   $('live').addEventListener('click',function(){goLive()});
+  $('collectorStatus').addEventListener('click',function(){
+    var panel=$('collectorPanel'),open=panel.hidden;
+    panel.hidden=!open;this.setAttribute('aria-expanded',open?'true':'false');
+  });
+  document.addEventListener('click',function(e){
+    if(!e.target.closest('.collector-health')){
+      $('collectorPanel').hidden=true;$('collectorStatus').setAttribute('aria-expanded','false');
+    }
+  });
+  document.addEventListener('keydown',function(e){
+    if(e.key==='Escape'){$('collectorPanel').hidden=true;$('collectorStatus').setAttribute('aria-expanded','false')}
+  });
   $('pctl').addEventListener('change',function(){
     setPref('pctl',this.value);STATE.pctl=Number(this.value)||2;renderAll();
   });
