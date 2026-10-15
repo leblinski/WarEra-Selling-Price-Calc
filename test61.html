@@ -1718,7 +1718,7 @@ kbd{
     box-shadow:0 8px 28px rgba(0,0,0,.35)
   }
   .tax-editor[hidden]{display:none!important}
-  .tax-editor #tax,.tax-editor #mktTax{width:74px;height:44px;font-size:17px}
+  .tax-editor #tax{width:74px;height:44px;font-size:17px}
   .tax-pair{display:flex;flex-direction:column;gap:2px}
   .tax-pair label{
     font-family:"Saira Condensed",sans-serif;font-size:9px;letter-spacing:.11em;
@@ -1858,7 +1858,7 @@ kbd{
      stops being visible at all. */
   .fields{grid-template-columns:minmax(170px,1fr) auto}
   .taxfield,.tax-editor{min-width:0}
-  .tax-editor #tax,.tax-editor #mktTax{display:block;width:66px;min-width:0}
+  .tax-editor #tax{display:block;width:66px;min-width:0}
   .tax-pair{display:flex;flex-direction:column;gap:2px;min-width:0}
   .tax-pair label{
     font-family:"Saira Condensed",sans-serif;font-size:9px;letter-spacing:.11em;
@@ -3003,7 +3003,7 @@ h1 .title-word{white-space:nowrap}
 /* The infeed. A price is one short number, and the field was 58px tall in 22px of
    monospace - the size of the answer, given to the question. */
 .bench .fields{grid-template-columns:minmax(170px,1fr) auto;gap:8px;margin:0 0 10px;align-items:end}
-.bench .tax-editor #tax,.bench .tax-editor #mktTax{height:38px;font-size:15px}
+.bench .tax-editor #tax{height:38px;font-size:15px}
 .bench #priceLabel,.bench .fields .q{display:none}
 .bench #price{height:38px;font-size:15px;padding:0 44px 0 11px}
 .bench #price::placeholder{font-size:11px}
@@ -3311,10 +3311,6 @@ h1 .title-word{white-space:nowrap}
             <div class="tax-pair">
               <label for="tax">Yours</label>
               <input type="number" id="tax" min="0" step="0.1" value="1" inputmode="decimal" aria-label="Your tax percentage">
-            </div>
-            <div class="tax-pair">
-              <label for="mktTax">Rivals</label>
-              <input type="number" id="mktTax" min="0" step="0.1" value="1" inputmode="decimal" aria-label="Typical seller tax percentage">
             </div>
             <button type="button" class="tax-done" id="taxDone">Done</button>
           </div>
@@ -4519,8 +4515,9 @@ function buildThemes(){
   var id='gunmetal';try{id=localStorage.getItem('warera-calc-theme')||id}catch(e){}applyTheme(id)
 }
 function updateTaxChip(){
-  var mine=String($('tax').value||'0'),mkt=String(($('mktTax')||{}).value||'0');
-  $('taxChip').textContent='Tax '+mine+'%'+(mine!==mkt?' vs '+mkt+'%':'')
+  // Your rate converts a price you were shown back to the figure you type. It never
+  // reduces what you receive, so there is nothing to compare it against.
+  $('taxChip').textContent='Tax '+String($('tax').value||'0')+'%'
 }
 
 function syncSettings(){
@@ -5947,7 +5944,7 @@ function paintCraft(){
   if(!$('craftBox'))return;
   // Before any early return: the rarity is choosable whether or not prices have loaded.
   paintCraftPick();
-  var sig=[state.tier,tierKnown()?'k':'',$('tax').value,$('mktTax').value,craftState.src,$('craftCount').value,
+  var sig=[state.tier,tierKnown()?'k':'',$('tax').value,craftState.src,$('craftCount').value,
     entrySig(),
     craftState.liveAt,craftState.liveLoading?'L':'',craftState.liveError||'',
     craftState.src==='own'?$('craftScrap').value+'/'+$('craftSteel').value:'',
@@ -6074,7 +6071,6 @@ function paintCraft(){
     ' that way: each piece is priced at its historical median, and selling '+batch+
     ' at once will push that down by an amount this cannot see.';
   foot+=untradedNote(mine.exp);
-  foot+=taxGapNote();
   var cover=evCoverNote();if(cover)foot+=' '+cover;
   paintFoot(footEl.id,foot);paintQAll()
 }
@@ -6429,7 +6425,7 @@ function paintCase(){
   if(!$('caseBox'))return;
   var n=Math.floor(Number($('caseCount').value));
   n=isFinite(n)&&n>0?Math.min(n,9999):1;
-  var sig=[n,$('tax').value,$('mktTax').value,craftState.src,craftState.liveAt,state.tier,entrySig(),
+  var sig=[n,$('tax').value,craftState.src,craftState.liveAt,state.tier,entrySig(),
            sortMin.abs,sortMin.pct,sortMin.join,
            craftState.summary?'s':'',craftState.books?'b':'',evWindow].join('|');
   if(sig===craftState.caseSig)return;
@@ -6517,7 +6513,6 @@ function paintCase(){
     'so this assumes you sort every piece rather than listing all of them.';
   if(missing)foot+=' '+missing+' tier(s) have no sale data and are treated as worthless, so this is a floor.';
   foot+=untradedNote({unwanted:unwantedAll,quiet:quietAll});
-  foot+=taxGapNote();
   if(cost.thin)foot+=' The case order book could not fill the whole purchase, so the cost shown is a floor.';
   foot+=cost.posted
     ? ' Cost assumes a buy order resting at '+cost.unit.toFixed(3)+
@@ -6638,30 +6633,27 @@ function pctField(id,dflt){
   var v=Number($(id)&&$(id).value);
   return isFinite(v)&&v>=0?v:dflt
 }
-function marketTax(){return pctField('mktTax',1)}
-/* Silence here would be the card asserting the gap does not exist. Said once, plainly,
-   and only when there is a gap to report. */
-/* What a piece is "worth to you" is the collected median sale price converted to what
-   reaches your hand: the medians are prices the market displayed, which carry the sellers'
-   tax, and you pay yours. Equal rates cancel and the figure is the median itself - which is
-   why this is not "after tax", and why nothing is deducted when the rates match. Only
-   equipment is taxed at all; scraps, steel and cases are not, so a piece counted at its
-   dismantle value carries no tax either. */
-function taxGapNote(){
-  var mine=pctField('tax',1),mkt=marketTax();
-  if(Math.abs(mine-mkt)<1e-9)return '';
-  var gap=Math.abs(mine-mkt),swing=Math.abs(resaleNet()-1)*100;
-  return ' You are taxed '+gap.toFixed(gap%1?1:0)+' point'+(gap===1?'':'s')+
-    (mine>mkt?' above':' below')+' the '+mkt+'% assumed for the sellers you compete with, '+
-    'so showing what they show leaves you '+swing.toFixed(2)+'% '+
-    (mine>mkt?'less':'more')+' per sale.'
-}
-function resaleNet(){return (1+marketTax()/100)/(1+pctField('tax',1)/100)}
+/* What a piece is worth to you is the collected median, and nothing is taken off it.
+   The seller receives the listed price in full; the buyer pays their own country's rate on
+   top, and it goes to the buyer's country. The collector stores listed prices, not what a
+   buyer was shown - of 82,692 archived equipment sales 16.88% are whole numbers against
+   0.66% divisible by 1.01, and a feed carrying the buyer's markup would show the inverse.
+
+   This used to return (1 + rivals' rate) / (1 + your rate), on the belief that the medians
+   carried a seller's tax which you then paid again. Both halves were wrong. At the 1%/1%
+   default the ratio was 1 and every published figure was right by coincidence; set the two
+   fields apart and it invented a percent that does not exist, which is why the rivals field
+   is gone rather than defaulted.
+
+   Kept as a function, returning 1, so the model has one place to live if the game ever
+   taxes the seller. Only equipment is taxed at all: scraps, steel and cases are goods, so a
+   piece counted at its dismantle value was never taxed either. */
+function resaleNet(){return 1}
 function paintSort(){
   var box=$('sortRows');if(!box)return;
   var taxMul=resaleNet();
   var sig=[craftState.summary?'s':'',craftState.books?'b':'',craftState.live?'l':'',
-           $('tax').value,$('mktTax').value,craftState.src,craftState.liveAt,state.tier,state.slot,
+           $('tax').value,craftState.src,craftState.liveAt,state.tier,state.slot,
            sortMin.abs,sortMin.pct,sortMin.join,sortShown()].join('|');
   if(sig===craftState.sortSig)return;
   craftState.sortSig=sig;
@@ -6717,7 +6709,7 @@ function paintSort(){
   paintFoot('sortFoot','Cut lines move with the scrap price, so they are computed fresh, not written down. '+
     anySpace+' of '+anyKnown+' rolls with sale history clear the bar. Right-hand figure is how many of that '+
     'slot\u2019s seen rolls do. Open a slot and \u201clist at\u201d is the median of that roll\u2019s own recent '+
-    'sales, dimmed where fewer than '+THIN_SALES+' of them set it.'+taxGapNote());
+    'sales, dimmed where fewer than '+THIN_SALES+' of them set it.');
   paintSortGate();paintQAll()
 }
 /* A rule people cannot check is a rule they have to take on faith. Opening a slot shows
@@ -9205,13 +9197,6 @@ $('tax').addEventListener('input',function(){
   try{localStorage.setItem('warera-calc-tax',$('tax').value)}catch(e){}
   updateTaxChip();coreCalc(true)
 });
-/* Your own rate drives the Price tab's conversion; the rivals' rate drives nothing there,
-   only the gap the other three cards price against. */
-$('mktTax').addEventListener('input',function(){
-  try{localStorage.setItem('warera-calc-mkttax',$('mktTax').value)}catch(e){}
-  updateTaxChip();craftState.sig=null;craftState.caseSig=null;craftState.sortSig=null;
-  paintCraft();paintCase();paintSort();paintCutCard()
-});
 $('beatMode').addEventListener('change',function(){
   try{localStorage.setItem('warera-calc-beat',$('beatMode').checked?'1':'0')}catch(e){}
   coreCalc(true)
@@ -9874,7 +9859,6 @@ document.addEventListener('keydown',function(e){
 buildRarity();buildSlots();buildRolls();buildQueuePad();renderRecent();setViewLock(false);updateTaxChip();setChartTab('price');
 try{
   var t=localStorage.getItem('warera-calc-tax');if(t)$('tax').value=t;
-  var mt=localStorage.getItem('warera-calc-mkttax');if(mt)$('mktTax').value=mt;
   updateTaxChip();
   var beat=localStorage.getItem('warera-calc-beat');if(beat==='0')$('beatMode').checked=false;
   var q=localStorage.getItem('warera-calc-quick');if(q==='0')$('quickInput').checked=false;
