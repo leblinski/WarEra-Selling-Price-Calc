@@ -772,6 +772,7 @@ kbd{
   letter-spacing:.1em;text-transform:uppercase;color:var(--dim);opacity:.75
 }
 .craft-row.hit{background:rgba(var(--brass-rgb),.07);color:var(--ink)}
+.craft-row.break4{grid-template-columns:1.2fr .9fr 1fr 1fr}
 .craft-row .up,.flip-figure.up{color:var(--verdigris)}
 .craft-row .down,.flip-figure.down{color:var(--rust)}
 /* Sorting loot is a different job from pricing one item: the question is not "what is this
@@ -5900,23 +5901,30 @@ function renderScrap(){
     return;
   }
   var tax=Number(taxFrac().num)/Number(taxFrac().den);
-  var html='<div class="craft-row head"><span>Rarity</span><span>Scraps</span>'+
-    '<span>Breaks into</span><span>Pay up to</span><span>Seller lists at</span></div>';
+  // At a zero rate the two prices are the same number, and a column that repeats the one
+  // beside it is worse than no column. It earns its place only when a rate separates them.
+  var split=Math.abs(tax-1)>1e-9,cls='craft-row'+(split?'':' break4');
+  var html='<div class="'+cls+' head"><span>Rarity</span><span>Scraps</span>'+
+    '<span>Breaks into</span><span>Pay up to</span>'+
+    (split?'<span>Seller lists at</span>':'')+'</div>';
   for(var t=1;t<=6;t++){
     var dis=SCRAP_YIELDS[t-1]*bid,cap=scrapMaxCost(dis);
-    html+='<div class="craft-row'+(cap>0?'':' ')+'">'+
+    html+='<div class="'+cls+'">'+
       '<span>'+RARITY_NAMES[t-1]+'</span>'+
       '<span>'+SCRAP_YIELDS[t-1]+'</span>'+
       '<span>'+fmt(dis)+'</span>'+
       '<span class="'+(cap>0?'up':'down')+'">'+(cap>0?fmt(cap):'never')+'</span>'+
-      '<span>'+(cap>0?fmt(cap/tax):'—')+'</span></div>';
+      (split?('<span>'+(cap>0?fmt(cap/tax):'—')+'</span>'):'')+'</div>';
   }
   rows.innerHTML=html;
   var m=scrapMin();
   $('breakFoot').textContent=
-    'Pay up to is the price your own client shows, which already includes your '+
-    ((tax-1)*100).toFixed(2)+'% market tax, so it is what leaves your pocket. Seller lists at '+
-    'is the same trade as the collector records it. '+
+    'Pay up to is the price your own client shows you, which is what leaves your pocket. '+
+    (split
+      ? ('Your market tax of '+((tax-1)*100).toFixed(2)+'% is already in it, because the buyer '+
+         'pays it on top; seller lists at is the same trade without it, which is how the '+
+         'collector records it. ')
+      : 'Your market tax is zero, so what you see in the market is what you pay. ')+
     (m.abs>0||m.pct>0
       ? ('Held back by '+(m.abs>0?fmt(m.abs)+' gold':'')+
          (m.abs>0&&m.pct>0?' and ':'')+(m.pct>0?m.pct+'%':'')+', whichever bites harder.')
