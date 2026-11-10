@@ -122,6 +122,7 @@ tbody tr.sel{background:rgba(var(--brass-rgb),.15)}
 .ladder .bar-bg{position:relative}
 .ladder .whale{color:var(--brass);font-weight:600}
 .ladder .age{color:var(--dim);font-size:10px;min-width:32px;text-align:right}
+.ladder .count{color:var(--dim);font-size:10px;min-width:32px;text-align:right}
 .ladder .mine{box-shadow:inset 2px 0 0 var(--brass)}
 .ladder .bar-bg i{position:absolute;inset:0 auto 0 0;opacity:.17;pointer-events:none}
 .ask i{background:var(--rust)} .bid i{background:var(--verdigris)}
@@ -170,6 +171,7 @@ progress{width:130px;height:8px}
   </label>
   <button id="sync" class="primary">Refresh</button>
   <button id="live" title="Ask the game for prices right now, to cover the gap since the collector last ran">Live prices</button>
+  <label class="ctl" title="Ask the game for a good's book as soon as you open it"><input type="checkbox" id="autolive"> auto</label>
   <span id="liveage" class="pill" hidden>live</span>
   <span id="fillage" class="pill" hidden>fills</span>
   <div class="collector-health">
@@ -226,6 +228,12 @@ progress{width:130px;height:8px}
               <option value="25">25</option>
               <option value="50">50</option>
               <option value="100">100</option>
+            </select>
+          </label>
+          <label class="ctl">Rows
+            <select id="view">
+              <option value="orders">One per order</option>
+              <option value="levels">One per price</option>
             </select>
           </label>
           <span id="dsub"></span>
@@ -447,6 +455,37 @@ function priceLevels(side){
   }
   return n;
 }
+function bookView(){return $('view')&&$('view').value==='levels'?'levels':'orders'}
+/* One row per price instead of one per order.
+
+   The game caps a book at 100 orders a side - asking for 200 is an HTTP 400 - so depth
+   cannot be bought by asking for more. What it can be bought by is not spending twenty
+   rows on one price: scraps arrives as 100 orders standing on 20 distinct prices, and
+   collapsed, the whole shape of the book fits on one screen with the real size at each
+   price. Both sides arrive already sorted, so encounter order is price order. */
+function collapse(side,whales){
+  var out=[],by={},i,o,k,lvl,run=0;
+  for(i=0;i<side.length;i++){
+    o=side[i];k=Number(o.price).toFixed(6);lvl=by[k];
+    if(!lvl){lvl=by[k]={price:Number(o.price),quantity:0,orders:0,mine:false};out.push(lvl)}
+    lvl.quantity+=Number(o.quantity)||0;
+    lvl.orders++;
+    if(whales&&o.user&&whales[o.user])lvl.mine=true;
+  }
+  for(i=0;i<out.length;i++){run+=out[i].quantity;out[i].cum=run}
+  return out;
+}
+function levelRow(l,depth,k){
+  if(!l)return '<div class="'+k+'"><span>—</span><span></span></div>';
+  var w=Math.max(2,Math.round(l.quantity/depth*100));
+  return '<div class="'+k+' bar-bg'+(l.mine?' mine':'')+'" title="'+esc(
+      l.orders+(l.orders===1?' order':' orders')+' at '+px(l.price)+
+      ' · '+units(l.quantity)+' here · '+units(l.cum)+' to this price')+'">'+
+    '<i style="width:'+w+'%"></i>'+
+    '<span'+(l.mine?' class="whale"':'')+'>'+(l.mine?'\u25c6 ':'')+px(l.price)+'</span>'+
+    '<span class="count">'+(l.orders>1?('\u00d7'+l.orders):'')+'</span>'+
+    '<span>'+units(l.quantity)+'</span></div>';
+}
 function bookFor(code){
   if(LIVE.book&&LIVE.bookCode===code){
     /* The collector sorts before it publishes; the game does not promise to, so the live
@@ -499,16 +538,21 @@ function renderBook(code){
     cell('Spread %',(bid!=null&&ask!=null&&bid>0)?((ask-bid)/bid*100).toFixed(2):'—','')+
     cell('Mid',px(mid),'')+
     cell('Imbalance',imb==null?'—':(imb>0?'+':'')+Math.round(imb)+'%',imb==null?'':(imb>0?'up':'down'));
-  var shown=Math.min(bookDepth(),Math.max(b.bids.length,b.asks.length))||1;
-  var depth=Math.max(
-    b.bids.slice(0,shown).reduce(function(m,o){return Math.max(m,o.quantity)},0),
-    b.asks.slice(0,shown).reduce(function(m,o){return Math.max(m,o.quantity)},0),1);
   var whales=b.live?whaleSet():null;
+  var levels=bookView()==='levels';
+  var bids=levels?collapse(b.bids,whales):b.bids;
+  var asks=levels?collapse(b.asks,whales):b.asks;
+  var shown=Math.min(bookDepth(),Math.max(bids.length,asks.length))||1;
+  var depth=Math.max(
+    bids.slice(0,shown).reduce(function(m,o){return Math.max(m,o.quantity)},0),
+    asks.slice(0,shown).reduce(function(m,o){return Math.max(m,o.quantity)},0),1);
+  var mid2=levels?'Orders':'Rested';
   var html='<div class="ladder-head">'+
-    '<div><span>Bid</span><span>Rested</span><span>Size</span></div>'+
-    '<div><span>Ask</span><span>Rested</span><span>Size</span></div></div>';
+    '<div><span>Bid</span><span>'+mid2+'</span><span>Size</span></div>'+
+    '<div><span>Ask</span><span>'+mid2+'</span><span>Size</span></div></div>';
   for(var i=0;i<shown;i++)
-    html+=side(b.bids[i],depth,'bid',whales)+side(b.asks[i],depth,'ask',whales);
+    html+=levels?(levelRow(bids[i],depth,'bid')+levelRow(asks[i],depth,'ask'))
+                :(side(b.bids[i],depth,'bid',whales)+side(b.asks[i],depth,'ask',whales));
   lad.innerHTML=html;
   renderResting(b,whales);
   var bl=priceLevels(b.bids),al=priceLevels(b.asks);
@@ -682,7 +726,10 @@ function renderAll(){renderOverview();renderDetail()}
    volume, velocity and whales stay as the collector last measured them. Only the price
    moves here, and the page says which numbers are which. */
 var GAME='https://api2.warera.io/trpc/';
-var LIVE={prices:null,at:0,book:null,bookCode:null};
+var LIVE={prices:null,at:0,book:null,bookCode:null,bookAt:0};
+var AUTOLIVE=getPref('autolive','1')==='1';
+/* Re-asking for the same book within this window is asking the same question twice. */
+var LIVE_BOOK_FRESH_MS=20000;
 
 async function askGame(proc,input){
   var url=GAME+proc+(input?('?input='+encodeURIComponent(JSON.stringify(input))):'');
@@ -711,7 +758,7 @@ async function goLive(){
        want a key; if it does, the prices still landed and the page says so. */
     try{
       LIVE.book=await askGame('tradingOrder.getTopOrders',{itemCode:STATE.sel,limit:100});
-      LIVE.bookCode=STATE.sel;
+      LIVE.bookCode=STATE.sel;LIVE.bookAt=now();
     }catch(e){LIVE.book=null;LIVE.bookCode=null}
     clearError();
     $('liveage').hidden=false;
@@ -865,11 +912,45 @@ async function refresh(){
   prog.hidden=true;$('sync').disabled=false;busy=false;
 }
 
+/* Opening a good is itself the request for its book. The page used to make you ask twice,
+   once for the good and again for live prices, and the second ask is the one that matters,
+   because between collector runs the book is the part that has moved.
+
+   Prices are one call for every good at once, so they are kept and only refreshed when
+   stale; the book is a call per good, so only the open one is asked for. An answer that
+   arrives after the selection has moved on is dropped rather than painted over the good
+   now on screen, and a failure stays quiet - the published book is still there, and a
+   banner on every click would say nothing the pill does not. */
+async function autoLive(code){
+  if(!AUTOLIVE||busy)return;
+  if(LIVE.bookCode===code&&(now()-LIVE.bookAt)<LIVE_BOOK_FRESH_MS)return;
+  try{
+    if(!LIVE.prices||(now()-LIVE.at)>300000){
+      var prices=await askGame('itemTrading.getPrices',null);
+      var clean={};
+      for(var c in prices){
+        var v=Number(prices[c]&&prices[c].price!=null?prices[c].price:prices[c]);
+        if(Number.isFinite(v)&&v>0)clean[c]=v;
+      }
+      if(STATE.sel!==code)return;
+      LIVE.prices=clean;LIVE.at=now();
+    }
+    var book=await askGame('tradingOrder.getTopOrders',{itemCode:code,limit:100});
+    if(STATE.sel!==code)return;
+    LIVE.book=book;LIVE.bookCode=code;LIVE.bookAt=now();
+    $('liveage').hidden=false;
+    renderDetail();
+  }catch(e){
+    if(STATE.sel===code&&LIVE.bookCode!==code){LIVE.book=null;LIVE.bookCode=null}
+  }
+}
+
 /* A good's own fills are a megabyte, so they are fetched when it is opened and kept. */
 async function openGood(code,repaint){
   STATE.sel=code;setPref('sel',code);
   if(repaint!==false){renderOverview();renderDetail()}
   else renderDetail();
+  autoLive(code);
   if(TRADES[code])return;
   try{
     await ensureTrades(code);
@@ -895,6 +976,8 @@ function boot(){
   $('win').value=getPref('win','48');
   $('every').value=getPref('every','300');
   $('depth').value=getPref('depth','12');
+  $('view').value=getPref('view','orders');
+  $('autolive').checked=AUTOLIVE;
   STATE.pctl=Number($('pctl').value)||2;
   STATE.winH=Number($('win').value)||48;
 
@@ -919,6 +1002,13 @@ function boot(){
     setPref('win',this.value);STATE.winH=Number(this.value)||48;renderAll();
   });
   $('every').addEventListener('change',arm);
+  $('autolive').addEventListener('change',function(){
+    AUTOLIVE=this.checked;setPref('autolive',this.checked?'1':'0');
+    if(AUTOLIVE)autoLive(STATE.sel);
+  });
+  $('view').addEventListener('change',function(){
+    setPref('view',this.value);renderBook(STATE.sel);
+  });
   $('depth').addEventListener('change',function(){
     setPref('depth',this.value);renderBook(STATE.sel);
   });
