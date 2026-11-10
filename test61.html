@@ -3289,6 +3289,7 @@ h1 .title-word{white-space:nowrap}
         <button type="button" class="tabbtn" role="tab" data-tab="sort" aria-selected="false">Sort</button>
         <button type="button" class="tabbtn" role="tab" data-tab="craft" aria-selected="false">Craft <span class="tabdot"></span><b id="tabCraftVal"></b></button>
         <button type="button" class="tabbtn" role="tab" data-tab="cases" aria-selected="false">Cases <span class="tabdot"></span><b id="tabCaseVal"></b></button>
+        <button type="button" class="tabbtn" role="tab" data-tab="scrap" aria-selected="false">Break</button>
       </div>
 
       <div class="tabpane" id="paneprice">
@@ -3813,6 +3814,26 @@ h1 .title-word{white-space:nowrap}
 
       </div>
 
+      <div class="tabpane" id="panescrap" hidden>
+      <section class="flip" id="breakBox">
+        <p class="flip-label"><i aria-hidden="true" class="res res-scrap res-in"></i>Buy it to break it?</p>
+        <p class="flip-lead">Dismantling is the one trade with nothing uncertain in it. The yield per
+        rarity is fixed by the game, so the only question is what a scrap sells for.</p>
+        <div class="ev-window">
+          <span>Scraps sell at</span>
+          <label for="scrapBid"><input type="text" id="scrapBid" inputmode="decimal" autocomplete="off" spellcheck="false" aria-label="Price a scrap sells for"></label>
+          <button type="button" class="tour-open" id="scrapLiveBtn">Use live</button>
+          <span id="scrapLiveNote"></span>
+        </div>
+        <div class="ev-window">
+          <span>Least profit worth the click</span>
+          <label for="scrapMinAbs">Gold<input type="text" id="scrapMinAbs" value="0" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+          <label for="scrapMinPct">Percent<input type="text" id="scrapMinPct" value="0" inputmode="decimal" autocomplete="off" spellcheck="false"></label>
+        </div>
+        <div class="craft-rows" id="breakRows"></div>
+        <p class="flip-detail" id="breakFoot"></p>
+      </section>
+      </div>
       <div class="tabpane" id="panesort" hidden>
       <section class="flip" id="sortBox">
         <p class="flip-label">Sell it or break it?<button type="button" class="q" data-q="sort" aria-expanded="false" aria-label="How to read these rows">?</button></p>
@@ -4735,7 +4756,7 @@ function coreCalc(settled){
     prefetchSelected()
   }
   state.beat=beating;
-  paintCraft();paintCase();paintSort();paintCutCard();
+  paintCraft();renderScrap();paintCase();paintSort();paintCutCard();
   $('priceLabel').textContent=beating?'Price to beat':'Price to target';
   if(!shown){
     state.coreFigure='';state.listFigure='';
@@ -4981,7 +5002,7 @@ function loadBookHistory(){
     if(!j||!j.snapshots||!j.snapshots.length)return;
     bookHist=j;
     craftState.sig=null;craftState.caseSig=null;
-    paintCraft();paintCase()
+    paintCraft();renderScrap();paintCase()
   },function(){})
 }
 function bookSeries(code){
@@ -5485,7 +5506,7 @@ function setEvWindow(v){
   if(evWindow===v)return;
   evWindow=v;
   try{localStorage.setItem('warera-ev-window',v)}catch(e){}
-  paintEvWindow();paintCraft();paintCase()
+  paintEvWindow();paintCraft();renderScrap();paintCase()
 }
 function paintEvWindow(){
   var ids=['caseWindow','craftWindow'];
@@ -5612,7 +5633,7 @@ function loadGatewayBooks(force){
     if(ok===3){craftState.live=out;craftState.liveAt=Date.now();craftState.liveError=null}
     else craftState.liveError=(err&&err.message?err.message:'request failed');
     craftState.sig=null;craftState.caseSig=null;craftState.sortSig=null;
-    paintCraft();paintCase();paintSort();paintCutCard();paintRollFacts()
+    paintCraft();renderScrap();paintCase();paintSort();paintCutCard();paintRollFacts()
   })
 }
 /* Whichever source the books are actually coming from is the one the button pulls: a live
@@ -5628,7 +5649,7 @@ function refreshBooks(){
     // A re-read of the book is also the moment to pick up any snapshots since the last one.
     bookHistTried=false;loadBookHistory();
     craftState.sig=null;craftState.caseSig=null;craftState.sortSig=null;
-    paintCraft();paintCase();paintSort();paintCutCard();paintDataStamp()
+    paintCraft();renderScrap();paintCase();paintSort();paintCutCard();paintDataStamp()
   };
   var job=apiKey()
     ? loadGatewayBooks(true)
@@ -5638,7 +5659,7 @@ function refreshBooks(){
 // Only the panels need redrawing to show the button turning; the figures have not moved yet.
 function paintBooksNow(){
   craftState.sig=null;craftState.caseSig=null;
-  paintCraft();paintCase()
+  paintCraft();renderScrap();paintCase()
 }
 document.addEventListener('click',function(e){
   var b=e.target&&e.target.closest?e.target.closest('[data-bookrefresh]'):null;
@@ -5832,6 +5853,75 @@ function craftDismantle(t){
 /* Live is not a mode any more. The Gateway copy is a minute old and the collector's is
    at most a quarter of an hour, so the live one is simply better when a key makes it
    available - there was never a reason to ask someone which they would like. */
+/* ---- Buy it to break it ------------------------------------------------------------
+   Dismantling has no uncertainty in it: the yield per rarity is fixed by the game, so the
+   only unknown is what a scrap sells for. That makes the whole thing a threshold - pay
+   less than the scraps come to and the difference is yours.
+
+   The number to compare against is the one the game SHOWS you, not the seller's listing.
+   Equipment tax is paid by the buyer, at their own country's rate, added on top, so the
+   displayed price already is your cost and no tax arithmetic belongs in it. The listed
+   column exists only because the collector stores what sellers typed, and the two differ
+   by exactly your own rate. Scraps are a good, so selling them back carries no tax. */
+var RARITY_NAMES=['Common','Uncommon','Rare','Epic','Legendary','Mythic'];
+var scrapState={bid:null,typed:false};
+
+function scrapLiveBid(){
+  var ob=craftBook('scraps'),bid=ob&&ob.best_bid;
+  return bid==null?null:Number(bid);
+}
+function scrapBidUsed(){
+  return (scrapState.typed&&scrapState.bid!=null&&scrapState.bid>0)?scrapState.bid:scrapLiveBid();
+}
+function scrapNum(v){var n=Number(String(v==null?'':v).replace(',','.'));return isFinite(n)&&n>0?n:0}
+function scrapMin(){
+  return {abs:scrapNum($('scrapMinAbs').value),pct:scrapNum($('scrapMinPct').value)};
+}
+/* Both floors apply, so the tighter one wins. A flat floor is "worth the click at all";
+   a percentage floor is "worth the capital", and on a mythic those are very different
+   numbers. */
+function scrapMaxCost(dis){
+  var m=scrapMin(),caps=[dis-m.abs];
+  if(m.pct>0)caps.push(dis/(1+m.pct/100));
+  return Math.min.apply(null,caps);
+}
+function renderScrap(){
+  var rows=$('breakRows');if(!rows)return;
+  var live=scrapLiveBid(),bid=scrapBidUsed();
+  // The field tracks the book until the user takes it over, and never fights their typing.
+  if(!scrapState.typed&&live!=null&&$('scrapBid'))$('scrapBid').value=fmt(live);
+  var note=$('scrapLiveNote');
+  if(note)note.textContent=live==null?'no live scrap bid yet'
+    :(scrapState.typed&&scrapState.bid!=null&&scrapState.bid!==live
+      ?('live is '+fmt(live)):'live');
+  if(bid==null||!(bid>0)){
+    rows.innerHTML='<div class="craft-row"><span>Waiting for a scrap price…</span></div>';
+    $('breakFoot').textContent='';
+    return;
+  }
+  var tax=Number(taxFrac().num)/Number(taxFrac().den);
+  var html='<div class="craft-row head"><span>Rarity</span><span>Scraps</span>'+
+    '<span>Breaks into</span><span>Pay up to</span><span>Seller lists at</span></div>';
+  for(var t=1;t<=6;t++){
+    var dis=SCRAP_YIELDS[t-1]*bid,cap=scrapMaxCost(dis);
+    html+='<div class="craft-row'+(cap>0?'':' ')+'">'+
+      '<span>'+RARITY_NAMES[t-1]+'</span>'+
+      '<span>'+SCRAP_YIELDS[t-1]+'</span>'+
+      '<span>'+fmt(dis)+'</span>'+
+      '<span class="'+(cap>0?'up':'down')+'">'+(cap>0?fmt(cap):'never')+'</span>'+
+      '<span>'+(cap>0?fmt(cap/tax):'—')+'</span></div>';
+  }
+  rows.innerHTML=html;
+  var m=scrapMin();
+  $('breakFoot').textContent=
+    'Pay up to is the price your own client shows, which already includes your '+
+    ((tax-1)*100).toFixed(2)+'% market tax, so it is what leaves your pocket. Seller lists at '+
+    'is the same trade as the collector records it. '+
+    (m.abs>0||m.pct>0
+      ? ('Held back by '+(m.abs>0?fmt(m.abs)+' gold':'')+
+         (m.abs>0&&m.pct>0?' and ':'')+(m.pct>0?m.pct+'%':'')+', whichever bites harder.')
+      : 'No minimum profit set, so these are break-even prices.');
+}
 function craftBook(code){
   if(craftState.live&&craftState.live[code])return craftState.live[code];
   var c=((craftState.books||{}).commodities||{})[code];
@@ -6560,7 +6650,7 @@ function setCraftSource(src){
     b.textContent=own?'Back to the live book':'Set my own prices'
   }
   syncCraftInputs();
-  paintCraft();paintCase();paintSort();paintCutCard()
+  paintCraft();renderScrap();paintCase();paintSort();paintCutCard()
 }
 function syncCraftInputs(){
   if(craftState.src==='own')return;
@@ -6574,7 +6664,7 @@ var dataStampHold=0;
    The craft and case cards were half the page and sat in the way of the thing done every
    time. They keep their answers on the tab itself, so moving them out of the scroll path
    does not mean losing sight of whether either is currently worth doing. */
-var TABS=['price','sort','craft','cases'];
+var TABS=['price','sort','craft','cases','scrap'];
 function currentTab(){
   try{var t=localStorage.getItem('warera-calc-tab');return TABS.indexOf(t)>=0?t:'price'}
   catch(e){return 'price'}
@@ -9052,7 +9142,7 @@ function pickEntry(code,px){
   if(code==='case1'&&$('caseBid'))
     $('caseBid').value=craftState.entry[code]==null?'':craftState.entry[code].toFixed(3);
   craftState.sig=null;craftState.caseSig=null;
-  syncCraftInputs();paintCraft();paintCase()
+  syncCraftInputs();paintCraft();renderScrap();paintCase()
 }
 /* Says what the typed price will actually do, because a bid is a hope and the book decides
    which kind. Silence here would let someone read a resting price as a purchase. */
@@ -9124,7 +9214,7 @@ function syncBars(except){
 }
 function applySortMin(){
   craftState.sortSig=null;craftState.sig=null;craftState.caseSig=null;
-  saveSortMin();syncBars(applySortMin.from);paintSort();paintCutCard();paintCraft();paintCase()
+  saveSortMin();syncBars(applySortMin.from);paintSort();paintCutCard();paintCraft();renderScrap();paintCase()
 }
 [['sortMin','abs'],['sortMinPct','pct'],['craftBar','abs'],['caseBar','abs']].forEach(function(pair){
   var el=$(pair[0]);if(!el)return;
@@ -9324,6 +9414,33 @@ $('docket').addEventListener('click',function(){if(state.coreFigure||state.listF
 
 $('quickInput').addEventListener('change',function(){syncSettings();try{localStorage.setItem('warera-calc-quick',this.checked?'1':'0')}catch(e){}});
 $('autoCopy').addEventListener('change',function(){syncSettings();try{localStorage.setItem('warera-calc-auto',this.checked?'1':'0')}catch(e){}});
+$('scrapBid').addEventListener('input',function(){
+  var v=scrapNum(this.value);
+  scrapState.typed=this.value.trim()!=='';scrapState.bid=v||null;
+  try{localStorage.setItem('warera-calc-scrapbid',scrapState.typed?this.value:'')}catch(e){}
+  renderScrap();
+});
+$('scrapLiveBtn').addEventListener('click',function(){
+  scrapState.typed=false;scrapState.bid=null;
+  try{localStorage.setItem('warera-calc-scrapbid','')}catch(e){}
+  renderScrap();
+});
+['scrapMinAbs','scrapMinPct'].forEach(function(id){
+  $(id).addEventListener('input',function(){
+    try{localStorage.setItem('warera-calc-'+id,this.value)}catch(e){}
+    renderScrap();
+  });
+});
+(function(){
+  try{
+    var b=localStorage.getItem('warera-calc-scrapbid');
+    if(b){$('scrapBid').value=b;scrapState.typed=true;scrapState.bid=scrapNum(b)||null}
+    ['scrapMinAbs','scrapMinPct'].forEach(function(id){
+      var v=localStorage.getItem('warera-calc-'+id);if(v!=null)$(id).value=v
+    });
+  }catch(e){}
+  renderScrap();
+})();
 $('sound').addEventListener('change',function(){syncSettings();try{localStorage.setItem('warera-calc-sound',this.checked?'1':'0')}catch(e){};if(this.checked)playCopySound(true)});
 $('soundBtns').addEventListener('click',function(e){
   var b=e.target.closest('[data-sound]');if(!b)return;
