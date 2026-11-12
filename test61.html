@@ -5524,7 +5524,7 @@ function paintEvWindow(){
   }
 }
 
-function craftSlotValue(slot,t,taxMul){
+function craftSlotValue(slot,t,taxMul,bar){
   var cat=((craftState.summary||{}).categories||{})[itemCodeForSlot(slot,t)];
   if(!cat)return null;
   var rolls=cat.rolls||{},seen={},key;
@@ -5561,13 +5561,13 @@ function craftSlotValue(slot,t,taxMul){
     perRoll+=(seen[c].fallback_48h||{}).count||0;
   perRoll=space.length?perRoll/space.length:0;
   var absenceMeans=t<=UNTRADED_MAX_TIER&&perRoll>=UNTRADED_IS_UNWANTED;
-  var wsum=0,vsum=0,covered=0,samples=0,broken=0,unwanted=0;
+  var wsum=0,vsum=0,covered=0,samples=0,broken=0,unwanted=0,above=0;
   for(var i=0;i<space.length;i++){
     var row=seen[space[i]];
     var stat=rollStat(row);
     if(!stat||stat.median==null){
       // Seen often enough that silence is a verdict, so it counts, at what it breaks for.
-      if(absenceMeans){unwanted++;broken++;wsum++;vsum+=dis}
+      if(absenceMeans){unwanted++;broken++;wsum++;vsum+=dis;if(bar!=null&&dis>bar)above++}
       continue
     }
     // Every roll carries the same weight, because a craft hands you one at random.
@@ -5580,11 +5580,12 @@ function craftSlotValue(slot,t,taxMul){
     // The count that priced the roll, not a fixed 48h one. The foot reports these as
     // the evidence behind the figure, so it has to move when the window does - and
     // under Auto it was already over-counting a roll that 24h had priced.
-    covered++;samples+=stat.count||0;wsum++;vsum+=best
+    covered++;samples+=stat.count||0;wsum++;vsum+=best;
+    if(bar!=null&&best>bar)above++
   }
   if(!wsum)return null;
   return {net:vsum/wsum,covered:covered,space:space.length,samples:samples,
-          broken:broken,weight:wsum,unwanted:unwanted,absenceMeans:absenceMeans}
+          broken:broken,weight:wsum,unwanted:unwanted,absenceMeans:absenceMeans,above:above}
 }
 /* ---- Aiming at one slot --------------------------------------------------------------
    A random craft pays the weighted average of the six slots. Aiming pays whichever slot
@@ -5600,13 +5601,17 @@ function craftAimed(t,taxMul,batch){
   var exp=craftExpected(t,taxMul),out=[];
   var randomCost=sc.cost+st.cost;
   var randomProfit=exp?exp.net*batch-randomCost:null;
+  var cost=sc.cost+st.cost*2;                      // same scraps, twice the steel
+  var each=batch>0?cost/batch:cost;                // the bar one craft has to clear
   for(var i=0;i<SLOTS.length;i++){
-    var slot=SLOTS[i].code,v=craftSlotValue(slot,t,taxMul);
+    var slot=SLOTS[i].code,v=craftSlotValue(slot,t,taxMul,each);
     if(!v)continue;
-    var cost=sc.cost+st.cost*2,gross=v.net*batch;   // same scraps, twice the steel
+    var gross=v.net*batch;
     out.push({code:slot,name:slot==='weapon'?WEAPON_NAMES[t-1]:SLOTS[i].name,
               gross:gross,cost:cost,profit:gross-cost,
-              pct:cost>0?(gross-cost)/cost*100:0,thin:(v.covered||0)<(v.space||0)});
+              pct:cost>0?(gross-cost)/cost*100:0,thin:(v.covered||0)<(v.space||0),
+              hits:v.above||0,of:v.weight||0,
+              hitPct:v.weight>0?(v.above||0)/v.weight*100:null});
   }
   out.sort(function(a,b){return b.profit-a.profit});
   return {rows:out,randomProfit:randomProfit,extraSteel:st.cost,
@@ -5625,22 +5630,29 @@ function paintAim(){
     el.innerHTML='<div class="craft-row"><span>No prices for this rarity yet.</span></div>';
     $('aimFoot').textContent='';return
   }
-  var html='<div class="craft-row head"><span>Slot</span><span>Cost</span>'+
-    '<span>Sells for</span><span>Profit</span><span>vs random</span></div>';
+  var html='<div class="craft-row head"><span>Slot</span><span>Sells for</span>'+
+    '<span>Profit</span><span>Pays on</span><span>vs random</span></div>';
   for(var i=0;i<a.rows.length;i++){
     var r=a.rows[i],d=a.randomProfit==null?null:r.profit-a.randomProfit;
-    html+='<div class="craft-row'+(i===0?' hit':'')+'">'+
+    html+='<div class="craft-row'+(i===0?' hit':'')+'" title="'+esc(
+        r.hitPct==null?'no priced rolls'
+        :(r.hits+' of '+r.of+' priced rolls come back worth more than the '+
+          craftMoney(r.cost)+' you paid'))+'">'+
       '<span>'+esc(r.name)+(r.thin?'*':'')+'</span>'+
-      '<span>'+craftMoney(r.cost)+'</span>'+
       '<span>'+craftMoney(r.gross)+'</span>'+
       '<span class="'+(r.profit>=0?'up':'down')+'">'+craftSigned(r.pct,1)+'%</span>'+
+      '<span class="'+(r.hitPct==null?'':(r.hitPct>=50?'up':'down'))+'">'+
+        (r.hitPct==null?'—':(Math.round(r.hitPct)+'%'))+'</span>'+
       '<span class="'+(d==null?'':(d>=0?'up':'down'))+'">'+
         (d==null?'—':craftSigned(d,2))+'</span></div>';
   }
   el.innerHTML=html;
   var best=a.rows[0],gap=a.randomProfit==null?null:best.profit-a.randomProfit;
   $('aimFoot').textContent=
-    'Aiming costs '+craftMoney(a.extraSteel)+' more in steel. '+
+    'Every slot costs the same '+craftMoney(best.cost)+' to aim at, '+craftMoney(a.extraSteel)+
+    ' of that the extra steel. Pays on is how much of the roll space comes back worth more '+
+    'than you paid, which is not the same question as the average: a slot can carry a '+
+    'higher EV on a few good rolls and lose on most of them. '+
     (gap==null?'Rolling at random cannot be priced right now.'
      :gap>0?('Best here is '+best.name+', '+craftSigned(gap,2)+' gold a craft over rolling at random.')
      :('Rolling at random still wins: the best slot, '+best.name+', comes '+
