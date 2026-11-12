@@ -773,6 +773,9 @@ kbd{
 }
 .craft-row.hit{background:rgba(var(--brass-rgb),.07);color:var(--ink)}
 .craft-row.break4{grid-template-columns:1.2fr .9fr 1fr 1fr}
+.craft-aim-label{font-family:"Saira Condensed",sans-serif;font-weight:600;font-size:12px;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin:16px 0 0}
+.craft-aim-note{text-transform:none;letter-spacing:0;opacity:.7;font-weight:400}
 .craft-row .up,.flip-figure.up{color:var(--verdigris)}
 .craft-row .down,.flip-figure.down{color:var(--rust)}
 /* Sorting loot is a different job from pricing one item: the question is not "what is this
@@ -3721,6 +3724,10 @@ h1 .title-word{white-space:nowrap}
         <div class="craft-rows" id="craftRows"></div>
         <p class="craft-foot" id="craftFoot" data-qof="craft"></p>
 
+        <p class="craft-aim-label" id="aimLabel"></p>
+        <div class="craft-rows" id="aimRows"></div>
+        <p class="craft-foot" id="aimFoot"></p>
+
         <div class="scrap-src">
           <span class="scrap-src-label">Input prices</span>
           <div class="craft-fields">
@@ -4757,7 +4764,7 @@ function coreCalc(settled){
     prefetchSelected()
   }
   state.beat=beating;
-  paintCraft();renderScrap();paintCase();paintSort();paintCutCard();
+  paintCraft();renderScrap();paintAim();paintCase();paintSort();paintCutCard();
   $('priceLabel').textContent=beating?'Price to beat':'Price to target';
   if(!shown){
     state.coreFigure='';state.listFigure='';
@@ -5003,7 +5010,7 @@ function loadBookHistory(){
     if(!j||!j.snapshots||!j.snapshots.length)return;
     bookHist=j;
     craftState.sig=null;craftState.caseSig=null;
-    paintCraft();renderScrap();paintCase()
+    paintCraft();renderScrap();paintAim();paintCase()
   },function(){})
 }
 function bookSeries(code){
@@ -5507,7 +5514,7 @@ function setEvWindow(v){
   if(evWindow===v)return;
   evWindow=v;
   try{localStorage.setItem('warera-ev-window',v)}catch(e){}
-  paintEvWindow();paintCraft();renderScrap();paintCase()
+  paintEvWindow();paintCraft();renderScrap();paintAim();paintCase()
 }
 function paintEvWindow(){
   var ids=['caseWindow','craftWindow'];
@@ -5579,6 +5586,68 @@ function craftSlotValue(slot,t,taxMul){
   return {net:vsum/wsum,covered:covered,space:space.length,samples:samples,
           broken:broken,weight:wsum,unwanted:unwanted,absenceMeans:absenceMeans}
 }
+/* ---- Aiming at one slot --------------------------------------------------------------
+   A random craft pays the weighted average of the six slots. Aiming pays whichever slot
+   you aimed at, for the same scraps and twice the steel, so it wins exactly when that
+   slot beats the average by more than the extra steel costs. Both halves of that move:
+   the gap between the best slot and the average is a market fact that changes daily, and
+   the steel is a price. At tier five they have been close enough that the answer flips,
+   which is the whole reason to show it rather than assert it. */
+function craftAimed(t,taxMul,batch){
+  var sc=craftInput('scraps',SCRAP_YIELDS[t-1]*batch,'craftScrap');
+  var st=craftInput('steel',CRAFT_STEEL[t-1]*batch,'craftSteel');
+  if(!sc||!st)return null;
+  var exp=craftExpected(t,taxMul),out=[];
+  var randomCost=sc.cost+st.cost;
+  var randomProfit=exp?exp.net*batch-randomCost:null;
+  for(var i=0;i<SLOTS.length;i++){
+    var slot=SLOTS[i].code,v=craftSlotValue(slot,t,taxMul);
+    if(!v)continue;
+    var cost=sc.cost+st.cost*2,gross=v.net*batch;   // same scraps, twice the steel
+    out.push({code:slot,name:slot==='weapon'?WEAPON_NAMES[t-1]:SLOTS[i].name,
+              gross:gross,cost:cost,profit:gross-cost,
+              pct:cost>0?(gross-cost)/cost*100:0,thin:(v.covered||0)<(v.space||0)});
+  }
+  out.sort(function(a,b){return b.profit-a.profit});
+  return {rows:out,randomProfit:randomProfit,extraSteel:st.cost,
+          missing:SLOTS.length-out.length};
+}
+
+function paintAim(){
+  var el=$('aimRows');if(!el)return;
+  // Before prices land the rarity can be anything; rname would throw on it.
+  var t=state.tier;
+  if(!(t>=1&&t<=6)){el.innerHTML='';$('aimLabel').textContent='';$('aimFoot').textContent='';return}
+  var a=craftAimed(t,resaleNet(),craftCount());
+  $('aimLabel').innerHTML='Aim at one slot instead? '+rname(t-1)+
+    ' <span class="craft-aim-note">same scraps, twice the steel</span>';
+  if(!a||!a.rows.length){
+    el.innerHTML='<div class="craft-row"><span>No prices for this rarity yet.</span></div>';
+    $('aimFoot').textContent='';return
+  }
+  var html='<div class="craft-row head"><span>Slot</span><span>Cost</span>'+
+    '<span>Sells for</span><span>Profit</span><span>vs random</span></div>';
+  for(var i=0;i<a.rows.length;i++){
+    var r=a.rows[i],d=a.randomProfit==null?null:r.profit-a.randomProfit;
+    html+='<div class="craft-row'+(i===0?' hit':'')+'">'+
+      '<span>'+esc(r.name)+(r.thin?'*':'')+'</span>'+
+      '<span>'+craftMoney(r.cost)+'</span>'+
+      '<span>'+craftMoney(r.gross)+'</span>'+
+      '<span class="'+(r.profit>=0?'up':'down')+'">'+craftSigned(r.pct,1)+'%</span>'+
+      '<span class="'+(d==null?'':(d>=0?'up':'down'))+'">'+
+        (d==null?'—':craftSigned(d,2))+'</span></div>';
+  }
+  el.innerHTML=html;
+  var best=a.rows[0],gap=a.randomProfit==null?null:best.profit-a.randomProfit;
+  $('aimFoot').textContent=
+    'Aiming costs '+craftMoney(a.extraSteel)+' more in steel. '+
+    (gap==null?'Rolling at random cannot be priced right now.'
+     :gap>0?('Best here is '+best.name+', '+craftSigned(gap,2)+' gold a craft over rolling at random.')
+     :('Rolling at random still wins: the best slot, '+best.name+', comes '+
+       craftSigned(gap,2)+' gold short.'))+
+    (a.rows.some(function(r){return r.thin})?' A * marks a slot whose roll space is not fully priced.':'');
+}
+
 // Expected proceeds from one craft, over every slot it could produce.
 function craftExpected(t,taxMul){
   var wsum=0,net=0,covered=0,space=0,samples=0,missing=0,broken=0,rollw=0,unwanted=0,quiet=0;
@@ -5634,7 +5703,7 @@ function loadGatewayBooks(force){
     if(ok===3){craftState.live=out;craftState.liveAt=Date.now();craftState.liveError=null}
     else craftState.liveError=(err&&err.message?err.message:'request failed');
     craftState.sig=null;craftState.caseSig=null;craftState.sortSig=null;
-    paintCraft();renderScrap();paintCase();paintSort();paintCutCard();paintRollFacts()
+    paintCraft();renderScrap();paintAim();paintCase();paintSort();paintCutCard();paintRollFacts()
   })
 }
 /* Whichever source the books are actually coming from is the one the button pulls: a live
@@ -5650,7 +5719,7 @@ function refreshBooks(){
     // A re-read of the book is also the moment to pick up any snapshots since the last one.
     bookHistTried=false;loadBookHistory();
     craftState.sig=null;craftState.caseSig=null;craftState.sortSig=null;
-    paintCraft();renderScrap();paintCase();paintSort();paintCutCard();paintDataStamp()
+    paintCraft();renderScrap();paintAim();paintCase();paintSort();paintCutCard();paintDataStamp()
   };
   var job=apiKey()
     ? loadGatewayBooks(true)
@@ -5660,7 +5729,7 @@ function refreshBooks(){
 // Only the panels need redrawing to show the button turning; the figures have not moved yet.
 function paintBooksNow(){
   craftState.sig=null;craftState.caseSig=null;
-  paintCraft();renderScrap();paintCase()
+  paintCraft();renderScrap();paintAim();paintCase()
 }
 document.addEventListener('click',function(e){
   var b=e.target&&e.target.closest?e.target.closest('[data-bookrefresh]'):null;
@@ -6658,7 +6727,7 @@ function setCraftSource(src){
     b.textContent=own?'Back to the live book':'Set my own prices'
   }
   syncCraftInputs();
-  paintCraft();renderScrap();paintCase();paintSort();paintCutCard()
+  paintCraft();renderScrap();paintAim();paintCase();paintSort();paintCutCard()
 }
 function syncCraftInputs(){
   if(craftState.src==='own')return;
@@ -9150,7 +9219,7 @@ function pickEntry(code,px){
   if(code==='case1'&&$('caseBid'))
     $('caseBid').value=craftState.entry[code]==null?'':craftState.entry[code].toFixed(3);
   craftState.sig=null;craftState.caseSig=null;
-  syncCraftInputs();paintCraft();renderScrap();paintCase()
+  syncCraftInputs();paintCraft();renderScrap();paintAim();paintCase()
 }
 /* Says what the typed price will actually do, because a bid is a hope and the book decides
    which kind. Silence here would let someone read a resting price as a purchase. */
@@ -9222,7 +9291,7 @@ function syncBars(except){
 }
 function applySortMin(){
   craftState.sortSig=null;craftState.sig=null;craftState.caseSig=null;
-  saveSortMin();syncBars(applySortMin.from);paintSort();paintCutCard();paintCraft();renderScrap();paintCase()
+  saveSortMin();syncBars(applySortMin.from);paintSort();paintCutCard();paintCraft();renderScrap();paintAim();paintCase()
 }
 [['sortMin','abs'],['sortMinPct','pct'],['craftBar','abs'],['caseBar','abs']].forEach(function(pair){
   var el=$(pair[0]);if(!el)return;
