@@ -773,6 +773,7 @@ kbd{
 }
 .craft-row.hit{background:rgba(var(--brass-rgb),.07);color:var(--ink)}
 .craft-row.break4{grid-template-columns:1.2fr .9fr 1fr 1fr}
+.craft-row.rand6{grid-template-columns:1.05fr .8fr .9fr .8fr .8fr .9fr}
 .craft-aim-label{font-family:"Saira Condensed",sans-serif;font-weight:600;font-size:12px;
   letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin:16px 0 0}
 .craft-aim-note{text-transform:none;letter-spacing:0;opacity:.7;font-weight:400}
@@ -5661,18 +5662,23 @@ function paintAim(){
 }
 
 // Expected proceeds from one craft, over every slot it could produce.
-function craftExpected(t,taxMul){
+function craftExpected(t,taxMul,bar){
   var wsum=0,net=0,covered=0,space=0,samples=0,missing=0,broken=0,rollw=0,unwanted=0,quiet=0;
+  var hitw=0;
   for(var s=0;s<SLOTS.length;s++){
-    var slot=SLOTS[s].code,w=CRAFT_SLOT_WEIGHT[slot]||1,v=craftSlotValue(slot,t,taxMul);
+    var slot=SLOTS[s].code,w=CRAFT_SLOT_WEIGHT[slot]||1,v=craftSlotValue(slot,t,taxMul,bar);
     if(!v){missing++;continue}
     wsum+=w;net+=w*v.net;covered+=v.covered;space+=v.space;samples+=v.samples;
     broken+=w*v.broken;rollw+=w*v.weight;unwanted+=v.unwanted;
+    // A random craft draws the slot as well as the roll, so each slot's hit rate counts
+    // for as often as that slot comes up.
+    if(v.weight>0)hitw+=w*(v.above||0)/v.weight;
     if(!v.absenceMeans)quiet+=v.space-v.covered
   }
   if(!wsum)return null;
   return {net:net/wsum,covered:covered,space:space,samples:samples,missingSlots:missing,
-          unwanted:unwanted,quiet:quiet,brokenShare:rollw>0?broken/rollw:0}
+          unwanted:unwanted,quiet:quiet,brokenShare:rollw>0?broken/rollw:0,
+          hitPct:(bar!=null)?hitw/wsum*100:null}
 }
 
 // The Gateway is only ever read with the key the person using this page supplied, and
@@ -6161,17 +6167,20 @@ function paintCraft(){
   }
 
   var taxMul=resaleNet(),batch=craftCount();
-  var rows='<div class="craft-row head"><span>Tier</span><span>Cost</span><span>Sells for</span><span>Profit</span><span>Break even</span></div>';
+  var rows='<div class="craft-row rand6 head"><span>Tier</span><span>Cost</span>'+
+    '<span>Sells for</span><span>Profit</span><span>Pays on</span><span>Break even</span></div>';
   var mine=null,thin=false,anySteel=null,anyScrap=null,known=tierKnown();
 
   for(var t=1;t<=6;t++){
     var scrapQty=SCRAP_YIELDS[t-1]*batch,steelQty=CRAFT_STEEL[t-1]*batch;
     var sc=craftInput('scraps',scrapQty,'craftScrap'),st=craftInput('steel',steelQty,'craftSteel');
-    var exp=craftExpected(t,taxMul);
+    // The bar one craft has to clear, so the hit rate is measured against what it cost.
+    var each=(sc&&st&&batch>0)?(sc.cost+st.cost)/batch:null;
+    var exp=craftExpected(t,taxMul,each);
     var hit=known&&t===state.tier?' hit':'';
     if(!sc||!st||!exp){
-      rows+='<div class="craft-row'+hit+'">'+rname(t-1)+
-        '<span>—</span><span>—</span><span>—</span><span>—</span></div>';
+      rows+='<div class="craft-row rand6'+hit+'">'+rname(t-1)+
+        '<span>—</span><span>—</span><span>—</span><span>—</span><span>—</span></div>';
       continue
     }
     if(t===1){anyScrap=sc;anySteel=st}
@@ -6181,12 +6190,16 @@ function paintCraft(){
     var beScrap=(gross-st.cost)/scrapQty;
     var beSteel=steelQty>0?(gross-sc.cost)/steelQty:null;
     var cls=profit>=0?'up':'down';
-    rows+='<div class="craft-row'+hit+'" title="'+scrapQty.toLocaleString()+' scraps + '+
-      steelQty.toLocaleString()+' steel">'+
+    rows+='<div class="craft-row rand6'+hit+'" title="'+scrapQty.toLocaleString()+' scraps + '+
+      steelQty.toLocaleString()+' steel'+
+      (exp.hitPct==null?'':('; '+Math.round(exp.hitPct)+'% of the time it comes back worth more than the '+
+        craftMoney(cost)+' it cost'))+'">'+
       rname(t-1)+
       '<span>'+craftMoney(cost)+'</span>'+
       '<span>'+craftMoney(gross)+'</span>'+
       '<span class="'+cls+'">'+craftSigned(pct,1)+'%</span>'+
+      '<span class="'+(exp.hitPct==null?'':(exp.hitPct>=50?'up':'down'))+'">'+
+        (exp.hitPct==null?'—':(Math.round(exp.hitPct)+'%'))+'</span>'+
       '<span>'+(beScrap>0?beScrap.toFixed(3):'—')+'</span></div>';
     if(known&&t===state.tier){
       mine={t:t,scrapQty:scrapQty,steelQty:steelQty,sc:sc,st:st,exp:exp,gross:gross,
