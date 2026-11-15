@@ -240,6 +240,7 @@ progress{width:130px;height:8px}
         </span>
       </div>
       <div class="spread-strip" id="strip"></div>
+      <div class="spread-strip" id="trend"></div>
       <div class="foot" id="livefoot" hidden></div>
       <div class="ladder" id="ladder"></div>
       <div class="foot" id="restfoot" hidden></div>
@@ -516,9 +517,36 @@ function side(o,depth,k,whales){
     '<span>'+units(o.quantity)+'</span></div>';
 }
 
+/* Which way, and by how much, over the spans a position is actually held for.
+
+   The collector measures it on the mid and sends the five numbers ready made, because the
+   captures it reads go back months while the ladder history it serves is three days - the
+   page cannot see far enough to answer the seven day question itself, and shipping it
+   enough history to try would cost megabytes to deliver five numbers a good.
+
+   A window with no snapshot near it reads as a dash. That is not the same as no change,
+   and showing a zero there would be a lie about a price nobody recorded. */
+var TREND_LABELS=[['6','6h'],['12','12h'],['24','24h'],['48','48h'],['168','7d']];
+function renderTrend(code){
+  var el=$('trend');if(!el)return;
+  var row=BOOKS&&BOOKS.commodities&&BOOKS.commodities[code];
+  var t=row&&row.trend;
+  if(!t||!t.windows){el.innerHTML='';el.hidden=true;return}
+  el.hidden=false;
+  var html='';
+  for(var i=0;i<TREND_LABELS.length;i++){
+    var key=TREND_LABELS[i][0],w=t.windows[key],v=w&&w.pct;
+    html+=cell(TREND_LABELS[i][1],
+      v==null?'—':((v>0?'+':'')+v.toFixed(2)+'%'),
+      v==null?'':(v>0?'up':v<0?'down':''));
+  }
+  el.innerHTML=html;
+}
+
 function renderBook(code){
   var b=bookFor(code),strip=$('strip'),lad=$('ladder'),g=flowGood(code);
   $('dtitle').textContent=(g&&g.name)||code;
+  renderTrend(code);
   if(!b||(!b.bids.length&&!b.asks.length)){
     $('dsub').textContent=BOOKS?'no book':'loading…';
     strip.innerHTML='';
