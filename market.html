@@ -124,6 +124,12 @@ tbody tr.sel{background:rgba(var(--brass-rgb),.15)}
 .ladder .age{color:var(--dim);font-size:10px;min-width:32px;text-align:right}
 .ladder .count{color:var(--dim);font-size:10px;min-width:32px;text-align:right}
 .ladder .mine{box-shadow:inset 2px 0 0 var(--brass)}
+/* Which rows the imbalance figure is actually counting. Lifting the ones inside the band
+   and dimming the ones outside it means the number and the ladder cannot disagree. */
+.ladder .inband{background:var(--panel-2)}
+.ladder .outband{opacity:.5}
+.ladder .bandedge{box-shadow:inset 0 -1px 0 rgba(var(--brass-rgb),.55)}
+.ladder .mine.bandedge{box-shadow:inset 2px 0 0 var(--brass),inset 0 -1px 0 rgba(var(--brass-rgb),.55)}
 .ladder .bar-bg i{position:absolute;inset:0 auto 0 0;opacity:.17;pointer-events:none}
 .ask i{background:var(--rust)} .bid i{background:var(--verdigris)}
 .ladder span{position:relative}
@@ -133,6 +139,9 @@ tbody tr.sel{background:rgba(var(--brass-rgb),.15)}
 .spread-strip div{background:var(--panel);padding:6px 8px}
 .spread-strip small{display:block;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
 .spread-strip b{font-family:var(--mono);font-size:14px;font-weight:600}
+/* A second, quieter figure beside the first: the order count behind the size. */
+.spread-strip em{font-style:normal;font-family:var(--mono);font-size:10px;color:var(--dim);
+  white-space:nowrap}
 .rows{max-height:260px;overflow-y:auto}
 .foot{padding:8px 11px;color:var(--dim);font-size:10.5px;border-top:1px solid var(--line)}
 .foot code{font-family:var(--mono);color:var(--brass)}
@@ -244,7 +253,11 @@ progress{width:130px;height:8px}
               <option value="0.05">within 5%</option>
               <option value="0.10">within 10%</option>
               <option value="0">whole book</option>
+              <option value="custom">custom…</option>
             </select>
+            <input id="imbPct" type="number" min="0.1" max="50" step="0.1" value="2" hidden
+                   style="width:64px" aria-label="Imbalance band, percent either side of the mid"
+                   title="Half-width of the band, in percent either side of the mid.">
           </label>
           <span id="dsub"></span>
         </span>
@@ -468,7 +481,18 @@ function priceLevels(side){
 }
 function bookView(){return $('view')&&$('view').value==='levels'?'levels':'orders'}
 /* 0 means the whole book, which is what this used to do and is still offered. */
-function imbBand(){var v=$('imbBand');return v?Number(v.value)||0:0}
+function imbBand(){
+  var sel=$('imbBand');if(!sel)return 0;
+  if(sel.value==='custom'){var v=Number($('imbPct').value);return v>0?v/100:0}
+  return Number(sel.value)||0;
+}
+/* One spelling of the band everywhere it is named, so a label can never disagree with the
+   figure beside it. 0.015 reads as 1.5%, 0.02 as 2%, not 2.00%. */
+function bandLabel(band){return band?('\u00b1'+(+(band*100).toFixed(2))+'%'):'(all)'}
+function syncBandInput(){
+  var sel=$('imbBand'),inp=$('imbPct');if(!sel||!inp)return;
+  inp.hidden=sel.value!=='custom';
+}
 /* One row per price instead of one per order.
 
    The game caps a book at 100 orders a side - asking for 200 is an HTTP 400 - so depth
@@ -488,12 +512,12 @@ function collapse(side,whales){
   for(i=0;i<out.length;i++){run+=out[i].quantity;out[i].cum=run}
   return out;
 }
-function levelRow(l,depth,k){
+function levelRow(l,depth,k,band){
   if(!l)return '<div class="'+k+'"><span>—</span><span></span></div>';
   var w=Math.max(2,Math.round(l.quantity/depth*100));
-  return '<div class="'+k+' bar-bg'+(l.mine?' mine':'')+'" title="'+esc(
+  return '<div class="'+k+' bar-bg'+(l.mine?' mine':'')+bandClass(l,band)+'" title="'+esc(
       l.orders+(l.orders===1?' order':' orders')+' at '+px(l.price)+
-      ' · '+units(l.quantity)+' here · '+units(l.cum)+' to this price')+'">'+
+      ' · '+units(l.quantity)+' here · '+units(l.cum)+' to this price'+bandNote(l,band))+'">'+
     '<i style="width:'+w+'%"></i>'+
     '<span'+(l.mine?' class="whale"':'')+'>'+(l.mine?'\u25c6 ':'')+px(l.price)+'</span>'+
     '<span class="count">'+(l.orders>1?('\u00d7'+l.orders):'')+'</span>'+
@@ -513,16 +537,33 @@ function bookFor(code){
   if(!b)return null;
   return {bids:(b.buy_orders||[]).slice(),asks:(b.sell_orders||[]).slice(),at:row.book_fetched_at};
 }
-function cell(label,value,k){
-  return '<div><small>'+esc(label)+'</small><b class="'+(k||'')+'">'+esc(value)+'</b></div>';
+function cell(label,value,k,tip,sub){
+  return '<div'+(tip?(' title="'+esc(tip)+'"'):'')+'><small>'+esc(label)+'</small>'+
+    '<b class="'+(k||'')+'">'+esc(value)+'</b>'+
+    (sub?('<em> '+esc(sub)+'</em>'):'')+'</div>';
 }
-function side(o,depth,k,whales){
+/* The band is a prefix of each side, because both arrive sorted away from the mid: a row
+   is inside it, or it is past the edge and so is every row behind it. `next` is the row one
+   step further out, which is how the edge knows to draw its line. */
+function bandClass(row,band){
+  if(!band||!band.on||!row)return '';
+  if(!band.inBand(row.price))return ' outband';
+  return ' inband'+((!band.next||!band.inBand(band.next.price))?' bandedge':'');
+}
+function bandNote(row,band){
+  if(!band||!band.on||!row)return '';
+  return band.inBand(row.price)
+    ? ' \u00b7 counted in the '+bandLabel(band.band)+' imbalance'
+    : ' \u00b7 outside the '+bandLabel(band.band)+' band, not counted';
+}
+function side(o,depth,k,whales,band){
   if(!o)return '<div class="'+k+'"><span>—</span><span></span></div>';
   var w=Math.max(2,Math.round(o.quantity/depth*100));
   var mine=whales&&o.user&&whales[o.user];
   var rested=restedFor(o),who=USERS&&o.user&&USERS[o.user];
-  return '<div class="'+k+' bar-bg'+(mine?' mine':'')+'"'+
-    (o.user?(' title="'+esc((who||o.user)+(rested==null?'':' resting '+age(rested)))+'"'):'')+
+  return '<div class="'+k+' bar-bg'+(mine?' mine':'')+bandClass(o,band)+'"'+
+    (' title="'+esc((o.user?((who||o.user)+(rested==null?'':' resting '+age(rested))):px(o.price))+
+                    bandNote(o,band))+'"')+
     '><i style="width:'+w+'%"></i>'+
     '<span'+(mine?' class="whale"':'')+'>'+(mine?'\u25c6 ':'')+px(o.price)+'</span>'+
     '<span class="age">'+esc(age(rested))+'</span>'+
@@ -579,23 +620,48 @@ function renderBook(code){
      actually looked like - a 245k wall sitting on 1.1k of bid. The sign flipped, not just
      the magnitude, so the figure has to say which band it means. */
   var band=imbBand(),
-      inBand=function(price){return !band||mid==null||Math.abs(price-mid)/mid<=band+1e-9},
-      bqb=b.bids.reduce(function(s,o){return s+(inBand(o.price)?o.quantity:0)},0),
-      aqb=b.asks.reduce(function(s,o){return s+(inBand(o.price)?o.quantity:0)},0);
-  var imb=(bqb+aqb)>0?(bqb-aqb)/(bqb+aqb)*100:null;
+      inBand=function(price){return !band||mid==null||Math.abs(price-mid)/mid<=band+1e-9};
+  /* Size and order count together, because they answer different questions. 245k is a wall
+     either way, but 245k across 51 orders is fifty-one people agreeing, and 245k in one
+     order is one account that can pull all of it the moment you lift the touch. */
+  function tally(rows){
+    var q=0,n=0,i;
+    for(i=0;i<rows.length;i++)if(inBand(rows[i].price)){q+=Number(rows[i].quantity)||0;n++}
+    return {q:q,n:n,avg:n?q/n:0};
+  }
+  function sizeNote(t,which){
+    return t.n===1?('one '+which+' order of '+units(t.q))
+         : t.n?(t.n+' '+which+' orders, '+units(t.avg)+' each on average')
+         : ('no '+which+' orders');
+  }
+  var bt=tally(b.bids),at=tally(b.asks),lab=bandLabel(band);
+  var imb=(bt.q+at.q)>0?(bt.q-at.q)/(bt.q+at.q)*100:null;
+  var oimb=(bt.n+at.n)>0?(bt.n-at.n)/(bt.n+at.n)*100:null;
   $('dsub').textContent=b.at?new Date(b.at).toLocaleTimeString():'';
   strip.innerHTML=
     cell('Bid',px(bid),'up')+cell('Ask',px(ask),'down')+
     cell('Spread',(bid!=null&&ask!=null)?px(ask-bid):'—','')+
     cell('Spread %',(bid!=null&&ask!=null&&bid>0)?((ask-bid)/bid*100).toFixed(2):'—','')+
     cell('Mid',px(mid),'')+
-    cell(band?('Imbalance \u00b1'+(band*100).toFixed(band<0.01?1:0)+'%'):'Imbalance (all)',
-         imb==null?'—':(imb>0?'+':'')+Math.round(imb)+'%',imb==null?'':(imb>0?'up':'down'));
+    cell('Imbalance '+lab,
+         imb==null?'\u2014':(imb>0?'+':'')+Math.round(imb)+'%',imb==null?'':(imb>0?'up':'down'),
+         'By size: '+units(bt.q)+' bid against '+units(at.q)+' ask'+
+         (band?(' within '+lab+' of the mid'):' across the whole book')+'. '+
+         'By order: '+sizeNote(bt,'bid')+', '+sizeNote(at,'ask')+', so the book leans '+
+         (oimb==null?'neither way':
+           (((oimb>0?'+':'')+Math.round(oimb)+'%')+(oimb>0?' to the bid':oimb<0?' to the ask':'')))+
+         ' on count. Size held in few orders is one account and can vanish on a touch; '+
+         'the same size spread thin is a crowd.',
+         (bt.n+at.n)?(bt.n+'/'+at.n):'');
   var whales=b.live?whaleSet():null;
   var levels=bookView()==='levels';
   var bids=levels?collapse(b.bids,whales):b.bids;
   var asks=levels?collapse(b.asks,whales):b.asks;
   var shown=Math.min(bookDepth(),Math.max(bids.length,asks.length))||1;
+  /* Marking rows is only honest when a band is in force and there is a mid to measure from.
+     On the whole book every row counts, so nothing is lifted and nothing is dimmed. */
+  var bandOn=!!band&&mid!=null,
+      bandFor=function(rows,i){return {on:bandOn,band:band,inBand:inBand,next:rows[i+1]}};
   var depth=Math.max(
     bids.slice(0,shown).reduce(function(m,o){return Math.max(m,o.quantity)},0),
     asks.slice(0,shown).reduce(function(m,o){return Math.max(m,o.quantity)},0),1);
@@ -604,8 +670,10 @@ function renderBook(code){
     '<div><span>Bid</span><span>'+mid2+'</span><span>Size</span></div>'+
     '<div><span>Ask</span><span>'+mid2+'</span><span>Size</span></div></div>';
   for(var i=0;i<shown;i++)
-    html+=levels?(levelRow(bids[i],depth,'bid')+levelRow(asks[i],depth,'ask'))
-                :(side(b.bids[i],depth,'bid',whales)+side(b.asks[i],depth,'ask',whales));
+    html+=levels
+      ?(levelRow(bids[i],depth,'bid',bandFor(bids,i))+levelRow(asks[i],depth,'ask',bandFor(asks,i)))
+      :(side(b.bids[i],depth,'bid',whales,bandFor(b.bids,i))+
+        side(b.asks[i],depth,'ask',whales,bandFor(b.asks,i)));
   lad.innerHTML=html;
   renderResting(b,whales);
   var bl=priceLevels(b.bids),al=priceLevels(b.asks);
@@ -1032,6 +1100,8 @@ function boot(){
   $('view').value=getPref('view','orders');
   $('autolive').checked=AUTOLIVE;
   $('imbBand').value=getPref('imbband','0.02');
+  $('imbPct').value=getPref('imbpct','2');
+  syncBandInput();
   STATE.pctl=Number($('pctl').value)||2;
   STATE.winH=Number($('win').value)||48;
 
@@ -1061,7 +1131,12 @@ function boot(){
     if(AUTOLIVE)autoLive(STATE.sel);
   });
   $('imbBand').addEventListener('change',function(){
-    setPref('imbband',this.value);renderBook(STATE.sel);
+    setPref('imbband',this.value);syncBandInput();
+    if(this.value==='custom')$('imbPct').focus();
+    renderBook(STATE.sel);
+  });
+  $('imbPct').addEventListener('input',function(){
+    setPref('imbpct',this.value);renderBook(STATE.sel);
   });
   $('view').addEventListener('change',function(){
     setPref('view',this.value);renderBook(STATE.sel);
