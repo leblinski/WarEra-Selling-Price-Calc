@@ -236,6 +236,16 @@ progress{width:130px;height:8px}
               <option value="levels">One per price</option>
             </select>
           </label>
+          <label class="ctl" title="Which orders count toward imbalance. Ones far from the touch cannot fill on any realistic move, but they still weigh on the sum.">Imbalance
+            <select id="imbBand">
+              <option value="0.01">within 1%</option>
+              <option value="0.02">within 2%</option>
+              <option value="0.03">within 3%</option>
+              <option value="0.05">within 5%</option>
+              <option value="0.10">within 10%</option>
+              <option value="0">whole book</option>
+            </select>
+          </label>
           <span id="dsub"></span>
         </span>
       </div>
@@ -457,6 +467,8 @@ function priceLevels(side){
   return n;
 }
 function bookView(){return $('view')&&$('view').value==='levels'?'levels':'orders'}
+/* 0 means the whole book, which is what this used to do and is still offered. */
+function imbBand(){var v=$('imbBand');return v?Number(v.value)||0:0}
 /* One row per price instead of one per order.
 
    The game caps a book at 100 orders a side - asking for 200 is an HTTP 400 - so depth
@@ -558,14 +570,27 @@ function renderBook(code){
   var mid=(bid!=null&&ask!=null)?(bid+ask)/2:null;
   var bq=b.bids.reduce(function(s,o){return s+o.quantity},0);
   var aq=b.asks.reduce(function(s,o){return s+o.quantity},0);
-  var imb=(bq+aq)>0?(bq-aq)/(bq+aq)*100:null;
+  /* Imbalance over a band around the mid rather than the whole book.
+
+     A bid twenty percent under the touch is not demand in any sense that matters: it will
+     not fill on a move anyone is expecting, but summed into the whole book it weighs the
+     same as a bid at the touch. On a real paper book that was the difference between
+     +40%, which reads as buying, and -46% within two percent, which is what the book
+     actually looked like - a 245k wall sitting on 1.1k of bid. The sign flipped, not just
+     the magnitude, so the figure has to say which band it means. */
+  var band=imbBand(),
+      inBand=function(price){return !band||mid==null||Math.abs(price-mid)/mid<=band+1e-9},
+      bqb=b.bids.reduce(function(s,o){return s+(inBand(o.price)?o.quantity:0)},0),
+      aqb=b.asks.reduce(function(s,o){return s+(inBand(o.price)?o.quantity:0)},0);
+  var imb=(bqb+aqb)>0?(bqb-aqb)/(bqb+aqb)*100:null;
   $('dsub').textContent=b.at?new Date(b.at).toLocaleTimeString():'';
   strip.innerHTML=
     cell('Bid',px(bid),'up')+cell('Ask',px(ask),'down')+
     cell('Spread',(bid!=null&&ask!=null)?px(ask-bid):'—','')+
     cell('Spread %',(bid!=null&&ask!=null&&bid>0)?((ask-bid)/bid*100).toFixed(2):'—','')+
     cell('Mid',px(mid),'')+
-    cell('Imbalance',imb==null?'—':(imb>0?'+':'')+Math.round(imb)+'%',imb==null?'':(imb>0?'up':'down'));
+    cell(band?('Imbalance \u00b1'+(band*100).toFixed(band<0.01?1:0)+'%'):'Imbalance (all)',
+         imb==null?'—':(imb>0?'+':'')+Math.round(imb)+'%',imb==null?'':(imb>0?'up':'down'));
   var whales=b.live?whaleSet():null;
   var levels=bookView()==='levels';
   var bids=levels?collapse(b.bids,whales):b.bids;
@@ -1006,6 +1031,7 @@ function boot(){
   $('depth').value=getPref('depth','12');
   $('view').value=getPref('view','orders');
   $('autolive').checked=AUTOLIVE;
+  $('imbBand').value=getPref('imbband','0.02');
   STATE.pctl=Number($('pctl').value)||2;
   STATE.winH=Number($('win').value)||48;
 
@@ -1033,6 +1059,9 @@ function boot(){
   $('autolive').addEventListener('change',function(){
     AUTOLIVE=this.checked;setPref('autolive',this.checked?'1':'0');
     if(AUTOLIVE)autoLive(STATE.sel);
+  });
+  $('imbBand').addEventListener('change',function(){
+    setPref('imbband',this.value);renderBook(STATE.sel);
   });
   $('view').addEventListener('change',function(){
     setPref('view',this.value);renderBook(STATE.sel);
