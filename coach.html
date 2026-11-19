@@ -76,6 +76,10 @@ tbody tr:hover{background:var(--panel-2)}
 .box.on:after{content:"\2713";position:absolute;inset:-3px 0 0 0;text-align:center;
   font-size:11px;color:var(--verdigris)}
 .row small{display:block;color:var(--dim);font-size:11.5px;margin-top:2px}
+.stats{display:inline-flex;flex-wrap:wrap;gap:7px;align-items:baseline;
+  font-family:var(--mono);font-size:11px;color:var(--dim);margin-top:3px}
+.stats b{color:var(--ink);font-weight:600}
+.stats i{color:var(--line);font-style:normal}
 .row.done b{color:var(--dim)}
 /* Not .bar - that is the control strip at the top of the page, and reusing the name put
    its padding and border on every progress bar while clipping the header. */
@@ -193,7 +197,7 @@ a{color:var(--brass)}
       <div class="foot" id="placeFoot"></div>
     </div>
     <div class="card">
-      <div class="card-head"><b>Workers, in brief</b><span>the basics</span></div>
+      <div class="card-head"><b>Workers</b><span>the basics</span></div>
       <div id="workList"></div>
       <div class="foot" id="workFoot"></div>
     </div>
@@ -959,8 +963,21 @@ function pips(level,max,nextOne){
     out+='<i class="'+(i<=level?'on':(nextOne&&i===level+1?'next':''))+'"></i>';
   return '<div class="pips">'+out+'</div>';
 }
+/* Three numbers read faster than the sentence they came from. */
+function stats(pairs){
+  var out=[];
+  for(var i=0;i<pairs.length;i++){
+    var v=pairs[i][0];
+    if(v==null||v===''||v===0)continue;
+    out.push('<b>'+esc(v)+'</b> '+esc(pairs[i][1]));
+  }
+  return out.length?('<span class="stats">'+out.join('<i>\u00b7</i>')+'</span>'):'';
+}
 function row(opts){
-  return '<div class="row'+(opts.done?' done':'')+(opts.urgent?' urgent':'')+'">'+
+  /* The reason lives in the title now. A beginner needs to see what to do, not read why
+     three times a day; the why is one hover away for the day they wonder. */
+  return '<div class="row'+(opts.done?' done':'')+(opts.urgent?' urgent':'')+'"'+
+    (opts.tip?(' title="'+esc(opts.tip)+'"'):'')+'>'+
     '<div class="rowtop">'+
       (opts.box?'<span class="box'+(opts.done?' on':'')+'"></span>':'')+
       '<b>'+opts.title+'</b>'+
@@ -972,31 +989,31 @@ function row(opts){
 
 /* ---- Today: the three things a day is made of -------------------------------------- */
 function paintToday(c){
-  var html='';
+  var html='',gift=CFG.user.dailyReward||{};
   html+=row({box:true,done:c.claimed,
-    title:'Claim the daily reward',
+    title:'Daily reward',
     chip:c.claimed?'done':'1 tap',chipKind:c.claimed?'ok':'now',
-    note:c.claimed?'Back tomorrow.':'+'+c.reward+' experience, cash and a crate.'});
+    note:c.claimed?'':stats([['+'+c.reward,'xp'],['+'+num(gift.money||0),'gold'],
+                             [num(gift.case1||0),'crate']]),
+    tip:'Experience is capped per day, so a day skipped cannot be made up later.'});
   var used=c.dailyCap-c.xpLeft;
   html+=row({box:true,done:c.xpLeft<=0,
-    title:c.xpLeft>0?('Work '+c.actionsLeft+(c.actionsLeft===1?' time':' times')):'Day\u2019s work done',
+    title:c.xpLeft>0?('Work '+c.actionsLeft+(c.actionsLeft===1?' time':' times')):'Work done',
     chip:used+'/'+c.dailyCap+' xp',chipKind:c.xpLeft>0?'now':'ok',
-    note:c.xpLeft>0
-      ?(c.actionsNow>0
-         ?('Energy for '+c.actionsNow+' right now; the rest refills at about '+num(c.regen)+' an hour.')
-         :('Energy is spent — it refills at about '+num(c.regen)+' an hour.'))
-      :'Working still pays wages, but no more experience today.',
-    bar:bar(used/c.dailyCap,c.xpLeft>0?'':'good')});
+    note:c.xpLeft>0?stats([[c.actionsNow,'ready now'],['+'+num(c.regen)+'/h','energy']]):'',
+    bar:bar(used/c.dailyCap,c.xpLeft>0?'':'good'),
+    tip:'Each go costs '+c.perAction+' energy and pays '+(CFG.user.xpPerAction||10)+
+      ' experience, up to '+c.dailyCap+' a day. After that, work still pays wages but no levels.'});
   var p=pick(c);
   html+=row({box:true,done:c.sp<=0,
-    title:c.sp>0?('Spend '+(p.cost!=null?p.cost:1)+' on '+label(p.key)):'No points waiting',
+    title:c.sp>0?('Spend '+(p.cost!=null?p.cost:1)+' SP on '+label(p.key)):'Points all spent',
     chip:c.sp>0?(c.sp+' unspent'):'done',chipKind:c.sp>0?'now':'ok',
-    note:c.sp>0?('Takes '+esc(label(p.key))+' to level '+p.level+
-      (p.spare?'. Keep the other '+p.spare+'.':'.')):'Points arrive four to a level.'});
+    note:c.sp>0?stats([['level '+p.level,label(p.key)],[p.spare,'keep back']]):'',
+    tip:c.sp>0?p.why:'Four points arrive with every level.'});
   $('todayList').innerHTML=html;
   $('todaySub').textContent='level '+c.lv;
-  $('todayFoot').innerHTML='Experience is capped at '+c.dailyCap+' a day plus '+c.reward+
-    ' from the reward, so this list is the whole of a day. Missing one cannot be made up later.';
+  $('todayFoot').innerHTML=stats([[c.dailyCap+'+'+c.reward,'xp a day'],
+    [Math.ceil(c.toGoal/(c.dailyCap+c.reward)),'days to 15']]);
 }
 
 /* ---- Missions ------------------------------------------------------------------------
@@ -1030,30 +1047,29 @@ function leftUntil(d){
 var MISSION_KINDS=[['daily','Daily missions'],['weekly','Weekly missions'],['monthly','Monthly missions']];
 function paintMissions(c){
   var ms=(USER.missions&&USER.missions.claimedAt)||{},
-      cfg=(CFG.mission&&CFG.mission.reward)||{},html='';
+      cfg=(CFG.mission&&CFG.mission.reward)||{},html='',st=cfg.starting||{};
   html+=row({box:true,done:!!ms.starting,
-    title:'Starter missions',
+    title:'Starter set',
     chip:ms.starting?'done':'one time',chipKind:ms.starting?'ok':'now',
-    note:ms.starting?'Claimed once, long gone.'
-      :'The one-off set, worth '+((cfg.starting&&cfg.starting.xpWhenFinished)||0)+
-       ' experience and '+((cfg.starting&&cfg.starting.cases)||0)+' crates when they are all done.'});
+    note:ms.starting?'':stats([['+'+num(st.xpWhenFinished||0),'xp'],[num(st.cases||0),'crates']]),
+    tip:'The one-off set, paid in full when every one of them is done.'});
   MISSION_KINDS.forEach(function(k){
     var kind=k[0],last=ms[kind]?new Date(ms[kind]):null,
-        open=last&&last>=windowStart(kind),r=cfg[kind]||{},
-        ends=windowEnd(kind);
+        open=last&&last>=windowStart(kind),r=cfg[kind]||{},ends=windowEnd(kind);
     html+=row({box:true,done:!!open,
       title:k[1],
-      chip:'resets in '+leftUntil(ends),chipKind:open?'ok':'now',
-      note:(open?('Last claimed '+ago(last)+'. There may be more left in this set.')
-                :'Nothing claimed this '+(kind==='daily'?'day':kind==='weekly'?'week':'month')+' yet.')+
-           ' Worth '+(r.xp||0)+' experience each and '+(r.xpWhenFinished||0)+' for finishing the set.'});
+      chip:leftUntil(ends),chipKind:open?'ok':'now',
+      note:stats([['+'+(r.xp||0),'each'],['+'+num(r.xpWhenFinished||0),'all done'],
+                  [num(r.money||0),'gold']]),
+      tip:(open?('Last claimed '+ago(last)+'; there may be more left in this set. ')
+               :'Nothing claimed in this window yet. ')+
+          'Finishing the set pays '+num(r.xpWhenFinished||0)+' on top of the daily cap.'});
   });
   $('misList').innerHTML=html;
   $('misSub').textContent=num((USER.missions&&USER.missions.claimedCount)||0)+' claimed';
-  $('misFoot').innerHTML='Which missions you were given is not something the game will tell '+
-    'anyone but you, so this tracks the windows rather than the tasks. Finishing a daily set is '+
-    ((cfg.daily&&cfg.daily.xpWhenFinished)||0)+' experience on top of the '+c.dailyCap+' cap, '+
-    'which is the one way to go faster than '+(c.dailyCap+c.reward)+' a day.';
+  $('misFoot').innerHTML='<span title="'+esc('The game shows nobody which missions anyone else '+
+    'was given, so this tracks the windows rather than the tasks.')+'">The only way past '+
+    (c.dailyCap+c.reward)+' xp a day.</span>';
 }
 function ago(d){
   var m=Math.round((new Date()-d)/60000);
@@ -1123,33 +1139,31 @@ function whereText(regionId){
    The rate itself is still read live, because that ground changes hands. */
 var UK='6813b6d446e731854c7ac79e';
 function paintPlaces(c){
-  var home=REGIONS[HOME],homeTax=taxOf(HOME),homeBy=holderOf(HOME),html='';
+  var homeTax=taxOf(HOME),homeBy=holderOf(HOME),html='';
   var away=COMPANIES.filter(function(co){return co.region&&co.region!==HOME});
   html+=row({box:true,done:COMPANIES.length>0&&away.length===0,
     title:'Build in Northern Ireland',
     chip:homeTax!=null?(homeTax+'% tax'):'',chipKind:away.length?'now':'ok',
-    note:(homeBy?('Held by '+esc(homeBy)+', charging '+homeTax+'% income tax, which '+
-          esc(homeBy)+' passes to the UK along with rent for the ground. '+
-          (USER.country===UK?'You play for the UK, so that is your own side collecting it. '
-                            :'That is the arrangement this advice is built on. ')):'')+
-      (away.length
-        ? (away.length+(away.length===1?' of your factories sits':' of your factories sit')+
-           ' elsewhere: '+away.map(function(co){
-               var t=taxOf(co.region);
-               return esc((REGIONS[co.region]&&REGIONS[co.region].name)||'?')+
-                 (t!=null?(' at '+t+'%'):'');
-             }).join(', ')+'. Moving one costs '+
-           num((CFG.company&&CFG.company.moveCost)||0)+' gold.')
-        : (COMPANIES.length?'Every factory of yours is already there.':'Put your first one there.'))});
-  /* The comparison, so the instruction is checkable rather than folklore. */
-  var mine=USER.country&&COUNTRIES[USER.country],myTax=mine&&mine.taxes?mine.taxes.income:null;
+    note:stats([[COMPANIES.length-away.length,'here'],[away.length||null,'elsewhere'],
+                [away.length?(num((CFG.company&&CFG.company.moveCost)||0)+' gold'):null,'to move']]),
+    tip:(homeBy?('Held by '+homeBy+', charging '+homeTax+'% income tax, which '+homeBy+
+          ' passes to the UK along with rent for the ground. '):'')+
+        (USER.country===UK?'You play for the UK, so that is your own side collecting it.'
+                          :'That is the arrangement this advice is built on.')});
+  away.forEach(function(co){
+    var t=taxOf(co.region);
+    html+=row({title:'<span class="dimv">\u2514</span> '+esc((REGIONS[co.region]&&REGIONS[co.region].name)||'?'),
+      chip:(t!=null?t+'% tax':''),chipKind:'bad',
+      note:stats([[esc(co.name||label(co.itemCode)),''],
+                  [(t!=null&&homeTax!=null)?('+'+(t-homeTax)+'%'):null,'more than home']]),
+      tip:'Move it for '+num((CFG.company&&CFG.company.moveCost)||0)+' gold.'});
+  });
   $('placeList').innerHTML=html;
-  $('placeSub').textContent=home?(home.name||''):'';
-  $('placeFoot').innerHTML='Your factory pays income tax to whoever holds its ground, not to '+
-    'wherever you live'+(myTax!=null?(' \u2014 '+esc(mine.name)+' charges '+myTax+'% on its own'):'')+
-    '. Cheaper ground exists: Algeria charges 4%, and the game has quietly piled into it \u2014 '+
-    'one Algerian region holds 4,379 companies. But a tax is not only a cost, it is income for '+
-    'whoever collects it, and that 4% funds Algeria. Northern Ireland\u2019s comes home.';
+  $('placeSub').textContent=homeTax!=null?(homeTax+'%'):'';
+  $('placeFoot').innerHTML='<span title="'+esc('Cheaper ground exists \u2014 Algeria charges 4%, '+
+    'and one Algerian region holds 4,379 companies. But a tax is income for whoever collects it, '+
+    'and that 4% funds Algeria. Northern Ireland\u2019s comes home.')+
+    '">Tax follows the ground, not you.</span>';
 }
 
 /* ---- Workers, kept deliberately short -----------------------------------------------
@@ -1157,31 +1171,30 @@ function paintPlaces(c){
    so this teaches the shape of the thing and does not pretend to read yours. */
 function paintWorkers(c){
   var br=(CFG.upgradesConfig&&CFG.upgradesConfig.breakRoom&&CFG.upgradesConfig.breakRoom.levels)||{},
-      lines=[],html='';
-  for(var k in br){
-    var st=br[k].stats||{};
-    lines.push('level '+k+' \u2192 '+st.maxWorkers+(st.maxWorkers===1?' worker':' workers')+
-      (br[k].steelCost?(' ('+num(br[k].steelCost)+' steel)'):' (free)'));
-  }
-  var rooms=COMPANIES.map(function(co){
-    return (co.activeUpgradeLevels&&co.activeUpgradeLevels.breakRoom)||1;
+      html='',seats=0,bits=[];
+  COMPANIES.forEach(function(co){
+    var lv=(co.activeUpgradeLevels&&co.activeUpgradeLevels.breakRoom)||1,
+        st=(br[String(lv)]||{}).stats||{};
+    seats+=st.maxWorkers||0;
   });
-  var seats=rooms.reduce(function(a,b){
-    var st=(br[String(b)]||{}).stats||{};return a+(st.maxWorkers||0);
-  },0);
-  html+=row({title:'A break room is how many you may hire',
-    chip:seats?(seats+(seats===1?' seat':' seats')):'',
-    note:esc(lines.join(' \u00b7 '))+'. It is the same steel your engines want, so early on the engine '+
-      'usually wins.'});
-  html+=row({title:'They work it, you pay them',
-    note:'A worker you hire works your factory and takes a wage for it. Everyone has a wage they '+
-      'expect; offer under it and nobody takes the job.'});
-  html+=row({title:'The manager comes at level '+c.managerAt,
-    note:'Until then, hiring and paying is yours to do by hand. There is no hurry: an empty break '+
-      'room costs nothing.'});
+  for(var k in br){
+    var st2=br[k].stats||{};
+    bits.push([st2.maxWorkers,(br[k].steelCost?num(br[k].steelCost)+' steel':'free')]);
+  }
+  html+=row({title:'Break room',chip:seats?(seats+(seats===1?' seat':' seats')):'',
+    note:stats(bits.map(function(b){return ['\u25a3'.repeat(Math.min(b[0]||0,3)),b[1]]})),
+    tip:'The break room sets how many workers a factory may hire. It costs the same steel '+
+      'your engines want, so early on the engine usually wins.'});
+  html+=row({title:'Hiring',chip:'wages',
+    note:stats([['\u2192','they work it'],['\u2190','you pay a wage']]),
+    tip:'A worker works your factory and takes a wage. Everyone has a wage they expect; '+
+      'offer under it and nobody takes the job.'});
+  html+=row({title:'Manager',chip:'level '+c.managerAt,chipKind:c.lv>=c.managerAt?'ok':'',
+    note:stats([[Math.max(0,c.managerAt-c.lv)||null,'levels away']]),
+    tip:'Until then hiring and paying is yours to do by hand. An empty break room costs nothing.'});
   $('workList').innerHTML=html;
-  $('workFoot').innerHTML='The game will not show anyone else\u2019s roster \u2014 every employee '+
-    'call refuses an outsider \u2014 so this page cannot list yours. It is in the game, under the factory.';
+  $('workFoot').innerHTML='<span title="'+esc('Every employee call refuses an outsider, so this '+
+    'page cannot list your roster. It is in the game, under the factory.')+'">Rosters are private.</span>';
 }
 
 /* The single factory most worth converting, or none. */
@@ -1198,7 +1211,7 @@ function paintCoCards(c){
   if(!COMPANIES.length){
     $('coList').innerHTML='<div class="empty">No factories yet.</div>';
     $('coListSub').textContent='none';
-    $('coListFoot').innerHTML=c.allowed?('You are allowed '+c.allowed+'.'):'';
+    $('coListFoot').innerHTML=stats([[c.allowed,'slots you may fill']]);
     return;
   }
   var steel=priceOf('steel'),total=0;
@@ -1215,16 +1228,16 @@ function paintCoCards(c){
         (swap.days===1?' day':' days')+'. Collect what it is holding first, and do this one only '+
         '\u2014 a day\u2019s output of one thing has to find buyers.</small></span>';
     }else if(full){
-      act='<span class="act bad">Collect what it has made'+
-        '<small>The store is '+Math.round(st.pct*100)+'% full. Once it fills, everything it makes after that is lost.</small></span>';
+      act='<span class="act bad" title="'+esc('Once the store fills, everything the factory '+
+        'makes after that is lost.')+'">Collect it'+
+        '<small>'+stats([[Math.round(st.pct*100)+'%','full'],[num(st.have),'waiting']])+'</small></span>';
     }else if(next&&e&&steel!=null){
       var gain=(dailyProd(ae+1)-dailyProd(ae))/e.pp*e.margin,
           cost=(next.steelCost||0)*steel;
       if(gain>0)act='<span class="act'+((c.canBuy||c.makesSteel)?' now':'')+'">Upgrade to engine '+(ae+1)+
-        '<small>'+num(next.steelCost)+' steel'+
-          (c.canBuy?(' \u2248 '+money(cost,0)+' \u00b7 pays back in '+Math.ceil(cost/gain)+' days')
-           :c.makesSteel?(' \u00b7 you make steel yourself, so collect it rather than buy it')
-           :(', once the market opens at '+c.marketAt))+'</small></span>';
+        '<small>'+stats([[num(next.steelCost),'steel'],
+            [c.canBuy?money(cost,0):null,'gold'],
+            [gain>0?(Math.ceil(cost/gain)+'d'):null,'payback']])+'</small></span>';
     }
     return '<div class="row'+(full?' urgent':'')+'">'+
       '<div class="rowtop cono">'+
@@ -1241,16 +1254,12 @@ function paintCoCards(c){
   }).join('');
   $('coListSub').textContent=COMPANIES.length+' of '+c.allowed;
   var steelNeed=steelStillNeeded(),steelDay=dailyOf('steel'),steelPrice=priceOf('steel');
-  $('coListFoot').innerHTML='Together about <b>'+money(total,1)+' a day</b> at today\u2019s prices'+
-    (c.owned<c.allowed?(', and you have a free slot — a new one costs about '+money(c.buildCost,0)+'. ')
-     :'. Every slot is used; the next one needs a point in Companies. ')+
-    (steelNeed?('Taking every engine and store of yours to the top costs <b>'+num(steelNeed)+
-      ' steel</b>'+(steelPrice!=null?(' — about '+money(steelNeed*steelPrice,0)+' to buy'):'')+
-      (steelDay?(', or '+Math.ceil(steelNeed/steelDay)+' days of your own steel at '+
-                 money(steelDay,1)+' a day')
-               :', and you make none of it yourself')+
-      '. Steel is the only thing engines take, so a steel factory is how the rest of them grow.')
-     :'');
+  $('coListFoot').innerHTML=stats([
+    [money(total,1),'a day'],
+    [c.owned<c.allowed?money(c.buildCost,0):null,'next factory'],
+    [steelNeed?num(steelNeed):null,'steel to max'],
+    [(steelNeed&&steelDay)?(Math.ceil(steelNeed/steelDay)+'d'):null,'at your rate'],
+    [(steelNeed&&steelPrice!=null)?money(steelNeed*steelPrice,0):null,'to buy it']]);
 }
 
 /* ---- Skills: what you have, and the one to put the next point in ------------------- */
@@ -1267,22 +1276,22 @@ function paintSkillPips(c){
     var cfg=CFG.skills[key];if(!cfg)return;
     var have=(USER.skills&&USER.skills[key]&&USER.skills[key].level)||0,
         levels=cfg.levels||{},max=Object.keys(levels).length-1,
-        next=levels[String(have+1)],
+        next=levels[String(have+1)],cur=levels[String(have)],
         isWant=key===want.key&&c.sp>0,
         total=(USER.skills&&USER.skills[key]&&USER.skills[key].total);
     html+=row({
       title:esc(label(key))+(total!=null?' <span class="dimv">'+num(total)+'</span>':''),
-      chip:isWant?'put it here':(next?next.cost+' SP for next':'maxed'),
+      chip:isWant?'put it here':(next?next.cost+' SP':'max'),
       chipKind:isWant?'now':'',
-      note:SKILL_USE[key]||'',
-      bar:pips(have,Math.min(max,10),isWant)});
+      note:next&&cur?stats([['+'+num(next.value-cur.value),'next'],['L'+have,'now']]):'',
+      bar:pips(have,Math.min(max,10),isWant),
+      tip:(SKILL_USE[key]||'')+(isWant?' '+want.why:'')});
   });
   $('skillList').innerHTML=html;
   $('skillPipSub').textContent=c.sp?(c.sp+' to spend'):'none to spend';
   $('skillPipFoot').innerHTML=c.sp
-    ? want.why
-    : 'Four points arrive with every level. Each level of the same skill costs more than the last, '+
-      'so a first level somewhere new is often the cheapest thing on the list.';
+    ? ('<span title="'+esc(want.why)+'">Next point: <b>'+esc(label(want.key))+'</b></span>')
+    : '<span title="Each level of the same skill costs more than the last.">Four points a level.</span>';
 }
 
 /* ---- The path, as a strip rather than a lecture ------------------------------------ */
