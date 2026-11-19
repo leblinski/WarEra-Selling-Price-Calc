@@ -62,6 +62,7 @@ tbody tr:hover{background:var(--panel-2)}
   color:var(--brass);font-weight:700}
 .nextbar em{font-style:normal;color:var(--brass)}
 .cols{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:10px;align-items:start}
+.stack{display:flex;flex-direction:column;gap:10px}
 @media(min-width:900px){.cols{grid-template-columns:1fr 1fr}}
 @media(min-width:1300px){.cols{grid-template-columns:.9fr 1.25fr 1fr}}
 .row{padding:10px 13px;border-bottom:1px solid var(--line)}
@@ -161,10 +162,17 @@ a{color:var(--brass)}
 </div>
 
 <div class="cols" id="cols" hidden>
-  <div class="card">
-    <div class="card-head"><b>Today</b><span id="todaySub"></span></div>
-    <div id="todayList"></div>
-    <div class="foot" id="todayFoot"></div>
+  <div class="stack">
+    <div class="card">
+      <div class="card-head"><b>Today</b><span id="todaySub"></span></div>
+      <div id="todayList"></div>
+      <div class="foot" id="todayFoot"></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><b>Missions</b><span id="misSub"></span></div>
+      <div id="misList"></div>
+      <div class="foot" id="misFoot"></div>
+    </div>
   </div>
 
   <div class="card">
@@ -618,8 +626,10 @@ function context(){
     actionsLeft:Math.ceil(xpLeft/(u.xpPerAction||10)),
     actionsNow:Math.floor(energy/perAction),
     perAction:perAction,regen:regen,
-    /* Steel is bought on the market, and the market is shut until level 5. Telling a new
-       player to go and buy twenty steel is advice they cannot act on. */
+    /* The config gates a thing called "market" at level 5, and the bundle only shows that
+       it hides the /market page from the menu - not which half of it. Players say goods
+       trade before that and only the item market waits, so nothing here is withheld on
+       the strength of it: the steel is named, and where to get it is left open. */
     canBuy:lv>=(unlock.market||5),
     makesSteel:COMPANIES.some(function(co){return co.itemCode==='steel'}),
     dailyCap:u.dailyXp||100,
@@ -712,43 +722,32 @@ var LADDER=[
    line:function(c){return 'Fill every factory slot you are allowed'}},
 
   {id:'engine',
-   state:function(c){
-     if(!c.upgrade)return 'done';
-     return (c.canBuy||c.makesSteel)?'now':'later';
-   },
+   state:function(c){return c.upgrade?'now':'done'},
    what:function(c){
      var u=c.upgrade;
      return 'Upgrade <em>'+esc(u.co.name||label(u.co.itemCode))+'</em> to engine '+u.level+
        ' — it needs '+num(u.steel)+' steel.';
    },
    why:function(c){var u=c.upgrade;
-     if(!c.canBuy&&!c.makesSteel)
-       return 'Engines are paid for in steel, and steel is bought on the market, which stays shut '+
-         'until level '+c.marketAt+'. Nothing to do here yet.';
      return 'A bigger engine makes more every day, and this one is the cheapest of yours to pay '+
        'for itself: about '+u.days+' days at today\u2019s prices. '+
-       (c.makesSteel?'You make steel yourself, so it costs you production rather than gold.'
+       (c.makesSteel?'You make steel yourself, so collect it rather than buy it.'
                     :'The steel costs about '+money(u.cost,0)+' at today\u2019s price.')+
        ' Either way the factory earns it back and then keeps the difference.'},
-   line:function(c){
-     return (!c.canBuy&&!c.makesSteel)
-       ? 'Grow the engines — once you can get steel'
-       : 'Grow the engines, cheapest payback first';
-   }},
+   line:function(c){return 'Grow the engines, cheapest payback first'}},
 
   {id:'market',
    state:function(c){return c.lv>=c.marketAt?'done':'later'},
-   what:function(c){return 'Reach level '+c.marketAt+' — the market opens there.'},
-   why:function(c){return 'Until then you cannot buy or sell anything, so stockpile what your '+
-     'factories make and spend nothing on prices you cannot reach yet.'},
+   what:function(c){return 'Reach level '+c.marketAt+' — the market page opens there.'},
+   why:function(c){return 'The game puts the Market in the menu at '+c.marketAt+'.'},
    line:function(c){return 'Level '+c.marketAt+': the market opens'}},
 
   {id:'craft',
    state:function(c){return c.lv>=c.craftAt?'done':'later'},
-   what:function(c){return 'Reach level '+c.craftAt+' — crafting opens there.'},
-   why:function(c){return 'Digging sells for whatever the ground gives you. Crafting turns cheap '+
-     'things into dearer ones, and from then on the better factories are the ones that make rather than dig.'},
-   line:function(c){return 'Level '+c.craftAt+': crafting opens'}},
+   what:function(c){return 'Reach level '+c.craftAt+' — crafting by hand opens there.'},
+   why:function(c){return 'Your factories already craft: a steel factory turns iron into steel '+
+     'whatever your level. This unlock is the crafting bench, where scraps become gear.'},
+   line:function(c){return 'Level '+c.craftAt+': crafting by hand'}},
 
   {id:'goal',
    state:function(c){return c.lv>=GOAL?'done':'later'},
@@ -833,8 +832,114 @@ function paintToday(c){
     ' from the reward, so this list is the whole of a day. Missing one cannot be made up later.';
 }
 
+/* ---- Missions ------------------------------------------------------------------------
+   The list of missions themselves is private - mission.getUserMissions wants a login, the
+   same wall inventory sits behind - so this does not pretend to know which three you were
+   given. What the profile does carry is when you last claimed each kind, and the windows
+   are fixed: daily at midnight, weekly on Monday, monthly on the first. That is enough to
+   say whether this window has paid you anything yet, and how long is left to collect it.
+
+   One claim is not all of them, so a claimed window reads as "last claimed", never "done". */
+function windowStart(kind){
+  var d=new Date();
+  d.setUTCHours(0,0,0,0);
+  if(kind==='weekly'){var wd=(d.getUTCDay()+6)%7;d.setUTCDate(d.getUTCDate()-wd)}
+  if(kind==='monthly')d.setUTCDate(1);
+  return d;
+}
+function windowEnd(kind){
+  var d=windowStart(kind);
+  if(kind==='daily')d.setUTCDate(d.getUTCDate()+1);
+  else if(kind==='weekly')d.setUTCDate(d.getUTCDate()+7);
+  else d.setUTCMonth(d.getUTCMonth()+1);
+  return d;
+}
+function leftUntil(d){
+  var ms=d-new Date();
+  if(ms<=0)return 'now';
+  var h=Math.floor(ms/3600000),m=Math.floor(ms%3600000/60000);
+  return h>=24?(Math.floor(h/24)+'d '+(h%24)+'h'):h?(h+'h '+m+'m'):(m+'m');
+}
+var MISSION_KINDS=[['daily','Daily missions'],['weekly','Weekly missions'],['monthly','Monthly missions']];
+function paintMissions(c){
+  var ms=(USER.missions&&USER.missions.claimedAt)||{},
+      cfg=(CFG.mission&&CFG.mission.reward)||{},html='';
+  html+=row({box:true,done:!!ms.starting,
+    title:'Starter missions',
+    chip:ms.starting?'done':'one time',chipKind:ms.starting?'ok':'now',
+    note:ms.starting?'Claimed once, long gone.'
+      :'The one-off set, worth '+((cfg.starting&&cfg.starting.xpWhenFinished)||0)+
+       ' experience and '+((cfg.starting&&cfg.starting.cases)||0)+' crates when they are all done.'});
+  MISSION_KINDS.forEach(function(k){
+    var kind=k[0],last=ms[kind]?new Date(ms[kind]):null,
+        open=last&&last>=windowStart(kind),r=cfg[kind]||{},
+        ends=windowEnd(kind);
+    html+=row({box:true,done:!!open,
+      title:k[1],
+      chip:'resets in '+leftUntil(ends),chipKind:open?'ok':'now',
+      note:(open?('Last claimed '+ago(last)+'. There may be more left in this set.')
+                :'Nothing claimed this '+(kind==='daily'?'day':kind==='weekly'?'week':'month')+' yet.')+
+           ' Worth '+(r.xp||0)+' experience each and '+(r.xpWhenFinished||0)+' for finishing the set.'});
+  });
+  $('misList').innerHTML=html;
+  $('misSub').textContent=num((USER.missions&&USER.missions.claimedCount)||0)+' claimed';
+  $('misFoot').innerHTML='Which missions you were given is not something the game will tell '+
+    'anyone but you, so this tracks the windows rather than the tasks. Finishing a daily set is '+
+    ((cfg.daily&&cfg.daily.xpWhenFinished)||0)+' experience on top of the '+c.dailyCap+' cap, '+
+    'which is the one way to go faster than '+(c.dailyCap+c.reward)+' a day.';
+}
+function ago(d){
+  var m=Math.round((new Date()-d)/60000);
+  if(m<60)return m+'m ago';
+  var h=Math.round(m/60);
+  return h<24?(h+'h ago'):(Math.round(h/24)+'d ago');
+}
+
+/* ---- Is this factory making the wrong thing? -----------------------------------------
+   Switching costs gold, so the test is whether the better item earns the difference back
+   quickly, and whether the player could run it at all: a raw resource needs the deposit
+   under their own region.
+
+   Only ever on one factory, though, and the reason is not tidiness. Run this over a full
+   estate and it will tell six factories to convert to the same item, because it ranks by
+   today's price and today's price is for today's supply. One factory at engine 7 is 168
+   units a day walking into that market; six is a thousand, and the margin that justified
+   the first would not survive the sixth. So the worst one is named, the rest are left
+   alone, and by the time it is done the prices have moved and the question is fresh. */
+function switchTo(co,c){
+  var ae=aeOf(co),now=economics(co.itemCode,ae);
+  if(!now)return null;
+  var best=null;
+  for(var code in CFG.items){
+    var it=CFG.items[code];
+    if(!it.isTradable||!producible(it)||code===co.itemCode)continue;
+    if(it.type==='raw'&&!(c.climate&&it.climates&&it.climates.indexOf(c.climate)>=0))continue;
+    var e=economics(code,ae);
+    if(e&&(!best||e.perDay>best.perDay))best={code:code,perDay:e.perDay};
+  }
+  if(!best)return null;
+  var gain=best.perDay-now.perDay,
+      fee=(CFG.company&&CFG.company.changeItemCost)||0;
+  if(gain<=0)return null;
+  var days=gain>0?fee/gain:Infinity;
+  /* A rounding error is not a reason to rebuild a factory: worth a fifth more, and the
+     fee back inside a week, or it is left alone. */
+  if(gain<now.perDay*0.2||days>7)return null;
+  return {code:best.code,gain:gain,fee:fee,days:Math.max(1,Math.ceil(days)),now:now.perDay};
+}
+
 /* ---- Companies: one card each, with the one thing to do to it ---------------------- */
+/* The single factory most worth converting, or none. */
+function worstFactory(c){
+  var pick=null;
+  COMPANIES.forEach(function(co){
+    var sw=switchTo(co,c);
+    if(sw&&(!pick||sw.gain>pick.sw.gain))pick={co:co,sw:sw};
+  });
+  return pick;
+}
 function paintCoCards(c){
+  var worst=worstFactory(c);
   if(!COMPANIES.length){
     $('coList').innerHTML='<div class="empty">No factories yet.</div>';
     $('coListSub').textContent='none';
@@ -846,8 +951,15 @@ function paintCoCards(c){
   $('coList').innerHTML=rows.map(function(co){
     var ae=aeOf(co),e=economics(co.itemCode,ae),st=storeOf(co),next=engineLevels()[String(ae+1)];
     if(e)total+=e.perDay;
-    var act='',full=st.pct>=.8;
-    if(full){
+    var act='',full=st.pct>=.8,swap=(worst&&worst.co===co)?worst.sw:null;
+    if(swap){
+      act='<span class="act bad">Wrong product \u2014 convert to '+esc(label(swap.code))+
+        '<small>'+esc(label(co.itemCode))+' makes '+money(swap.now,1)+' a day here; '+
+        esc(label(swap.code))+' makes '+money(swap.now+swap.gain,1)+
+        '. The change costs '+money(swap.fee,0)+', back within '+swap.days+
+        (swap.days===1?' day':' days')+'. Collect what it is holding first, and do this one only '+
+        '\u2014 a day\u2019s output of one thing has to find buyers.</small></span>';
+    }else if(full){
       act='<span class="act bad">Collect what it has made'+
         '<small>The store is '+Math.round(st.pct*100)+'% full. Once it fills, everything it makes after that is lost.</small></span>';
     }else if(next&&e&&steel!=null){
@@ -925,7 +1037,8 @@ function paintPath(c){
         (c.diggable.length?c.diggable.slice(0,4).map(function(d){return esc(label(d.code))}).join(', ')
                           :'nothing tradable')+'. '
       :'')+
-    'The market opens at '+c.marketAt+', crafting at '+c.craftAt+', the manager job at '+c.managerAt+'.';
+    'The Market page appears at '+c.marketAt+', the crafting bench at '+c.craftAt+
+    ', the manager job at '+c.managerAt+'.';
 }
 
 function paintLadder(){
@@ -936,7 +1049,7 @@ function paintLadder(){
   $('nextText').innerHTML=first?first.what(c)
     :(c.lv>=GOAL?'You are past level '+GOAL+' — open the numbers below; that is the useful part now.'
                 :'Nothing left today. Come back tomorrow and claim the reward first.');
-  paintToday(c);paintCoCards(c);paintSkillPips(c);paintPath(c);
+  paintToday(c);paintMissions(c);paintCoCards(c);paintSkillPips(c);paintPath(c);
 }
 
 /* ---- Loading ------------------------------------------------------------------------- */
