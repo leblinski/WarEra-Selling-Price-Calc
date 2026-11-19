@@ -54,6 +54,32 @@ tbody tr:hover{background:var(--panel-2)}
 .foot{padding:8px 11px;color:var(--dim);font-size:10.5px;border-top:1px solid var(--line)}
 .foot b{color:var(--ink)}
 .empty{padding:22px;text-align:center;color:var(--dim)}
+.card.now{margin-bottom:10px;border-color:rgba(var(--brass-rgb),.5)}
+.now-body{padding:14px 16px}
+.now-what{font-size:20px;line-height:1.3;font-weight:600;color:var(--ink);text-wrap:balance}
+.now-what em{font-style:normal;color:var(--brass)}
+.now-why{margin-top:7px;color:var(--dim);font-size:12.5px;max-width:68ch}
+ol.path{list-style:none;margin:0;padding:4px 0}
+ol.path li{display:flex;gap:10px;padding:8px 14px;border-bottom:1px solid var(--line)}
+ol.path li:last-child{border-bottom:0}
+ol.path .tick{flex:0 0 18px;text-align:center;font-family:var(--mono);font-size:13px}
+ol.path .txt{flex:1 1 auto}
+ol.path .txt b{font-weight:600}
+ol.path .txt small{display:block;color:var(--dim);font-size:11.5px;margin-top:1px}
+ol.path li.done .txt b{color:var(--dim);text-decoration:line-through;text-decoration-color:var(--line)}
+ol.path li.done .tick{color:var(--verdigris)}
+ol.path li.now{background:var(--panel-2)}
+ol.path li.now .tick{color:var(--brass)}
+ol.path li.now .txt b{color:var(--brass)}
+ol.path li.next .tick{color:var(--verdigris)}
+ol.path li.later{opacity:.55}
+ol.path li.later .tick{color:var(--dim)}
+details#numbers > summary{cursor:pointer;padding:9px 12px;border:1px solid var(--line);
+  border-radius:9px;background:var(--panel);color:var(--dim);font-size:11px;
+  letter-spacing:.1em;text-transform:uppercase}
+details#numbers[open] > summary{margin-bottom:10px;color:var(--brass)}
+.lvbar{height:6px;border-radius:999px;background:var(--panel-2);overflow:hidden;margin-top:4px}
+.lvbar i{display:block;height:100%;background:var(--brass)}
 .err{margin-bottom:10px;padding:9px 12px;border:1px solid var(--rust);border-radius:9px;
   background:rgba(194,112,63,.1);color:var(--ink);font-size:12px}
 .pill{display:inline-block;padding:1px 6px;border-radius:999px;font-size:10px;
@@ -68,7 +94,7 @@ a{color:var(--brass)}
 <div class="bar">
   <div class="grow">
     <h1>WarEra Coach</h1>
-    <div class="sub">What to produce, what to upgrade, and what a skill point is worth — priced at today's market.</div>
+    <div class="sub">One thing to do at a time, until level 15. You don't have to decide anything.</div>
   </div>
   <label class="ctl">Player
     <input id="who" placeholder="in-game username" autocomplete="off" spellcheck="false">
@@ -80,6 +106,31 @@ a{color:var(--brass)}
 
 <div id="error" class="err" hidden></div>
 
+<div class="card now" id="nowCard" hidden>
+  <div class="card-head"><b>Do this now</b><span id="nowSub"></span></div>
+  <div class="now-body">
+    <div class="now-what" id="nowWhat"></div>
+    <div class="now-why" id="nowWhy"></div>
+  </div>
+</div>
+
+<div class="card" id="pathCard" hidden style="margin-bottom:10px">
+  <div class="card-head"><b>Your path to level 15</b><span id="pathSub"></span></div>
+  <ol class="path" id="pathList"></ol>
+  <div class="foot" id="pathFoot"></div>
+</div>
+
+<div class="card" id="startCard" style="margin-bottom:10px">
+  <div class="card-head"><b>Start here</b><span>no player yet</span></div>
+  <div class="now-body">
+    <div class="now-what">Type your in-game username above.</div>
+    <div class="now-why">This tells you one thing to do at a time until you reach level 15,
+      when the game stops holding things back from you. You do not have to decide anything.</div>
+  </div>
+</div>
+
+<details id="numbers" style="margin-bottom:10px">
+<summary>Show me the numbers behind the advice</summary>
 <div class="grid">
   <div class="card wide" id="playerCard" hidden>
     <div class="card-head"><b>Player</b><span id="playerSub"></span></div>
@@ -125,7 +176,7 @@ a{color:var(--brass)}
   </div>
 
   <div class="card wide" id="skillCard" hidden>
-    <div class="card-head"><b>Your next skill point</b><span id="skillSub"></span></div>
+    <div class="card-head"><b>Every skill, in full</b><span id="skillSub"></span></div>
     <div class="scroll"><table>
       <thead><tr>
         <th class="l">Skill</th><th>Level</th><th>Now</th><th>Next point costs</th>
@@ -136,6 +187,7 @@ a{color:var(--brass)}
     <div class="foot" id="skillFoot"></div>
   </div>
 </div>
+</details>
 
 <div class="foot" style="border:1px solid var(--line);border-radius:9px;background:var(--panel);margin-top:10px">
   Every number here is read from the game itself each time the page loads — item recipes, skill costs,
@@ -168,7 +220,7 @@ async function ask(proc,input){
 function icon(code){return 'https://media.warera.io/images/itemsv2/'+code+'.webp?v=2'}
 
 var $=function(id){return document.getElementById(id)};
-var CFG=null,PRICES=null,USER=null,COMPANIES=[];
+var CFG=null,PRICES=null,USER=null,COMPANIES=[],REGION=null;
 
 function money(n,dp){
   if(n==null||!isFinite(n))return '—';
@@ -443,6 +495,258 @@ function cell(l,v,k){
   return '<div><small>'+esc(l)+'</small><b class="'+(k||'')+'">'+esc(v)+'</b></div>';
 }
 
+/* ---- The ladder to 15 ---------------------------------------------------------------
+   Everything above this point is a number. This is the part that decides what to do with
+   them, and it exists because the person it is for cannot be asked to choose. One
+   instruction at a time, with the reason underneath, and the rest of the path visible
+   only so they can see where it goes.
+
+   The level table is the one thing not served by the API - it sits in the game's own
+   client. Level 15 is 6,100 experience and sixty skill points. If the game ever
+   re-scales levelling this table is where it will show, and nothing else here. */
+var LEVELS={1:0,2:100,3:200,4:300,5:500,6:700,7:900,8:1200,9:1600,10:2100,
+            11:2700,12:3400,13:4200,14:5100,15:6100};
+var GOAL=15;
+
+function today(){return new Date().toISOString().slice(0,10)}
+function claimedToday(iso){return !!iso&&String(iso).slice(0,10)===today()}
+
+/* What the game will let this player do, and what they have to work with. */
+function context(){
+  var lv=(USER.leveling&&USER.leveling.level)||1,
+      xp=(USER.leveling&&USER.leveling.totalXp)||0,
+      u=CFG.user||{},unlock=u.featureUnlockLevels||{},
+      sk=USER.skills||{},st=USER.stats||{},w=st.wealth||{},
+      energy=(sk.energy&&sk.energy.currentBarValue)||0,
+      perAction=u.energyCostPerAction||10,
+      xpLeft=(USER.leveling&&USER.leveling.dailyXpLeft)||0,
+      regen=(sk.energy&&sk.energy.hourlyBarRegen)||0,
+      allowed=(sk.companies&&sk.companies.total)||0,
+      climate=REGION&&REGION.climate,
+      diggable=[],best=null,bestDig=null;
+  for(var code in CFG.items){
+    var it=CFG.items[code];
+    if(!it.isTradable||!producible(it))continue;
+    var e=economics(code,COMPANIES.length?engineBest():1);
+    if(!e)continue;
+    if(!best||e.perDay>best.perDay)best={code:code,perDay:e.perDay};
+    if(it.type==='raw'&&climate&&it.climates&&it.climates.indexOf(climate)>=0){
+      diggable.push({code:code,perDay:e.perDay});
+      if(!bestDig||e.perDay>bestDig.perDay)bestDig={code:code,perDay:e.perDay};
+    }
+  }
+  diggable.sort(function(a,b){return b.perDay-a.perDay});
+  return {
+    lv:lv,xp:xp,toGoal:Math.max(0,(LEVELS[GOAL]||0)-xp),
+    xpLeft:xpLeft,
+    actionsLeft:Math.ceil(xpLeft/(u.xpPerAction||10)),
+    actionsNow:Math.floor(energy/perAction),
+    perAction:perAction,regen:regen,
+    /* Steel is bought on the market, and the market is shut until level 5. Telling a new
+       player to go and buy twenty steel is advice they cannot act on. */
+    canBuy:lv>=(unlock.market||5),
+    makesSteel:COMPANIES.some(function(co){return co.itemCode==='steel'}),
+    dailyCap:u.dailyXp||100,
+    reward:(u.dailyReward&&u.dailyReward.xp)||0,
+    /* Two timestamps look like the daily claim and only one of them moves: the streak
+       counter follows the calendar, so that is the one that says whether today is done. */
+    claimed:claimedToday(USER.dates&&(USER.dates.lastDailyCalendarClaimedAt||
+                                      USER.dates.lastDailyRewardClaimedAt)),
+    sp:(USER.leveling&&USER.leveling.availableSkillPoints)||0,
+    cash:w.money||0,
+    owned:COMPANIES.length,allowed:allowed,
+    climate:climate,diggable:diggable,best:best,bestDig:bestDig,
+    marketAt:unlock.market||5,craftAt:unlock.craft||7,managerAt:unlock.managerJob||10,
+    /* Each factory you already own adds to what the next one costs. */
+    buildCost:COMPANIES.length*((CFG.company&&CFG.company.constructionCostIncreasePerCompany)||50),
+    upgrade:cheapestUpgrade()
+  };
+}
+/* The factory whose next engine pays for its steel soonest. */
+function cheapestUpgrade(){
+  var steel=priceOf('steel'),out=null;
+  if(steel==null)return null;
+  COMPANIES.forEach(function(c){
+    var ae=aeOf(c),next=engineLevels()[String(ae+1)],e=economics(c.itemCode,ae);
+    if(!next||!e)return;
+    var gain=(dailyProd(ae+1)-dailyProd(ae))/e.pp*e.margin;
+    if(gain<=0)return;
+    var cost=(next.steelCost||0)*steel,days=cost/gain;
+    if(!out||days<out.days)out={co:c,level:ae+1,steel:next.steelCost||0,cost:cost,days:Math.ceil(days)};
+  });
+  return out;
+}
+
+/* The ladder. Each rung decides for itself whether it is behind you, in front of you, or
+   waiting on a level you have not reached. The first one that says "now" is the only
+   thing the page asks of you. */
+var LADDER=[
+  {id:'reward',
+   state:function(c){return c.claimed?'done':'now'},
+   what:function(c){return 'Claim today\u2019s daily reward.'},
+   why:function(c){return 'It is '+c.reward+' experience, some cash and a crate, for one tap. '+
+     'Experience is capped per day, so a day you skip is a day you cannot make up.'},
+   line:function(c){return 'Claim the daily reward, every day'}},
+
+  {id:'spend',
+   state:function(c){return c.sp>0?'now':'done'},
+   what:function(c){
+     var p=pick(c);
+     if(p.cost==null)return 'Put a skill point into <em>'+esc(label(p.key))+'</em>.';
+     return 'Put '+p.cost+(p.cost===1?' point':' points')+' into <em>'+esc(label(p.key))+
+       '</em>, taking it to level '+p.level+'.'+
+       (p.spare?' Keep the other '+p.spare+' for now.':'');
+   },
+   why:function(c){return pick(c).why},
+   line:function(c){return 'Spend every skill point as you earn it'}},
+
+  {id:'work',
+   state:function(c){return c.xpLeft>0?'now':'done'},
+   what:function(c){
+     var head='Work '+c.actionsLeft+(c.actionsLeft===1?' more time':' more times')+' today';
+     if(c.actionsNow>=c.actionsLeft)return head+'.';
+     if(c.actionsNow<=0){
+       var hrs=c.regen?Math.ceil(c.perAction/c.regen):null;
+       return head+' — your energy is spent. It comes back at about '+num(c.regen)+' an hour'+
+         (hrs?', so roughly '+hrs+(hrs===1?' hour':' hours')+' per go':'')+'.';
+     }
+     return head+' — you have energy for '+c.actionsNow+' right now, and the rest refills through the day.';
+   },
+   why:function(c){return 'You have '+c.xpLeft+' experience left in today\u2019s allowance of '+c.dailyCap+
+     '. Once it is spent, more work earns no more levels — which is why putting skill points into energy '+
+     'does not get you to 15 any faster.'},
+   line:function(c){return 'Use the whole daily experience allowance'}},
+
+  {id:'build',
+   state:function(c){
+     if(c.owned>=c.allowed)return 'done';
+     return c.cash>=c.buildCost?'now':'later';
+   },
+   what:function(c){
+     var mk=c.bestDig||c.best;
+     return 'Build factory number '+(c.owned+1)+(mk?' and set it to make <em>'+esc(label(mk.code))+'</em>':'')+'.';
+   },
+   why:function(c){
+     var mk=c.bestDig||c.best,txt='You are allowed '+c.allowed+' and have '+c.owned+'. ';
+     if(c.cash<c.buildCost)return txt+'It costs about '+money(c.buildCost,0)+' and you have '+
+       money(c.cash,0)+' — keep collecting what your factories make.';
+     return txt+'It costs about '+money(c.buildCost,0)+' of your '+money(c.cash,0)+
+       (mk?', and '+esc(label(mk.code))+' is the best thing your region can dig, at about '+
+        money(mk.perDay,1)+' a day.':'.');
+   },
+   line:function(c){return 'Fill every factory slot you are allowed'}},
+
+  {id:'engine',
+   state:function(c){
+     if(!c.upgrade)return 'done';
+     return (c.canBuy||c.makesSteel)?'now':'later';
+   },
+   what:function(c){
+     var u=c.upgrade;
+     return 'Upgrade <em>'+esc(u.co.name||label(u.co.itemCode))+'</em> to engine '+u.level+
+       ' — it needs '+num(u.steel)+' steel.';
+   },
+   why:function(c){var u=c.upgrade;
+     if(!c.canBuy&&!c.makesSteel)
+       return 'Engines are paid for in steel, and steel is bought on the market, which stays shut '+
+         'until level '+c.marketAt+'. Nothing to do here yet.';
+     return 'A bigger engine makes more every day, and this one is the cheapest of yours to pay '+
+       'for itself: about '+u.days+' days at today\u2019s prices. '+
+       (c.makesSteel?'You make steel yourself, so it costs you production rather than gold.'
+                    :'The steel costs about '+money(u.cost,0)+' at today\u2019s price.')+
+       ' Either way the factory earns it back and then keeps the difference.'},
+   line:function(c){
+     return (!c.canBuy&&!c.makesSteel)
+       ? 'Grow the engines — once you can get steel'
+       : 'Grow the engines, cheapest payback first';
+   }},
+
+  {id:'market',
+   state:function(c){return c.lv>=c.marketAt?'done':'later'},
+   what:function(c){return 'Reach level '+c.marketAt+' — the market opens there.'},
+   why:function(c){return 'Until then you cannot buy or sell anything, so stockpile what your '+
+     'factories make and spend nothing on prices you cannot reach yet.'},
+   line:function(c){return 'Level '+c.marketAt+': the market opens'}},
+
+  {id:'craft',
+   state:function(c){return c.lv>=c.craftAt?'done':'later'},
+   what:function(c){return 'Reach level '+c.craftAt+' — crafting opens there.'},
+   why:function(c){return 'Digging sells for whatever the ground gives you. Crafting turns cheap '+
+     'things into dearer ones, and from then on the better factories are the ones that make rather than dig.'},
+   line:function(c){return 'Level '+c.craftAt+': crafting opens'}},
+
+  {id:'goal',
+   state:function(c){return c.lv>=GOAL?'done':'later'},
+   what:function(c){return 'Reach level '+GOAL+'.'},
+   why:function(c){return 'The game stops holding things back at 15, and by then you will have '+
+     'enough factories running to decide for yourself what is worth making.'},
+   line:function(c){return 'Level '+GOAL+': you are on your own, in a good way'}}
+];
+
+/* Which skill the next point goes into. Only two answers, and the reason for each is a
+   number rather than a preference: another factory can be priced, and energy cannot buy
+   experience that the daily cap will not hand over. */
+function pick(c){
+  var want=(c.owned>=c.allowed&&c.best)?'companies':'production',
+      have=(USER.skills&&USER.skills[want]&&USER.skills[want].level)||0,
+      levels=(CFG.skills[want]&&CFG.skills[want].levels)||{},
+      next=levels[String(have+1)],
+      cost=next?next.cost:null;
+  /* One level, not the whole pile. A beginner with twelve points spent at once on the same
+     skill pays the rising price for every level of it, and the factories those levels allow
+     still have to be paid for in gold afterwards. */
+  var why=want==='companies'
+    ? 'You are using every factory slot you have ('+c.owned+' of '+c.allowed+'), so this point '+
+      'is worth a whole factory — about '+money(c.best.perDay,1)+' a day at today\u2019s prices. '+
+      'Nothing else on the list turns into money at all. Build that factory before buying the '+
+      'next level: each one costs more than the last, in points and in gold.'
+    : 'Production is what your factories draw on, and the early levels are the cheapest points '+
+      'you will ever buy — they get dearer every level. Not energy: the day\u2019s experience is '+
+      'capped, so energy past 100 buys actions that earn nothing.';
+  return {key:want,cost:cost,level:have+1,why:why,
+          spare:cost!=null?Math.max(0,c.sp-cost):0};
+}
+
+function paintLadder(){
+  var c=context(),first=null,html='';
+  LADDER.forEach(function(step){
+    var st=step.state(c);
+    if(st==='now'&&!first)first=step;
+  });
+  LADDER.forEach(function(step){
+    var st=step.state(c);
+    /* Only one thing is asked at a time, but a rung that is ready and merely behind the
+       first is not "later" - dimming it would say it does not apply yet, which is a lie. */
+    if(st==='now'&&step!==first)st='next';
+    var tick=st==='done'?'\u2713':st==='now'?'\u25b6':st==='next'?'\u25cb':'\u00b7';
+    html+='<li class="'+st+'"><span class="tick">'+tick+'</span><span class="txt">'+
+      '<b>'+step.line(c)+'</b>'+(st==='now'?'<small>'+step.why(c)+'</small>':'')+'</span></li>';
+  });
+  $('pathList').innerHTML=html;
+  $('pathCard').hidden=false;
+  $('startCard').hidden=true;
+  $('nowCard').hidden=false;
+  $('nowWhat').innerHTML=first?first.what(c):'Nothing to do but wait for tomorrow\u2019s energy.';
+  $('nowWhy').innerHTML=first?first.why(c):'You have spent today\u2019s experience and everything '+
+    'else is waiting on a level. Come back tomorrow and claim the reward first.';
+  $('nowSub').textContent='level '+c.lv;
+  if(c.lv>=GOAL&&!first){
+    $('nowWhat').innerHTML='You are past level '+GOAL+' — this coach has nothing left to tell you.';
+    $('nowWhy').innerHTML='It exists to get a new player to '+GOAL+' without asking them to decide '+
+      'anything. From here the numbers below are the useful part: what pays most to make today, '+
+      'and which of your engines pays back soonest.';
+  }
+  var span=(LEVELS[GOAL]-LEVELS[1])||1,done=Math.min(1,Math.max(0,c.xp/LEVELS[GOAL]));
+  var perDay=c.dailyCap+c.reward;
+  $('pathSub').innerHTML=c.lv>=GOAL?'you made it':
+    num(c.toGoal)+' experience to go \u00b7 about '+Math.ceil(c.toGoal/perDay)+' days';
+  $('pathFoot').innerHTML='<div class="lvbar"><i style="width:'+(done*100).toFixed(1)+'%"></i></div>'+
+    'At the daily cap of '+c.dailyCap+' plus the '+c.reward+' from the reward, that is '+perDay+
+    ' a day, and missions pay on top. '+
+    (c.climate?'Your region is <b>'+esc(c.climate)+'</b>, so it can dig '+
+      (c.diggable.length?c.diggable.slice(0,4).map(function(d){return esc(label(d.code))}).join(', '):'nothing tradable')+'.':'');
+}
+
 /* ---- Loading ------------------------------------------------------------------------- */
 async function loadGame(){
   say('reading the game…');
@@ -465,7 +769,10 @@ async function loadPlayer(name){
   paintPlayer();paintSkills();
   say('reading companies…');
   COMPANIES=await loadCompanies(found.userIds[0]);
-  paintCompanies();paintProduce();
+  /* The region decides which raw things can be dug at all, so advice to build an iron
+     factory in a region with no iron would be worse than no advice. */
+  REGION=USER.region?await ask('region.getById',{regionId:USER.region}).catch(function(){return null}):null;
+  paintCompanies();paintProduce();paintLadder();
   try{localStorage.setItem('coach.who',USER.username||name)}catch(e){}
   say(USER.username+' · '+COMPANIES.length+' companies');
 }
