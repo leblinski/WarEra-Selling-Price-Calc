@@ -255,6 +255,7 @@ a{color:var(--brass)}
       <thead><tr>
         <th class="l">Item</th><th class="l">Needs</th><th>Price</th><th>Input cost</th>
         <th>Margin</th><th>Margin %</th><th>Units/day</th><th>Margin/day</th><th>Own chain</th>
+        <th>Market clears</th><th>You add</th>
       </tr></thead>
       <tbody id="prodBody"></tbody>
     </table></div>
@@ -306,7 +307,27 @@ async function ask(proc,input){
 function icon(code){return 'https://media.warera.io/images/itemsv2/'+code+'.webp?v=2'}
 
 var $=function(id){return document.getElementById(id)};
-var CFG=null,PRICES=null,USER=null,COMPANIES=[],REGION=null;
+var CFG=null,PRICES=null,USER=null,COMPANIES=[],REGION=null,FEED=null;
+/* Our own collector, on the same host as this page. The game's getPrices gives one number
+   a good; the collector gives the two that a producer actually trades at, and how much of
+   the stuff changed hands yesterday. */
+var FEED_URL='https://leblinski.github.io/-warera-case1-collector/flow.json';
+function feedOf(code){return (FEED&&FEED.goods&&FEED.goods[code])||null}
+/* You sell into the bid and buy from the ask. Using one middling price for both flatters
+   every margin on the page, and on a good quoted 0.099 against 0.101 it flatters it by
+   two per cent of the price - which on a one point good is most of the margin. */
+function sellPrice(code){
+  var g=feedOf(code);
+  return (g&&g.bid!=null)?g.bid:priceOf(code);
+}
+function buyPrice(code){
+  var g=feedOf(code);
+  return (g&&g.ask!=null)?g.ask:priceOf(code);
+}
+function cleared(code){
+  var g=feedOf(code),w=g&&g.windows&&g.windows['24'];
+  return w&&w.units!=null?w.units:null;
+}
 /* Regions and the countries holding them, looked up once each and kept. A company pays the
    income tax of whoever holds the ground it stands on, and ground changes hands in wars,
    so the rate is read rather than remembered. */
@@ -383,7 +404,7 @@ function inputCost(code){
   if(!it||!it.productionNeeds)return 0;
   var sum=0,need=it.productionNeeds;
   for(var k in need){
-    var p=priceOf(k);
+    var p=buyPrice(k);
     if(p==null)return null;
     sum+=need[k]*p;
   }
@@ -444,7 +465,7 @@ function chainPoints(code,seen){
   return total;
 }
 function perChainPoint(code){
-  var pts=chainPoints(code),price=priceOf(code);
+  var pts=chainPoints(code),price=sellPrice(code);
   return (pts&&price!=null)?price/pts:null;
 }
 /* Steel buys engines and storage, concrete builds factories: a factory making either is
@@ -474,7 +495,7 @@ function dailyOf(code){
 function economics(code,ae){
   var it=CFG.items[code];
   if(!it)return null;
-  var price=priceOf(code),cost=inputCost(code),pp=it.productionPoints||1,dp=dailyProd(ae);
+  var price=sellPrice(code),cost=inputCost(code),pp=it.productionPoints||1,dp=dailyProd(ae);
   if(price==null||cost==null||dp==null)return null;
   var margin=price-cost,units=dp/pp;
   return {price:price,cost:cost,margin:margin,pp:pp,units:units,
@@ -511,12 +532,22 @@ function paintProduce(){
       '<td title="'+esc('What one production point earns if you own every step: '+
         num(chainPoints(r.code))+' points go into one '+label(r.code))+'">'+
         money(perChainPoint(r.code),4)+(CAPITAL[r.code]?' <span class="chip">capital</span>':'')+'</td>'+
+      '<td>'+(cleared(r.code)!=null?num(cleared(r.code)):'<span class="dimv">—</span>')+'</td>'+
+      '<td>'+(cleared(r.code)?('<span class="dimv">'+(e.units/cleared(r.code)*100).toFixed(3)+'%</span>')
+                            :'<span class="dimv">—</span>')+'</td>'+
     '</tr>';
   }).join('');
   $('prodBody').innerHTML=html||'<tr><td colspan="8" class="empty">No prices yet.</td></tr>';
   var best=rows[0];
   $('prodFoot').innerHTML=rows.length
-    ? '<b>Own chain</b> is what a production point earns when you make the inputs yourself '+
+    ? (FEED?('Prices are the collector\u2019s: you are paid the <b>bid</b> for what you make and '+
+        'charged the <b>ask</b> for what you buy, which is what actually happens and is worth '+
+        'a per cent or two against a single mid price.<br>'):'')+
+      '<b>Market clears</b> is how many units changed hands in a day, against what one factory '+
+      'of yours would add. It is between 0.003% and 0.08% for every good in the game \u2014 the '+
+      'market is thousands of times larger than any one estate, so what you choose to make cannot '+
+      'move the price. Crowding is already in the price you are reading.<br>'+
+      '<b>Own chain</b> is what a production point earns when you make the inputs yourself '+
       'rather than buy them, and across the whole economy it sits between 0.07 and 0.11 — the '+
       'market has already arbitraged the chains, so integrating is worth 5 to 15 per cent, not a '+
       'different game. Steel and concrete are marked <b>capital</b>: engines and storage are paid '+
@@ -1242,14 +1273,21 @@ function paintLadder(){
 /* ---- Loading ------------------------------------------------------------------------- */
 async function loadGame(){
   say('reading the game…');
-  var pair=await Promise.all([ask('gameConfig.getGameConfig'),ask('itemTrading.getPrices')]);
-  CFG=pair[0];PRICES=pair[1];
+  var pair=await Promise.all([
+    ask('gameConfig.getGameConfig'),
+    ask('itemTrading.getPrices'),
+    /* The collector is a convenience, not a dependency: if it is down the page falls back
+       to the game's own single price and says so rather than failing. */
+    fetch(FEED_URL+'?t='+Date.now()).then(function(r){return r.ok?r.json():null})
+      .catch(function(){return null})
+  ]);
+  CFG=pair[0];PRICES=pair[1];FEED=pair[2];
   var sel=$('ae'),max=engineMax(),html='';
   for(var i=1;i<=max;i++)html+='<option value="'+i+'"'+(i===max?' selected':'')+'>'+i+
     ' · '+dailyProd(i)+'/day</option>';
   sel.innerHTML=html;
   paintProduce();
-  say(Object.keys(CFG.items).length+' items · prices live');
+  say(Object.keys(CFG.items).length+' items · '+(FEED?'bid and ask from the collector':'prices from the game'));
 }
 async function loadPlayer(name){
   if(!name)return;
