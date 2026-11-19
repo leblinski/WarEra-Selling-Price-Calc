@@ -1075,16 +1075,24 @@ function whereText(regionId){
 }
 
 /* ---- Where to build ------------------------------------------------------------------
-   One answer, because the point of this page is not to make anyone weigh a hundred and
-   eighty tax rates. Northern Ireland, and the number behind it is read live: whoever holds
-   that ground sets the rate, and ground changes hands. */
+   One answer, and not the one a tax table would give. Algeria charges 4% against Ireland's
+   17%, and a page ranking by rate would send everyone there - but the rate is not what is
+   being decided. Ireland pays the UK rent for Northern Ireland and passes on the tax
+   collected there, so a UK player's 17% comes back to their own side, while 4% paid in
+   Algeria funds Algeria. Where it lands, not how small it is.
+
+   The rate itself is still read live, because that ground changes hands. */
+var UK='6813b6d446e731854c7ac79e';
 function paintPlaces(c){
   var home=REGIONS[HOME],homeTax=taxOf(HOME),homeBy=holderOf(HOME),html='';
   var away=COMPANIES.filter(function(co){return co.region&&co.region!==HOME});
   html+=row({box:true,done:COMPANIES.length>0&&away.length===0,
     title:'Build in Northern Ireland',
     chip:homeTax!=null?(homeTax+'% tax'):'',chipKind:away.length?'now':'ok',
-    note:(homeBy?('Held by '+esc(homeBy)+', charging '+homeTax+'% income tax. '):'')+
+    note:(homeBy?('Held by '+esc(homeBy)+', charging '+homeTax+'% income tax, which '+
+          esc(homeBy)+' passes to the UK along with rent for the ground. '+
+          (USER.country===UK?'You play for the UK, so that is your own side collecting it. '
+                            :'That is the arrangement this advice is built on. ')):'')+
       (away.length
         ? (away.length+(away.length===1?' of your factories sits':' of your factories sit')+
            ' elsewhere: '+away.map(function(co){
@@ -1099,9 +1107,10 @@ function paintPlaces(c){
   $('placeList').innerHTML=html;
   $('placeSub').textContent=home?(home.name||''):'';
   $('placeFoot').innerHTML='Your factory pays income tax to whoever holds its ground, not to '+
-    'wherever you live'+(myTax!=null?(' ('+esc(mine.name)+' charges '+myTax+'%)'):'')+
-    '. Lower rates exist in the world, but they come with other people\u2019s wars; this is the '+
-    'one worth the five gold.';
+    'wherever you live'+(myTax!=null?(' \u2014 '+esc(mine.name)+' charges '+myTax+'% on its own'):'')+
+    '. Cheaper ground exists: Algeria charges 4%, and the game has quietly piled into it \u2014 '+
+    'one Algerian region holds 4,379 companies. But a tax is not only a cost, it is income for '+
+    'whoever collects it, and that 4% funds Algeria. Northern Ireland\u2019s comes home.';
 }
 
 /* ---- Workers, kept deliberately short -----------------------------------------------
