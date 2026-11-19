@@ -255,7 +255,7 @@ a{color:var(--brass)}
       <thead><tr>
         <th class="l">Item</th><th class="l">Needs</th><th>Price</th><th>Input cost</th>
         <th>Margin</th><th>Margin %</th><th>Units/day</th><th>Margin/day</th><th>Own chain</th>
-        <th>Market clears</th><th>You add</th>
+        <th>Market clears</th><th>You add</th><th>Making it</th>
       </tr></thead>
       <tbody id="prodBody"></tbody>
     </table></div>
@@ -312,6 +312,12 @@ var CFG=null,PRICES=null,USER=null,COMPANIES=[],REGION=null,FEED=null;
    a good; the collector gives the two that a producer actually trades at, and how much of
    the stuff changed hands yesterday. */
 var FEED_URL='https://leblinski.github.io/-warera-case1-collector/flow.json';
+/* How many companies make each good. Counting that from the game is thirty thousand reads;
+   SPYWarera aggregates it and our collector carries it across once a run, which is why it
+   arrives here as one more file rather than as work this page does. */
+var SUPPLY_URL='https://leblinski.github.io/-warera-case1-collector/supply.json';
+var SUPPLY=null;
+function supplyOf(code){return (SUPPLY&&SUPPLY.goods&&SUPPLY.goods[code])||null}
 function feedOf(code){return (FEED&&FEED.goods&&FEED.goods[code])||null}
 /* You sell into the bid and buy from the ask. Using one middling price for both flatters
    every margin on the page, and on a good quoted 0.099 against 0.101 it flatters it by
@@ -502,6 +508,23 @@ function economics(code,ae){
           perDay:margin*units,pct:price>0?margin/price*100:null};
 }
 
+/* How many are already making it, and which way that is going. The count is today's and
+   the drift is ours: the collector stamps one point a day, so until a few days have passed
+   there is nothing to say about direction and it says nothing. */
+function companiesCell(code){
+  var g=supplyOf(code);
+  if(!g||g.producing==null)return '<span class="dimv">—</span>';
+  var drift='';
+  if(g.change!=null&&g.change!==0&&g.producing){
+    var pct=g.change/Math.max(1,g.producing-g.change)*100;
+    if(Math.abs(pct)>=0.5)
+      drift=' <span class="'+(g.change>0?'down':'up')+'" title="'+esc('since '+g.since)+'">'+
+        (g.change>0?'+':'')+pct.toFixed(0)+'%</span>';
+  }
+  return num(g.producing)+' <span class="dimv">'+
+    (g.share_pct!=null?g.share_pct.toFixed(1)+'%':'')+'</span>'+drift;
+}
+
 /* ---- The produce table -------------------------------------------------------------- */
 function paintProduce(){
   var ae=Number($('ae').value)||1,only=$('only').value,rows=[];
@@ -535,12 +558,20 @@ function paintProduce(){
       '<td>'+(cleared(r.code)!=null?num(cleared(r.code)):'<span class="dimv">—</span>')+'</td>'+
       '<td>'+(cleared(r.code)?('<span class="dimv">'+(e.units/cleared(r.code)*100).toFixed(3)+'%</span>')
                             :'<span class="dimv">—</span>')+'</td>'+
+      '<td>'+companiesCell(r.code)+'</td>'+
     '</tr>';
   }).join('');
   $('prodBody').innerHTML=html||'<tr><td colspan="8" class="empty">No prices yet.</td></tr>';
   var best=rows[0];
   $('prodFoot').innerHTML=rows.length
-    ? (FEED?('Prices are the collector\u2019s: you are paid the <b>bid</b> for what you make and '+
+    ? (SUPPLY?('<b>Making it</b> is how many companies produce that good now, and what share of '+
+        'the game that is \u2014 '+num(SUPPLY.producing_total)+' producing companies in all, counted by '+
+        '<a href="https://spywarera.com/economy/companies" rel="noopener">SPYWarera</a>. Iron and steel '+
+        'are half of them, and they pay the least per production point: the crowd arrives before you do '+
+        'and it is already in the price. A figure beside the count means the number is drifting since '+
+        'the collector started watching, which is the part no price has absorbed yet \u2014 a good '+
+        'gaining companies fast is a good about to be cheaper.<br>'):'')+
+      (FEED?('Prices are the collector\u2019s: you are paid the <b>bid</b> for what you make and '+
         'charged the <b>ask</b> for what you buy, which is what actually happens and is worth '+
         'a per cent or two against a single mid price.<br>'):'')+
       '<b>Market clears</b> is how many units changed hands in a day, against what one factory '+
@@ -1054,13 +1085,17 @@ function switchTo(co,c){
     if(!it.isTradable||!producible(it)||code===co.itemCode)continue;
     if(it.type==='raw'&&!(c.climate&&it.climates&&it.climates.indexOf(c.climate)>=0))continue;
     var e=economics(code,ae);
-    if(e&&(!best||e.perDay>best.perDay))best={code:code,perDay:e.perDay};
+    if(!e)continue;
+    if(!best||e.perDay>best.perDay*1.02)best={code:code,perDay:e.perDay};
+    else if(e.perDay>best.perDay*0.98&&crowd(code)<crowd(best.code))best={code:code,perDay:e.perDay};
   }
   if(!best)return null;
   var gain=best.perDay-now.perDay,
       fee=(CFG.company&&CFG.company.changeItemCost)||0;
   if(gain<=0)return null;
   var days=gain>0?fee/gain:Infinity;
+  /* Where two goods pay within a whisker of each other, the one fewer people make is the
+     better bet, because the one everyone is piling into is the one whose price moves next. */
   /* A rounding error is not a reason to rebuild a factory: worth a fifth more, and the
      fee back inside a week, or it is left alone. */
   if(gain<now.perDay*0.2||days>7)return null;
@@ -1068,6 +1103,10 @@ function switchTo(co,c){
 }
 
 /* ---- Companies: one card each, with the one thing to do to it ---------------------- */
+function crowd(code){
+  var g=supplyOf(code);
+  return (g&&g.share_pct!=null)?g.share_pct:50;
+}
 function whereText(regionId){
   var r=REGIONS[regionId],tax=taxOf(regionId);
   if(!r)return 'somewhere';
@@ -1288,9 +1327,11 @@ async function loadGame(){
     /* The collector is a convenience, not a dependency: if it is down the page falls back
        to the game's own single price and says so rather than failing. */
     fetch(FEED_URL+'?t='+Date.now()).then(function(r){return r.ok?r.json():null})
+      .catch(function(){return null}),
+    fetch(SUPPLY_URL+'?t='+Date.now()).then(function(r){return r.ok?r.json():null})
       .catch(function(){return null})
   ]);
-  CFG=pair[0];PRICES=pair[1];FEED=pair[2];
+  CFG=pair[0];PRICES=pair[1];FEED=pair[2];SUPPLY=pair[3];
   var sel=$('ae'),max=engineMax(),html='';
   for(var i=1;i<=max;i++)html+='<option value="'+i+'"'+(i===max?' selected':'')+'>'+i+
     ' · '+dailyProd(i)+'/day</option>';
