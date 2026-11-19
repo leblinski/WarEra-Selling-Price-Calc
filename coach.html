@@ -181,10 +181,22 @@ a{color:var(--brass)}
     <div class="foot" id="coListFoot"></div>
   </div>
 
-  <div class="card">
-    <div class="card-head"><b>Skills</b><span id="skillPipSub"></span></div>
-    <div id="skillList"></div>
-    <div class="foot" id="skillPipFoot"></div>
+  <div class="stack">
+    <div class="card">
+      <div class="card-head"><b>Skills</b><span id="skillPipSub"></span></div>
+      <div id="skillList"></div>
+      <div class="foot" id="skillPipFoot"></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><b>Where to build</b><span id="placeSub"></span></div>
+      <div id="placeList"></div>
+      <div class="foot" id="placeFoot"></div>
+    </div>
+    <div class="card">
+      <div class="card-head"><b>Workers, in brief</b><span>the basics</span></div>
+      <div id="workList"></div>
+      <div class="foot" id="workFoot"></div>
+    </div>
   </div>
 </div>
 
@@ -295,6 +307,30 @@ function icon(code){return 'https://media.warera.io/images/itemsv2/'+code+'.webp
 
 var $=function(id){return document.getElementById(id)};
 var CFG=null,PRICES=null,USER=null,COMPANIES=[],REGION=null;
+/* Regions and the countries holding them, looked up once each and kept. A company pays the
+   income tax of whoever holds the ground it stands on, and ground changes hands in wars,
+   so the rate is read rather than remembered. */
+var REGIONS={},COUNTRIES={};
+var HOME='6813b7039403bc4170a5d6ab';   /* Northern Ireland */
+async function place(regionId){
+  if(!regionId)return null;
+  if(REGIONS[regionId]!==undefined)return REGIONS[regionId];
+  var r=await ask('region.getById',{regionId:regionId}).catch(function(){return null});
+  REGIONS[regionId]=r;
+  if(r&&r.country&&COUNTRIES[r.country]===undefined){
+    COUNTRIES[r.country]=await ask('country.getCountryById',{countryId:r.country})
+      .catch(function(){return null});
+  }
+  return r;
+}
+function taxOf(regionId){
+  var r=REGIONS[regionId],co=r&&COUNTRIES[r.country];
+  return co&&co.taxes?co.taxes.income:null;
+}
+function holderOf(regionId){
+  var r=REGIONS[regionId],co=r&&COUNTRIES[r.country];
+  return co?co.name:null;
+}
 
 function money(n,dp){
   if(n==null||!isFinite(n))return '—';
@@ -367,7 +403,7 @@ function needsText(code){
   var it=CFG.items[code],need=it&&it.productionNeeds;
   if(!need){
     var where=(it&&it.climates&&it.climates.length)
-      ? 'a '+list(it.climates)+' region holding the deposit'
+      ? 'a '+list(it.climates)+' region'
       : 'the right region';
     return '<span class="dimv">nothing to buy — but it needs '+esc(where)+'</span>';
   }
@@ -1001,6 +1037,74 @@ function switchTo(co,c){
 }
 
 /* ---- Companies: one card each, with the one thing to do to it ---------------------- */
+function whereText(regionId){
+  var r=REGIONS[regionId],tax=taxOf(regionId);
+  if(!r)return 'somewhere';
+  return (r.name||'?')+(tax!=null?(' \u00b7 '+tax+'% tax'):'');
+}
+
+/* ---- Where to build ------------------------------------------------------------------
+   One answer, because the point of this page is not to make anyone weigh a hundred and
+   eighty tax rates. Northern Ireland, and the number behind it is read live: whoever holds
+   that ground sets the rate, and ground changes hands. */
+function paintPlaces(c){
+  var home=REGIONS[HOME],homeTax=taxOf(HOME),homeBy=holderOf(HOME),html='';
+  var away=COMPANIES.filter(function(co){return co.region&&co.region!==HOME});
+  html+=row({box:true,done:COMPANIES.length>0&&away.length===0,
+    title:'Build in Northern Ireland',
+    chip:homeTax!=null?(homeTax+'% tax'):'',chipKind:away.length?'now':'ok',
+    note:(homeBy?('Held by '+esc(homeBy)+', charging '+homeTax+'% income tax. '):'')+
+      (away.length
+        ? (away.length+(away.length===1?' of your factories sits':' of your factories sit')+
+           ' elsewhere: '+away.map(function(co){
+               var t=taxOf(co.region);
+               return esc((REGIONS[co.region]&&REGIONS[co.region].name)||'?')+
+                 (t!=null?(' at '+t+'%'):'');
+             }).join(', ')+'. Moving one costs '+
+           num((CFG.company&&CFG.company.moveCost)||0)+' gold.')
+        : (COMPANIES.length?'Every factory of yours is already there.':'Put your first one there.'))});
+  /* The comparison, so the instruction is checkable rather than folklore. */
+  var mine=USER.country&&COUNTRIES[USER.country],myTax=mine&&mine.taxes?mine.taxes.income:null;
+  $('placeList').innerHTML=html;
+  $('placeSub').textContent=home?(home.name||''):'';
+  $('placeFoot').innerHTML='Your factory pays income tax to whoever holds its ground, not to '+
+    'wherever you live'+(myTax!=null?(' ('+esc(mine.name)+' charges '+myTax+'%)'):'')+
+    '. Lower rates exist in the world, but they come with other people\u2019s wars; this is the '+
+    'one worth the five gold.';
+}
+
+/* ---- Workers, kept deliberately short -----------------------------------------------
+   The game keeps rosters private - every employee procedure answers an outsider with 401 -
+   so this teaches the shape of the thing and does not pretend to read yours. */
+function paintWorkers(c){
+  var br=(CFG.upgradesConfig&&CFG.upgradesConfig.breakRoom&&CFG.upgradesConfig.breakRoom.levels)||{},
+      lines=[],html='';
+  for(var k in br){
+    var st=br[k].stats||{};
+    lines.push('level '+k+' \u2192 '+st.maxWorkers+(st.maxWorkers===1?' worker':' workers')+
+      (br[k].steelCost?(' ('+num(br[k].steelCost)+' steel)'):' (free)'));
+  }
+  var rooms=COMPANIES.map(function(co){
+    return (co.activeUpgradeLevels&&co.activeUpgradeLevels.breakRoom)||1;
+  });
+  var seats=rooms.reduce(function(a,b){
+    var st=(br[String(b)]||{}).stats||{};return a+(st.maxWorkers||0);
+  },0);
+  html+=row({title:'A break room is how many you may hire',
+    chip:seats?(seats+(seats===1?' seat':' seats')):'',
+    note:esc(lines.join(' \u00b7 '))+'. It is the same steel your engines want, so early on the engine '+
+      'usually wins.'});
+  html+=row({title:'They work it, you pay them',
+    note:'A worker you hire works your factory and takes a wage for it. Everyone has a wage they '+
+      'expect; offer under it and nobody takes the job.'});
+  html+=row({title:'The manager comes at level '+c.managerAt,
+    note:'Until then, hiring and paying is yours to do by hand. There is no hurry: an empty break '+
+      'room costs nothing.'});
+  $('workList').innerHTML=html;
+  $('workFoot').innerHTML='The game will not show anyone else\u2019s roster \u2014 every employee '+
+    'call refuses an outsider \u2014 so this page cannot list yours. It is in the game, under the factory.';
+}
+
 /* The single factory most worth converting, or none. */
 function worstFactory(c){
   var pick=null;
@@ -1048,6 +1152,8 @@ function paintCoCards(c){
         '<img src="'+icon(co.itemCode)+'" alt="" loading="lazy">'+
         '<b>'+esc(co.name||label(co.itemCode))+'<small>'+esc(label(co.itemCode))+
           (e?' \u00b7 '+money(e.units,1)+'/day \u00b7 '+money(e.perDay,1)+' a day':'')+'</small></b>'+
+        '<span class="chip'+(co.region===HOME?' ok':'')+'">'+
+          esc(whereText(co.region))+'</span>'+
         '<span class="chip">engine '+ae+'</span>'+
       '</div>'+
       bar(st.pct,full?'hot':'good')+
@@ -1129,7 +1235,8 @@ function paintLadder(){
   $('nextText').innerHTML=first?first.what(c)
     :(c.lv>=GOAL?'You are past level '+GOAL+' — open the numbers below; that is the useful part now.'
                 :'Nothing left today. Come back tomorrow and claim the reward first.');
-  paintToday(c);paintMissions(c);paintCoCards(c);paintSkillPips(c);paintPath(c);
+  paintToday(c);paintMissions(c);paintCoCards(c);paintSkillPips(c);
+  paintPlaces(c);paintWorkers(c);paintPath(c);
 }
 
 /* ---- Loading ------------------------------------------------------------------------- */
@@ -1156,7 +1263,11 @@ async function loadPlayer(name){
   COMPANIES=await loadCompanies(found.userIds[0]);
   /* The region decides which raw things can be dug at all, so advice to build an iron
      factory in a region with no iron would be worse than no advice. */
-  REGION=USER.region?await ask('region.getById',{regionId:USER.region}).catch(function(){return null}):null;
+  REGION=USER.region?await place(USER.region):null;
+  /* Every region a factory stands in, plus the one they are all told to stand in. */
+  var want={};want[HOME]=1;
+  COMPANIES.forEach(function(co){if(co.region)want[co.region]=1});
+  for(var id in want)await place(id);
   paintCompanies();paintProduce();paintLadder();
   try{localStorage.setItem('coach.who',USER.username||name)}catch(e){}
   say(USER.username+' · '+COMPANIES.length+' companies');
