@@ -208,6 +208,7 @@ a{color:var(--brass)}
 <div class="card" id="pathCard" hidden style="margin-bottom:10px">
   <div class="card-head"><b>To level 15</b><span id="pathSub"></span></div>
   <div class="track" id="pathTrack"></div>
+  <div class="foot" id="pathTarget"></div>
   <div class="foot" id="pathFoot"></div>
 </div>
 
@@ -1354,6 +1355,21 @@ function paintSkillPips(c){
 }
 
 /* ---- The path, as a strip rather than a lecture ------------------------------------ */
+/* ---- What a level 15 can actually be ------------------------------------------------
+   Sixty points arrive by 15, four a level, and every skill charges the same rising price:
+   level N costs N, so ten levels cost fifty-five and nothing can be taken past ten.
+
+   The build that fits is not the one the points allow. Simulated day by day from the real
+   numbers - 150 experience a day from the cap and the reward, 265 with the mission sets,
+   gold in at a factory's margin and out at fifty times the factories you own - the limit
+   is never points. Claiming missions daily puts level 15 on day 24 with around 7 factories
+   and 17 gold a day; skipping them puts it on day 41 with 3. Points spare either way.
+
+   So the target is Companies 5, which is seven factories, and that is what mission gold
+   funds by the time 15 arrives. The other forty-five go to the skills you spend rather
+   than own. A sixth company level buys a slot the gold cannot fill, and a slot standing
+   empty is a point you can only get back by resetting. */
+var TARGET={companies:5,points:60};
 function paintPath(c){
   var marks={},html='';
   marks[c.marketAt]='market';marks[c.craftAt]='craft';marks[c.managerAt]='manager';marks[GOAL]='free';
@@ -1362,16 +1378,22 @@ function paintPath(c){
       (marks[i]?' data-at="'+marks[i]+'"':'')+' title="level '+i+'"></span>';
   }
   $('pathTrack').innerHTML=html;
-  var perDay=c.dailyCap+c.reward;
+  var perDay=c.dailyCap+c.reward,
+      have=(USER.leveling&&USER.leveling.totalSkillPoints)||0,
+      rigs=2+TARGET.companies,
+      rest=TARGET.points-(TARGET.companies*(TARGET.companies+1)/2);
   $('pathSub').innerHTML=c.lv>=GOAL?'you made it':
     'level '+c.lv+' \u00b7 '+num(c.toGoal)+' xp to go \u00b7 about '+Math.ceil(c.toGoal/perDay)+' days';
-  $('pathFoot').innerHTML=(c.climate
-      ?'Your region is <b>'+esc(c.climate)+'</b>, so it can dig '+
-        (c.diggable.length?c.diggable.slice(0,4).map(function(d){return esc(label(d.code))}).join(', ')
-                          :'nothing tradable')+'. '
-      :'')+
-    'The Market page appears at '+c.marketAt+', the crafting bench at '+c.craftAt+
-    ', the manager job at '+c.managerAt+'.';
+  $('pathTarget').innerHTML='<span class="stats" title="'+esc('Simulated from the game\u2019s own '+
+    'numbers: claiming the mission sets daily reaches 15 on about day 24 with seven factories; '+
+    'skipping them, day 41 with three. Points are never the limit - gold is. A company level past '+
+    'what you can build on is a point only a reset gets back.')+'">'+
+    '<b>Target at 15</b><i>\u00b7</i><b>'+TARGET.points+'</b> points<i>\u00b7</i>'+
+    '<b>Companies '+TARGET.companies+'</b> '+rigs+' factories<i>\u00b7</i>'+
+    '<b>'+rest+'</b> in work skills<i>\u00b7</i><b>'+have+'</b> earned so far</span>';
+  $('pathFoot').innerHTML=stats([[c.climate,'climate'],
+    [c.diggable.length?c.diggable.slice(0,3).map(function(d){return label(d.code)}).join(', '):null,'to dig'],
+    [c.marketAt,'market'],[c.craftAt,'crafting'],[c.managerAt,'manager']]);
 }
 
 function paintLadder(){
