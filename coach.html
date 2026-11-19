@@ -55,6 +55,56 @@ tbody tr:hover{background:var(--panel-2)}
 .foot b{color:var(--ink)}
 .empty{padding:22px;text-align:center;color:var(--dim)}
 .card.now{margin-bottom:10px;border-color:rgba(var(--brass-rgb),.5)}
+.nextbar{display:flex;gap:10px;align-items:baseline;margin-bottom:10px;padding:11px 14px;
+  border:1px solid rgba(var(--brass-rgb),.5);border-radius:9px;background:var(--panel);
+  font-size:15px;font-weight:600}
+.nextbar .tag{flex:0 0 auto;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--brass);font-weight:700}
+.nextbar em{font-style:normal;color:var(--brass)}
+.cols{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:10px;align-items:start}
+@media(min-width:900px){.cols{grid-template-columns:1fr 1fr}}
+@media(min-width:1300px){.cols{grid-template-columns:.9fr 1.25fr 1fr}}
+.row{padding:10px 13px;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row.urgent{background:rgba(194,112,63,.09)}
+.rowtop{display:flex;gap:9px;align-items:baseline}
+.rowtop b{font-weight:600;flex:1 1 auto}
+.box{flex:0 0 14px;width:14px;height:14px;border:1px solid var(--line);border-radius:3px;
+  display:inline-block;position:relative;top:2px}
+.box.on{border-color:var(--verdigris);background:rgba(107,184,168,.2)}
+.box.on:after{content:"\2713";position:absolute;inset:-3px 0 0 0;text-align:center;
+  font-size:11px;color:var(--verdigris)}
+.row small{display:block;color:var(--dim);font-size:11.5px;margin-top:2px}
+.row.done b{color:var(--dim)}
+/* Not .bar - that is the control strip at the top of the page, and reusing the name put
+   its padding and border on every progress bar while clipping the header. */
+.meter{height:6px;border-radius:999px;background:var(--panel-2);overflow:hidden;margin-top:7px}
+.meter i{display:block;height:100%;background:var(--brass)}
+.meter.good i{background:var(--verdigris)} .meter.hot i{background:var(--rust)}
+.chip{flex:0 0 auto;font-size:10px;padding:1px 7px;border-radius:999px;border:1px solid var(--line);
+  color:var(--dim);font-family:var(--sans);white-space:nowrap}
+.chip.now{color:var(--brass);border-color:rgba(var(--brass-rgb),.5);background:rgba(var(--brass-rgb),.1)}
+.chip.ok{color:var(--verdigris);border-color:rgba(107,184,168,.4)}
+.chip.bad{color:var(--rust);border-color:rgba(194,112,63,.45)}
+.act{display:block;margin-top:8px;padding:6px 9px;border-radius:6px;border:1px solid var(--line);
+  background:var(--panel-2);font-size:11.5px;color:var(--ink)}
+.act.now{border-color:rgba(var(--brass-rgb),.5);color:var(--brass)}
+.act.bad{border-color:rgba(194,112,63,.45);color:var(--rust)}
+.act small{display:block;color:var(--dim);margin-top:1px}
+.pips{display:flex;gap:3px;margin-top:7px}
+.pips i{flex:1 1 auto;height:9px;border-radius:2px;background:var(--panel-2);
+  border:1px solid var(--line)}
+.pips i.on{background:var(--brass);border-color:var(--brass)}
+.pips i.next{border-color:var(--brass);background:rgba(var(--brass-rgb),.22)}
+.cono{display:flex;gap:8px;align-items:center}
+.cono img{width:26px;height:26px;border-radius:4px}
+.cono b{font-weight:600}
+.track{display:flex;gap:1px;padding:12px 13px 4px}
+.track span{flex:1 1 auto;height:8px;background:var(--panel-2);border-radius:2px;position:relative}
+.track span.on{background:var(--brass)}
+.track span.mark:after{content:attr(data-at);position:absolute;top:11px;left:0;
+  font-size:9px;color:var(--dim);white-space:nowrap}
+.track span.mark{box-shadow:inset 0 0 0 1px var(--ink)}
 .now-body{padding:14px 16px}
 .now-what{font-size:20px;line-height:1.3;font-weight:600;color:var(--ink);text-wrap:balance}
 .now-what em{font-style:normal;color:var(--brass)}
@@ -106,17 +156,33 @@ a{color:var(--brass)}
 
 <div id="error" class="err" hidden></div>
 
-<div class="card now" id="nowCard" hidden>
-  <div class="card-head"><b>Do this now</b><span id="nowSub"></span></div>
-  <div class="now-body">
-    <div class="now-what" id="nowWhat"></div>
-    <div class="now-why" id="nowWhy"></div>
+<div class="nextbar" id="nextBar" hidden>
+  <span class="tag">Next</span><span id="nextText"></span>
+</div>
+
+<div class="cols" id="cols" hidden>
+  <div class="card">
+    <div class="card-head"><b>Today</b><span id="todaySub"></span></div>
+    <div id="todayList"></div>
+    <div class="foot" id="todayFoot"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><b>Companies</b><span id="coListSub"></span></div>
+    <div id="coList"></div>
+    <div class="foot" id="coListFoot"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><b>Skills</b><span id="skillPipSub"></span></div>
+    <div id="skillList"></div>
+    <div class="foot" id="skillPipFoot"></div>
   </div>
 </div>
 
 <div class="card" id="pathCard" hidden style="margin-bottom:10px">
-  <div class="card-head"><b>Your path to level 15</b><span id="pathSub"></span></div>
-  <ol class="path" id="pathList"></ol>
+  <div class="card-head"><b>To level 15</b><span id="pathSub"></span></div>
+  <div class="track" id="pathTrack"></div>
   <div class="foot" id="pathFoot"></div>
 </div>
 
@@ -124,8 +190,8 @@ a{color:var(--brass)}
   <div class="card-head"><b>Start here</b><span>no player yet</span></div>
   <div class="now-body">
     <div class="now-what">Type your in-game username above.</div>
-    <div class="now-why">This tells you one thing to do at a time until you reach level 15,
-      when the game stops holding things back from you. You do not have to decide anything.</div>
+    <div class="now-why">One thing to do at a time until level 15, when the game stops holding
+      things back. You do not have to decide anything.</div>
   </div>
 </div>
 
@@ -400,6 +466,16 @@ function paintCompanies(){
     ' Margins assume you buy every input at market; anything you dig yourself is cheaper than this says.';
 }
 function aeOf(c){return (c.activeUpgradeLevels&&c.activeUpgradeLevels.automatedEngine)||1}
+/* A store that fills stops the factory earning: everything made after it is full is simply
+   not made. It is the one number on a company worth a colour. */
+function storeOf(c){
+  var lv=(c.activeUpgradeLevels&&c.activeUpgradeLevels.storage)||1,
+      cfg=CFG.upgradesConfig&&CFG.upgradesConfig.storage,
+      row=cfg&&cfg.levels&&cfg.levels[String(lv)],
+      max=(row&&row.stats&&row.stats.maxProduction)||null,
+      have=Number(c.production)||0;
+  return {level:lv,have:have,max:max,pct:max?Math.min(1,have/max):0};
+}
 function engineBest(){
   return COMPANIES.reduce(function(m,c){return Math.max(m,aeOf(c))},1);
 }
@@ -613,8 +689,7 @@ var LADDER=[
      return head+' — you have energy for '+c.actionsNow+' right now, and the rest refills through the day.';
    },
    why:function(c){return 'You have '+c.xpLeft+' experience left in today\u2019s allowance of '+c.dailyCap+
-     '. Once it is spent, more work earns no more levels — which is why putting skill points into energy '+
-     'does not get you to 15 any faster.'},
+     '. Once it is spent the day pays no more levels, though working still pays wages.'},
    line:function(c){return 'Use the whole daily experience allowance'}},
 
   {id:'build',
@@ -701,50 +776,167 @@ function pick(c){
       'Nothing else on the list turns into money at all. Build that factory before buying the '+
       'next level: each one costs more than the last, in points and in gold.'
     : 'Production is what your factories draw on, and the early levels are the cheapest points '+
-      'you will ever buy — they get dearer every level. Not energy: the day\u2019s experience is '+
-      'capped, so energy past 100 buys actions that earn nothing.';
+      'you will ever buy — they get dearer every level. Energy is the other honest choice: it buys '+
+      'work actions, and those pay wages even after the day\u2019s experience is spent. It just will '+
+      'not get you to 15 any sooner, because experience is capped and 100 energy already covers it.';
   return {key:want,cost:cost,level:have+1,why:why,
           spare:cost!=null?Math.max(0,c.sp-cost):0};
 }
 
-function paintLadder(){
-  var c=context(),first=null,html='';
-  LADDER.forEach(function(step){
-    var st=step.state(c);
-    if(st==='now'&&!first)first=step;
-  });
-  LADDER.forEach(function(step){
-    var st=step.state(c);
-    /* Only one thing is asked at a time, but a rung that is ready and merely behind the
-       first is not "later" - dimming it would say it does not apply yet, which is a lie. */
-    if(st==='now'&&step!==first)st='next';
-    var tick=st==='done'?'\u2713':st==='now'?'\u25b6':st==='next'?'\u25cb':'\u00b7';
-    html+='<li class="'+st+'"><span class="tick">'+tick+'</span><span class="txt">'+
-      '<b>'+step.line(c)+'</b>'+(st==='now'?'<small>'+step.why(c)+'</small>':'')+'</span></li>';
-  });
-  $('pathList').innerHTML=html;
-  $('pathCard').hidden=false;
-  $('startCard').hidden=true;
-  $('nowCard').hidden=false;
-  $('nowWhat').innerHTML=first?first.what(c):'Nothing to do but wait for tomorrow\u2019s energy.';
-  $('nowWhy').innerHTML=first?first.why(c):'You have spent today\u2019s experience and everything '+
-    'else is waiting on a level. Come back tomorrow and claim the reward first.';
-  $('nowSub').textContent='level '+c.lv;
-  if(c.lv>=GOAL&&!first){
-    $('nowWhat').innerHTML='You are past level '+GOAL+' — this coach has nothing left to tell you.';
-    $('nowWhy').innerHTML='It exists to get a new player to '+GOAL+' without asking them to decide '+
-      'anything. From here the numbers below are the useful part: what pays most to make today, '+
-      'and which of your engines pays back soonest.';
+function bar(pct,kind){
+  return '<div class="meter'+(kind?' '+kind:'')+'"><i style="width:'+
+    (Math.max(0,Math.min(1,pct))*100).toFixed(1)+'%"></i></div>';
+}
+function pips(level,max,nextOne){
+  var out='';
+  for(var i=1;i<=max;i++)
+    out+='<i class="'+(i<=level?'on':(nextOne&&i===level+1?'next':''))+'"></i>';
+  return '<div class="pips">'+out+'</div>';
+}
+function row(opts){
+  return '<div class="row'+(opts.done?' done':'')+(opts.urgent?' urgent':'')+'">'+
+    '<div class="rowtop">'+
+      (opts.box?'<span class="box'+(opts.done?' on':'')+'"></span>':'')+
+      '<b>'+opts.title+'</b>'+
+      (opts.chip?'<span class="chip '+(opts.chipKind||'')+'">'+esc(opts.chip)+'</span>':'')+
+    '</div>'+
+    (opts.note?'<small>'+opts.note+'</small>':'')+
+    (opts.bar||'')+(opts.act||'')+'</div>';
+}
+
+/* ---- Today: the three things a day is made of -------------------------------------- */
+function paintToday(c){
+  var html='';
+  html+=row({box:true,done:c.claimed,
+    title:'Claim the daily reward',
+    chip:c.claimed?'done':'1 tap',chipKind:c.claimed?'ok':'now',
+    note:c.claimed?'Back tomorrow.':'+'+c.reward+' experience, cash and a crate.'});
+  var used=c.dailyCap-c.xpLeft;
+  html+=row({box:true,done:c.xpLeft<=0,
+    title:c.xpLeft>0?('Work '+c.actionsLeft+(c.actionsLeft===1?' time':' times')):'Day\u2019s work done',
+    chip:used+'/'+c.dailyCap+' xp',chipKind:c.xpLeft>0?'now':'ok',
+    note:c.xpLeft>0
+      ?(c.actionsNow>0
+         ?('Energy for '+c.actionsNow+' right now; the rest refills at about '+num(c.regen)+' an hour.')
+         :('Energy is spent — it refills at about '+num(c.regen)+' an hour.'))
+      :'Working still pays wages, but no more experience today.',
+    bar:bar(used/c.dailyCap,c.xpLeft>0?'':'good')});
+  var p=pick(c);
+  html+=row({box:true,done:c.sp<=0,
+    title:c.sp>0?('Spend '+(p.cost!=null?p.cost:1)+' on '+label(p.key)):'No points waiting',
+    chip:c.sp>0?(c.sp+' unspent'):'done',chipKind:c.sp>0?'now':'ok',
+    note:c.sp>0?('Takes '+esc(label(p.key))+' to level '+p.level+
+      (p.spare?'. Keep the other '+p.spare+'.':'.')):'Points arrive four to a level.'});
+  $('todayList').innerHTML=html;
+  $('todaySub').textContent='level '+c.lv;
+  $('todayFoot').innerHTML='Experience is capped at '+c.dailyCap+' a day plus '+c.reward+
+    ' from the reward, so this list is the whole of a day. Missing one cannot be made up later.';
+}
+
+/* ---- Companies: one card each, with the one thing to do to it ---------------------- */
+function paintCoCards(c){
+  if(!COMPANIES.length){
+    $('coList').innerHTML='<div class="empty">No factories yet.</div>';
+    $('coListSub').textContent='none';
+    $('coListFoot').innerHTML=c.allowed?('You are allowed '+c.allowed+'.'):'';
+    return;
   }
-  var span=(LEVELS[GOAL]-LEVELS[1])||1,done=Math.min(1,Math.max(0,c.xp/LEVELS[GOAL]));
+  var steel=priceOf('steel'),total=0;
+  var rows=COMPANIES.slice().sort(function(a,b){return storeOf(b).pct-storeOf(a).pct});
+  $('coList').innerHTML=rows.map(function(co){
+    var ae=aeOf(co),e=economics(co.itemCode,ae),st=storeOf(co),next=engineLevels()[String(ae+1)];
+    if(e)total+=e.perDay;
+    var act='',full=st.pct>=.8;
+    if(full){
+      act='<span class="act bad">Collect what it has made'+
+        '<small>The store is '+Math.round(st.pct*100)+'% full. Once it fills, everything it makes after that is lost.</small></span>';
+    }else if(next&&e&&steel!=null){
+      var gain=(dailyProd(ae+1)-dailyProd(ae))/e.pp*e.margin,
+          cost=(next.steelCost||0)*steel;
+      if(gain>0)act='<span class="act'+((c.canBuy||c.makesSteel)?' now':'')+'">Upgrade to engine '+(ae+1)+
+        '<small>'+num(next.steelCost)+' steel'+
+          (c.canBuy?(' \u2248 '+money(cost,0)+' \u00b7 pays back in '+Math.ceil(cost/gain)+' days')
+           :c.makesSteel?(' \u00b7 you make steel yourself, so collect it rather than buy it')
+           :(', once the market opens at '+c.marketAt))+'</small></span>';
+    }
+    return '<div class="row'+(full?' urgent':'')+'">'+
+      '<div class="rowtop cono">'+
+        '<img src="'+icon(co.itemCode)+'" alt="" loading="lazy">'+
+        '<b>'+esc(co.name||label(co.itemCode))+'<small>'+esc(label(co.itemCode))+
+          (e?' \u00b7 '+money(e.units,1)+'/day \u00b7 '+money(e.perDay,1)+' a day':'')+'</small></b>'+
+        '<span class="chip">engine '+ae+'</span>'+
+      '</div>'+
+      bar(st.pct,full?'hot':'good')+
+      '<small>'+num(st.have)+(st.max?(' of '+num(st.max)+' stored'):' stored')+'</small>'+
+      act+'</div>';
+  }).join('');
+  $('coListSub').textContent=COMPANIES.length+' of '+c.allowed;
+  $('coListFoot').innerHTML='Together about <b>'+money(total,1)+' a day</b> at today\u2019s prices'+
+    (c.owned<c.allowed?(', and you have a free slot — a new one costs about '+money(c.buildCost,0)+'.')
+     :'. Every slot is used; the next one needs a point in Companies.');
+}
+
+/* ---- Skills: what you have, and the one to put the next point in ------------------- */
+var SHOWN=['production','energy','companies','management'];
+var SKILL_USE={
+  production:'Feeds your factories when you work them.',
+  energy:'Buys work actions — those pay wages all day.',
+  companies:'How many factories you may own.',
+  management:'What your manager does for you.'
+};
+function paintSkillPips(c){
+  var want=pick(c),html='';
+  SHOWN.concat(['attack']).forEach(function(key){
+    var cfg=CFG.skills[key];if(!cfg)return;
+    var have=(USER.skills&&USER.skills[key]&&USER.skills[key].level)||0,
+        levels=cfg.levels||{},max=Object.keys(levels).length-1,
+        next=levels[String(have+1)],
+        isWant=key===want.key&&c.sp>0,
+        total=(USER.skills&&USER.skills[key]&&USER.skills[key].total);
+    html+=row({
+      title:esc(label(key))+(total!=null?' <span class="dimv">'+num(total)+'</span>':''),
+      chip:isWant?'put it here':(next?next.cost+' SP for next':'maxed'),
+      chipKind:isWant?'now':'',
+      note:SKILL_USE[key]||'',
+      bar:pips(have,Math.min(max,10),isWant)});
+  });
+  $('skillList').innerHTML=html;
+  $('skillPipSub').textContent=c.sp?(c.sp+' to spend'):'none to spend';
+  $('skillPipFoot').innerHTML=c.sp
+    ? want.why
+    : 'Four points arrive with every level. Each level of the same skill costs more than the last, '+
+      'so a first level somewhere new is often the cheapest thing on the list.';
+}
+
+/* ---- The path, as a strip rather than a lecture ------------------------------------ */
+function paintPath(c){
+  var marks={},html='';
+  marks[c.marketAt]='market';marks[c.craftAt]='craft';marks[c.managerAt]='manager';marks[GOAL]='free';
+  for(var i=1;i<=GOAL;i++){
+    html+='<span class="'+(i<=c.lv?'on':'')+(marks[i]?' mark':'')+'"'+
+      (marks[i]?' data-at="'+marks[i]+'"':'')+' title="level '+i+'"></span>';
+  }
+  $('pathTrack').innerHTML=html;
   var perDay=c.dailyCap+c.reward;
   $('pathSub').innerHTML=c.lv>=GOAL?'you made it':
-    num(c.toGoal)+' experience to go \u00b7 about '+Math.ceil(c.toGoal/perDay)+' days';
-  $('pathFoot').innerHTML='<div class="lvbar"><i style="width:'+(done*100).toFixed(1)+'%"></i></div>'+
-    'At the daily cap of '+c.dailyCap+' plus the '+c.reward+' from the reward, that is '+perDay+
-    ' a day, and missions pay on top. '+
-    (c.climate?'Your region is <b>'+esc(c.climate)+'</b>, so it can dig '+
-      (c.diggable.length?c.diggable.slice(0,4).map(function(d){return esc(label(d.code))}).join(', '):'nothing tradable')+'.':'');
+    'level '+c.lv+' \u00b7 '+num(c.toGoal)+' xp to go \u00b7 about '+Math.ceil(c.toGoal/perDay)+' days';
+  $('pathFoot').innerHTML=(c.climate
+      ?'Your region is <b>'+esc(c.climate)+'</b>, so it can dig '+
+        (c.diggable.length?c.diggable.slice(0,4).map(function(d){return esc(label(d.code))}).join(', ')
+                          :'nothing tradable')+'. '
+      :'')+
+    'The market opens at '+c.marketAt+', crafting at '+c.craftAt+', the manager job at '+c.managerAt+'.';
+}
+
+function paintLadder(){
+  var c=context(),first=null;
+  LADDER.forEach(function(step){if(!first&&step.state(c)==='now')first=step});
+  $('startCard').hidden=true;
+  $('cols').hidden=false;$('pathCard').hidden=false;$('nextBar').hidden=false;
+  $('nextText').innerHTML=first?first.what(c)
+    :(c.lv>=GOAL?'You are past level '+GOAL+' — open the numbers below; that is the useful part now.'
+                :'Nothing left today. Come back tomorrow and claim the reward first.');
+  paintToday(c);paintCoCards(c);paintSkillPips(c);paintPath(c);
 }
 
 /* ---- Loading ------------------------------------------------------------------------- */
