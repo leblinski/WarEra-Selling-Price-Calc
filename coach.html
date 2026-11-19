@@ -97,8 +97,9 @@ tbody tr:hover{background:var(--panel-2)}
 .act.bad{border-color:rgba(194,112,63,.45);color:var(--rust)}
 .act small{display:block;color:var(--dim);margin-top:1px}
 .pips{display:flex;gap:3px;margin-top:7px}
-.pips i{flex:1 1 auto;height:9px;border-radius:2px;background:var(--panel-2);
-  border:1px solid var(--line)}
+.pips i{flex:1 1 auto;height:15px;border-radius:3px;background:var(--panel-2);
+  border:1px solid var(--line);font-style:normal;font-family:var(--mono);font-size:9px;
+  line-height:13px;text-align:center;color:var(--brass)}
 .pips i.on{background:var(--brass);border-color:var(--brass)}
 .pips i.next{border-color:var(--brass);background:rgba(var(--brass-rgb),.22)}
 .cono{display:flex;gap:8px;align-items:center}
@@ -928,39 +929,79 @@ var LADDER=[
    line:function(c){return 'Level '+GOAL+': you are on your own, in a good way'}}
 ];
 
+/* ---- Spending all of them, in order --------------------------------------------------
+   Twelve unspent points is not one decision twelve times: the first purchase changes what
+   the second one is worth, because a level of Companies allows a factory that then has to
+   be paid for in gold, and every level of a skill costs more than the last. So the plan is
+   walked forward - buy, apply, re-ask - and each pip carries the order it falls in.
+
+   The rule it walks: a factory is the only point that turns into money, so Companies comes
+   first whenever every slot is full AND there is gold in hand to build on the slot it
+   opens. Otherwise the cheapest level available, which early on means breadth - four first
+   levels cost what one fourth level costs, and buy four things instead of one. */
+function skillCost(key,level){
+  var row=(CFG.skills[key]&&CFG.skills[key].levels||{})[String(level)];
+  return row?row.cost:null;
+}
+function spendPlan(c){
+  var left=c.sp,plan=[],level={},owned=c.owned,allowed=c.allowed,cash=c.cash,
+      step=0,per=(CFG.company&&CFG.company.constructionCostIncreasePerCompany)||50;
+  SHOWN.forEach(function(k){
+    level[k]=(USER.skills&&USER.skills[k]&&USER.skills[k].level)||0;
+  });
+  while(left>0&&step<30){
+    var choice=null,cost=null;
+    if(owned>=allowed){
+      var cc=skillCost('companies',level.companies+1);
+      if(cc!=null&&cc<=left&&cash>=owned*per){choice='companies';cost=cc}
+    }
+    if(!choice){
+      SHOWN.forEach(function(k){
+        /* A slot is worth nothing until there is gold to build on it, and nothing at all
+           while one you already own stands empty - so Companies only enters the cheapest
+           race on the same terms it wins the first one. */
+        if(k==='companies'&&(owned<allowed||cash<owned*per))return;
+        var k2=skillCost(k,level[k]+1);
+        if(k2==null||k2>left)return;
+        if(cost==null||k2<cost){choice=k;cost=k2}
+      });
+    }
+    if(!choice)break;
+    step++;
+    level[choice]++;
+    left-=cost;
+    plan.push({key:choice,level:level[choice],cost:cost,order:step});
+    if(choice==='companies'){allowed++;cash-=owned*per;owned++}
+  }
+  return {steps:plan,left:left};
+}
 /* Which skill the next point goes into. Only two answers, and the reason for each is a
    number rather than a preference: another factory can be priced, and energy cannot buy
    experience that the daily cap will not hand over. */
 function pick(c){
-  var want=(c.owned>=c.allowed&&c.best)?'companies':'production',
-      have=(USER.skills&&USER.skills[want]&&USER.skills[want].level)||0,
-      levels=(CFG.skills[want]&&CFG.skills[want].levels)||{},
-      next=levels[String(have+1)],
-      cost=next?next.cost:null;
-  /* One level, not the whole pile. A beginner with twelve points spent at once on the same
-     skill pays the rising price for every level of it, and the factories those levels allow
-     still have to be paid for in gold afterwards. */
-  var why=want==='companies'
-    ? 'You are using every factory slot you have ('+c.owned+' of '+c.allowed+'), so this point '+
-      'is worth a whole factory — about '+money(c.best.perDay,1)+' a day at today\u2019s prices. '+
-      'Nothing else on the list turns into money at all. Build that factory before buying the '+
-      'next level: each one costs more than the last, in points and in gold.'
-    : 'Production is what your factories draw on, and the early levels are the cheapest points '+
-      'you will ever buy — they get dearer every level. Energy is the other honest choice: it buys '+
-      'work actions, and those pay wages even after the day\u2019s experience is spent. It just will '+
-      'not get you to 15 any sooner, because experience is capped and 100 energy already covers it.';
-  return {key:want,cost:cost,level:have+1,why:why,
-          spare:cost!=null?Math.max(0,c.sp-cost):0};
+  var plan=spendPlan(c),head=plan.steps[0];
+  if(!head)return {key:'production',cost:null,level:1,spare:c.sp,
+    why:'Nothing on the list is affordable with what you have.'};
+  var why=head.key==='companies'
+    ? 'Every factory slot you have is full ('+c.owned+' of '+c.allowed+'), and a slot is the '+
+      'only point that turns into money \u2014 about '+money((c.best||{}).perDay||0,1)+' a day '+
+      'at today\u2019s prices. You have the gold to build on it.'
+    : 'The cheapest level on the board. Early levels are cheap and every one after costs more, '+
+      'so four first levels buy four things for what one fourth level buys one.';
+  return {key:head.key,cost:head.cost,level:head.level,
+          spare:Math.max(0,c.sp-head.cost),why:why,plan:plan};
 }
 
 function bar(pct,kind){
   return '<div class="meter'+(kind?' '+kind:'')+'"><i style="width:'+
     (Math.max(0,Math.min(1,pct))*100).toFixed(1)+'%"></i></div>';
 }
-function pips(level,max,nextOne){
+function pips(level,max,marks){
   var out='';
-  for(var i=1;i<=max;i++)
-    out+='<i class="'+(i<=level?'on':(nextOne&&i===level+1?'next':''))+'"></i>';
+  for(var i=1;i<=max;i++){
+    var order=marks&&marks[i];
+    out+='<i class="'+(i<=level?'on':(order?'next':''))+'">'+(order?('#'+order):'')+'</i>';
+  }
   return '<div class="pips">'+out+'</div>';
 }
 /* Three numbers read faster than the sentence they came from. */
@@ -1004,12 +1045,16 @@ function paintToday(c){
     bar:bar(used/c.dailyCap,c.xpLeft>0?'':'good'),
     tip:'Each go costs '+c.perAction+' energy and pays '+(CFG.user.xpPerAction||10)+
       ' experience, up to '+c.dailyCap+' a day. After that, work still pays wages but no levels.'});
-  var p=pick(c);
+  var p=pick(c),plan=p.plan||{steps:[],left:0};
   html+=row({box:true,done:c.sp<=0,
     title:c.sp>0?('Spend '+(p.cost!=null?p.cost:1)+' SP on '+label(p.key)):'Points all spent',
     chip:c.sp>0?(c.sp+' unspent'):'done',chipKind:c.sp>0?'now':'ok',
-    note:c.sp>0?stats([['level '+p.level,label(p.key)],[p.spare,'keep back']]):'',
-    tip:c.sp>0?p.why:'Four points arrive with every level.'});
+    /* The first of a planned run, not a lone purchase: the rest are numbered in Skills. */
+    note:c.sp>0?stats([['level '+p.level,label(p.key)],
+                       [plan.steps.length>1?('#1 of '+plan.steps.length):null,'planned'],
+                       [plan.left||null,'left over']]):'',
+    tip:c.sp>0?(p.why+' The whole spend is numbered on the Skills card.')
+              :'Four points arrive with every level.'});
   $('todayList').innerHTML=html;
   $('todaySub').textContent='level '+c.lv;
   $('todayFoot').innerHTML=stats([[c.dailyCap+'+'+c.reward,'xp a day'],
@@ -1271,27 +1316,41 @@ var SKILL_USE={
   management:'What your manager does for you.'
 };
 function paintSkillPips(c){
-  var want=pick(c),html='';
+  var plan=spendPlan(c),marks={},spend={},html='';
+  plan.steps.forEach(function(st){
+    (marks[st.key]=marks[st.key]||{})[st.level]=st.order;
+    spend[st.key]=(spend[st.key]||0)+st.cost;
+  });
   SHOWN.concat(['attack']).forEach(function(key){
     var cfg=CFG.skills[key];if(!cfg)return;
     var have=(USER.skills&&USER.skills[key]&&USER.skills[key].level)||0,
         levels=cfg.levels||{},max=Object.keys(levels).length-1,
         next=levels[String(have+1)],cur=levels[String(have)],
-        isWant=key===want.key&&c.sp>0,
+        mine=marks[key],bought=mine?Object.keys(mine).length:0,
         total=(USER.skills&&USER.skills[key]&&USER.skills[key].total);
     html+=row({
       title:esc(label(key))+(total!=null?' <span class="dimv">'+num(total)+'</span>':''),
-      chip:isWant?'put it here':(next?next.cost+' SP':'max'),
-      chipKind:isWant?'now':'',
-      note:next&&cur?stats([['+'+num(next.value-cur.value),'next'],['L'+have,'now']]):'',
-      bar:pips(have,Math.min(max,10),isWant),
-      tip:(SKILL_USE[key]||'')+(isWant?' '+want.why:'')});
+      chip:bought?('+'+bought+' for '+spend[key]+' SP'):(next?next.cost+' SP':'max'),
+      chipKind:bought?'now':'',
+      note:next&&cur?stats([['+'+num(next.value-cur.value),'next'],['L'+have,'now'],
+                            [bought?('L'+(have+bought)):null,'after']]):'',
+      bar:pips(have,Math.min(max,10),mine),
+      tip:(SKILL_USE[key]||'')+(bought?(' The plan buys '+bought+
+        (bought===1?' level':' levels')+' here, '+spend[key]+' of your '+c.sp+' points.'):'')});
   });
   $('skillList').innerHTML=html;
   $('skillPipSub').textContent=c.sp?(c.sp+' to spend'):'none to spend';
-  $('skillPipFoot').innerHTML=c.sp
-    ? ('<span title="'+esc(want.why)+'">Next point: <b>'+esc(label(want.key))+'</b></span>')
-    : '<span title="Each level of the same skill costs more than the last.">Four points a level.</span>';
+  /* The order, spelled out, because the pips alone do not say what #3 was. */
+  if(c.sp&&plan.steps.length){
+    var order=plan.steps.map(function(st){
+      return '<b>#'+st.order+'</b> '+esc(label(st.key))+' <span class="dimv">'+st.cost+'</span>';
+    }).join('<i>\u00b7</i>');
+    $('skillPipFoot').innerHTML='<span class="stats" title="'+esc(pick(c).why)+'">'+order+
+      (plan.left?('<i>\u00b7</i><b>'+plan.left+'</b> left over'):'')+'</span>';
+  }else{
+    $('skillPipFoot').innerHTML='<span class="stats" title="'+
+      esc('Each level of the same skill costs more than the last.')+'"><b>4</b> points a level</span>';
+  }
 }
 
 /* ---- The path, as a strip rather than a lecture ------------------------------------ */
