@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WarEra Coach</title>
+<style>
+:root{
+  --ground:#0E1A20; --panel:#15252D; --panel-2:#1C3039; --line:#2A4553;
+  --ink:#EAF0F2; --dim:#8FA8B3; --brass:#C89B3C; --brass-rgb:200,155,60;
+  --verdigris:#6BB8A8; --rust:#C2703F;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,"DejaVu Sans Mono",monospace;
+  --sans:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:14px;background:var(--ground);color:var(--ink);
+  font-family:var(--sans);font-size:13px;line-height:1.45}
+h1{margin:0;font-size:15px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--brass)}
+.sub{color:var(--dim);font-size:11px;letter-spacing:.04em}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 12px;margin-bottom:10px;
+  border:1px solid var(--line);border-radius:9px;background:var(--panel)}
+.bar .grow{flex:1 1 auto;min-width:120px}
+label.ctl{display:inline-flex;align-items:center;gap:5px;color:var(--dim);font-size:11px;
+  letter-spacing:.09em;text-transform:uppercase}
+select,button,input{font-family:var(--sans);font-size:12px;color:var(--ink);
+  background:var(--panel-2);border:1px solid var(--line);border-radius:6px;padding:5px 8px;min-height:30px}
+button{cursor:pointer;color:var(--brass);border-color:rgba(var(--brass-rgb),.45);font-weight:600}
+button:hover:not(:disabled){background:rgba(var(--brass-rgb),.14)}
+button:disabled{opacity:.5;cursor:default}
+input#who{min-width:230px}
+.grid{display:grid;grid-template-columns:1fr;gap:10px}
+@media(min-width:1080px){.grid{grid-template-columns:1fr 1fr}.wide{grid-column:1/-1}}
+.card{border:1px solid var(--line);border-radius:9px;background:var(--panel);overflow:hidden}
+.card-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+  padding:9px 11px;border-bottom:1px solid var(--line);
+  font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--brass)}
+.card-head span{color:var(--dim);letter-spacing:.04em;text-transform:none;font-size:11px}
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(86px,1fr));gap:1px;background:var(--line)}
+.strip div{background:var(--panel);padding:6px 9px}
+.strip small{display:block;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.strip b{font-family:var(--mono);font-size:14px;font-weight:600}
+.scroll{max-height:460px;overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{padding:5px 9px;text-align:right;white-space:nowrap;border-bottom:1px solid var(--line)}
+th{position:sticky;top:0;background:var(--panel-2);color:var(--dim);font-size:9.5px;
+  letter-spacing:.1em;text-transform:uppercase;font-weight:600;z-index:1}
+td{font-family:var(--mono)}
+th.l,td.l{text-align:left}
+tbody tr:hover{background:var(--panel-2)}
+.up{color:var(--verdigris)} .down{color:var(--rust)} .dimv{color:var(--dim)}
+.ico{width:18px;height:18px;vertical-align:-4px;margin-right:6px;border-radius:3px}
+.who{display:flex;align-items:center;gap:10px;padding:10px 11px}
+.who img{width:44px;height:44px;border-radius:8px;border:1px solid var(--line)}
+.foot{padding:8px 11px;color:var(--dim);font-size:10.5px;border-top:1px solid var(--line)}
+.foot b{color:var(--ink)}
+.empty{padding:22px;text-align:center;color:var(--dim)}
+.err{margin-bottom:10px;padding:9px 12px;border:1px solid var(--rust);border-radius:9px;
+  background:rgba(194,112,63,.1);color:var(--ink);font-size:12px}
+.pill{display:inline-block;padding:1px 6px;border-radius:999px;font-size:10px;
+  border:1px solid var(--line);color:var(--dim);font-family:var(--sans)}
+.pill.good{color:var(--verdigris);border-color:rgba(107,184,168,.4)}
+.pill.bad{color:var(--rust);border-color:rgba(194,112,63,.4)}
+a{color:var(--brass)}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="grow">
+    <h1>WarEra Coach</h1>
+    <div class="sub">What to produce, what to upgrade, and what a skill point is worth — priced at today's market.</div>
+  </div>
+  <label class="ctl">Player
+    <input id="who" placeholder="in-game username" autocomplete="off" spellcheck="false">
+  </label>
+  <button id="go">Look up</button>
+  <button id="reload" title="Re-read the game's config and prices">Refresh prices</button>
+  <span class="sub" id="status">reading the game…</span>
+</div>
+
+<div id="error" class="err" hidden></div>
+
+<div class="grid">
+  <div class="card wide" id="playerCard" hidden>
+    <div class="card-head"><b>Player</b><span id="playerSub"></span></div>
+    <div class="who" id="playerWho"></div>
+    <div class="strip" id="playerStrip"></div>
+  </div>
+
+  <div class="card wide" id="coCard" hidden>
+    <div class="card-head"><b>Your companies</b><span id="coSub"></span></div>
+    <div class="scroll"><table>
+      <thead><tr>
+        <th class="l">Company</th><th class="l">Makes</th><th>Engine</th><th>Units/day</th>
+        <th>Margin/unit</th><th>Margin/day</th><th>Waiting</th><th>Next engine pays back</th>
+      </tr></thead>
+      <tbody id="coBody"></tbody>
+    </table></div>
+    <div class="foot" id="coFoot"></div>
+  </div>
+
+  <div class="card wide">
+    <div class="card-head"><b>What to produce</b><span id="prodSub">every tradable item, priced live</span></div>
+    <div class="bar" style="margin:0;border:0;border-bottom:1px solid var(--line);border-radius:0">
+      <label class="ctl">Engine
+        <select id="ae"></select>
+      </label>
+      <label class="ctl">Show
+        <select id="only">
+          <option value="all">everything a factory makes</option>
+          <option value="product">things you craft</option>
+          <option value="raw">things you dig</option>
+        </select>
+      </label>
+      <span class="sub">Margin is the market price of what comes out, less the market price of what goes in.</span>
+    </div>
+    <div class="scroll"><table>
+      <thead><tr>
+        <th class="l">Item</th><th class="l">Needs</th><th>Price</th><th>Input cost</th>
+        <th>Margin</th><th>Margin %</th><th>Units/day</th><th>Margin/day</th>
+      </tr></thead>
+      <tbody id="prodBody"></tbody>
+    </table></div>
+    <div class="foot" id="prodFoot"></div>
+  </div>
+
+  <div class="card wide" id="skillCard" hidden>
+    <div class="card-head"><b>Your next skill point</b><span id="skillSub"></span></div>
+    <div class="scroll"><table>
+      <thead><tr>
+        <th class="l">Skill</th><th>Level</th><th>Now</th><th>Next point costs</th>
+        <th>Buys you</th><th>Per point</th><th class="l">Worth</th>
+      </tr></thead>
+      <tbody id="skillBody"></tbody>
+    </table></div>
+    <div class="foot" id="skillFoot"></div>
+  </div>
+</div>
+
+<div class="foot" style="border:1px solid var(--line);border-radius:9px;background:var(--panel);margin-top:10px">
+  Every number here is read from the game itself each time the page loads — item recipes, skill costs,
+  engine upgrade costs and market prices all come from <code>api2.warera.io</code>, so nothing goes stale
+  when the game is rebalanced. Nothing is hardcoded from a guide.
+  Sister tools: <a href="market.html">Market Floor</a> · <a href="test61.html">Selling price calculator</a>.
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ---- Talking to the game ------------------------------------------------------------
+   The game speaks tRPC over plain GET. Input goes in ?input= as JSON, unwrapped: the
+   superjson envelope ({"json":{...}}) is rejected, which the server tells you by naming
+   the field it could not find. Answers arrive as {result:{data:...}}. */
+var API='https://api2.warera.io/trpc';
+async function ask(proc,input){
+  var u=new URL(API+'/'+proc);
+  if(input)u.searchParams.set('input',JSON.stringify(input));
+  var r=await fetch(u.toString());
+  if(!r.ok)throw new Error(proc+' answered '+r.status);
+  var j=await r.json();
+  if(j&&j.error)throw new Error(proc+': '+(j.error.message||'refused'));
+  return j.result.data;
+}
+
+/* The game's art moved host: it is media.warera.io/images/itemsv2 now, as webp. The old
+   app.warera.io/images/items/<code>.png path 404s on every icon. */
+function icon(code){return 'https://media.warera.io/images/itemsv2/'+code+'.webp?v=2'}
+
+var $=function(id){return document.getElementById(id)};
+var CFG=null,PRICES=null,USER=null,COMPANIES=[];
+
+function money(n,dp){
+  if(n==null||!isFinite(n))return '—';
+  var d=dp==null?(Math.abs(n)<10?3:Math.abs(n)<1000?2:0):dp;
+  return n.toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d});
+}
+function num(n){return n==null||!isFinite(n)?'—':Math.round(n).toLocaleString()}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function label(code){
+  return String(code).replace(/([a-z])([A-Z])/g,'$1 $2').replace(/^./,function(c){return c.toUpperCase()});
+}
+/* "moderate, tropical or polar", not "a or b or c". */
+function list(a){
+  if(a.length<2)return a[0]||'';
+  return a.slice(0,-1).join(', ')+' or '+a[a.length-1];
+}
+function say(s){$('status').textContent=s}
+function fail(e){
+  var el=$('error');
+  el.hidden=false;
+  el.innerHTML='<b>'+esc(e.message||e)+'</b>';
+}
+
+/* ---- The engine ladder --------------------------------------------------------------
+   A factory's output is set by its automated engine: the game publishes dailyProd per
+   level, along with what the next level costs in steel and construction points. That is
+   the whole of a payback calculation, and all of it is live. */
+function engineLevels(){
+  var u=CFG&&CFG.upgradesConfig&&CFG.upgradesConfig.automatedEngine;
+  return (u&&u.levels)||{};
+}
+function dailyProd(level){
+  var l=engineLevels()[String(level)];
+  return l&&l.stats?l.stats.dailyProd:null;
+}
+function engineMax(){
+  var keys=Object.keys(engineLevels()).map(Number).filter(function(n){return n>0});
+  return keys.length?Math.max.apply(null,keys):1;
+}
+
+/* ---- What a thing is worth to make --------------------------------------------------
+   Margin is the market price of the output less the market price of every input at the
+   quantities the recipe asks for. Production points are how much of a day's output one
+   unit consumes, so an item costing 10 points yields a tenth as many units as one
+   costing 1 - which is why margin per unit alone ranks things wrongly. */
+function priceOf(code){return PRICES&&PRICES[code]!=null?PRICES[code]:null}
+function inputCost(code){
+  var it=CFG.items[code];
+  if(!it||!it.productionNeeds)return 0;
+  var sum=0,need=it.productionNeeds;
+  for(var k in need){
+    var p=priceOf(k);
+    if(p==null)return null;
+    sum+=need[k]*p;
+  }
+  return sum;
+}
+/* A factory makes two kinds of thing: what it digs out of the region, and what it crafts
+   from other items. Crates, weapons, gear and tools are tradable but no factory produces
+   them, so offering them as something to produce would be nonsense - case2 is the most
+   profitable thing on the market and you cannot make one. */
+function producible(it){
+  /* Production points are what a factory spends to make one unit, so an item without them
+     is not factory output at all however tradable it is: scraps come off dismantled gear,
+     crates out of loot. */
+  return !!it&&it.productionPoints!=null&&(it.type==='raw'||it.type==='product');
+}
+function needsText(code){
+  var it=CFG.items[code],need=it&&it.productionNeeds;
+  if(!need){
+    var where=(it&&it.climates&&it.climates.length)
+      ? 'a '+list(it.climates)+' region holding the deposit'
+      : 'the right region';
+    return '<span class="dimv">nothing to buy — but it needs '+esc(where)+'</span>';
+  }
+  var bits=[];
+  for(var k in need)bits.push(need[k]+'× '+esc(label(k)));
+  return bits.join(' + ');
+}
+function economics(code,ae){
+  var it=CFG.items[code];
+  if(!it)return null;
+  var price=priceOf(code),cost=inputCost(code),pp=it.productionPoints||1,dp=dailyProd(ae);
+  if(price==null||cost==null||dp==null)return null;
+  var margin=price-cost,units=dp/pp;
+  return {price:price,cost:cost,margin:margin,pp:pp,units:units,
+          perDay:margin*units,pct:price>0?margin/price*100:null};
+}
+
+/* ---- The produce table -------------------------------------------------------------- */
+function paintProduce(){
+  var ae=Number($('ae').value)||1,only=$('only').value,rows=[];
+  for(var code in CFG.items){
+    var it=CFG.items[code];
+    if(!it.isTradable||!producible(it))continue;
+    if(only!=='all'&&it.type!==only)continue;
+    var e=economics(code,ae);
+    if(!e)continue;
+    rows.push({code:code,it:it,e:e});
+  }
+  rows.sort(function(a,b){return b.e.perDay-a.e.perDay});
+  var mine={};
+  COMPANIES.forEach(function(c){mine[c.itemCode]=true});
+  var html=rows.map(function(r){
+    var e=r.e,k=e.margin>0?'up':e.margin<0?'down':'';
+    return '<tr>'+
+      '<td class="l"><img class="ico" src="'+icon(r.code)+'" alt="" loading="lazy">'+
+        esc(label(r.code))+(mine[r.code]?' <span class="pill good">yours</span>':'')+
+        (r.it.productionPoints>1?' <span class="pill">'+r.it.productionPoints+' pts</span>':'')+'</td>'+
+      '<td class="l">'+needsText(r.code)+'</td>'+
+      '<td>'+money(e.price)+'</td>'+
+      '<td>'+(e.cost?money(e.cost):'<span class="dimv">—</span>')+'</td>'+
+      '<td class="'+k+'">'+money(e.margin)+'</td>'+
+      '<td class="'+k+'">'+(e.pct==null?'—':e.pct.toFixed(0)+'%')+'</td>'+
+      '<td>'+money(e.units,1)+'</td>'+
+      '<td class="'+k+'">'+money(e.perDay,1)+'</td>'+
+    '</tr>';
+  }).join('');
+  $('prodBody').innerHTML=html||'<tr><td colspan="8" class="empty">No prices yet.</td></tr>';
+  var best=rows[0];
+  $('prodFoot').innerHTML=rows.length
+    ? 'Ranked by what one factory earns a day at engine '+ae+'. Best right now: <b>'+esc(label(best.code))+
+      '</b> at '+money(best.e.perDay,1)+' a day. Digging has no input to buy, so the whole price is margin — '+
+      'but only where the region holds that deposit. Crafting works anywhere, and pays the difference.'
+    : '';
+}
+
+/* ---- Your companies ----------------------------------------------------------------- */
+function paintCompanies(){
+  if(!COMPANIES.length){$('coCard').hidden=true;return}
+  $('coCard').hidden=false;
+  var steel=priceOf('steel'),total=0,waiting=0,rows=COMPANIES.slice();
+  rows.sort(function(a,b){
+    var ea=economics(a.itemCode,aeOf(a)),eb=economics(b.itemCode,aeOf(b));
+    return (eb?eb.perDay:0)-(ea?ea.perDay:0);
+  });
+  var html=rows.map(function(c){
+    var ae=aeOf(c),e=economics(c.itemCode,ae),price=priceOf(c.itemCode);
+    var pend=Number(c.production)||0;
+    if(e)total+=e.perDay;
+    if(price!=null)waiting+=pend*price;
+    var pay='<span class="dimv">—</span>',next=engineLevels()[String(ae+1)];
+    if(next&&e&&steel!=null){
+      var gain=(dailyProd(ae+1)-dailyProd(ae))/e.pp*e.margin,
+          cost=(next.steelCost||0)*steel;
+      pay=gain>0?(Math.ceil(cost/gain)+' days  <span class="dimv">('+num(next.steelCost)+
+          ' steel ≈ '+money(cost,0)+')</span>')
+          :'<span class="down">never at these prices</span>';
+    }else if(!next){pay='<span class="dimv">maxed</span>'}
+    var k=e&&e.margin>0?'up':e&&e.margin<0?'down':'';
+    return '<tr>'+
+      '<td class="l">'+esc(c.name||'—')+'</td>'+
+      '<td class="l"><img class="ico" src="'+icon(c.itemCode)+'" alt="" loading="lazy">'+esc(label(c.itemCode))+'</td>'+
+      '<td>'+ae+'</td>'+
+      '<td>'+(e?money(e.units,1):'—')+'</td>'+
+      '<td class="'+k+'">'+(e?money(e.margin):'—')+'</td>'+
+      '<td class="'+k+'">'+(e?money(e.perDay,1):'—')+'</td>'+
+      '<td>'+money(pend,1)+(price!=null?' <span class="dimv">≈'+money(pend*price,0)+'</span>':'')+'</td>'+
+      '<td class="l">'+pay+'</td>'+
+    '</tr>';
+  }).join('');
+  $('coBody').innerHTML=html;
+  $('coSub').textContent=COMPANIES.length+(COMPANIES.length===1?' company':' companies');
+  /* What the best item would earn in the same factory, so a switch is priced not guessed. */
+  var ideal=null;
+  for(var code in CFG.items){
+    var it=CFG.items[code];
+    if(!it.isTradable||!producible(it))continue;
+    var ee=economics(code,engineBest());
+    if(ee&&(!ideal||ee.perDay>ideal.perDay))ideal={code:code,perDay:ee.perDay};
+  }
+  $('coFoot').innerHTML='Together they earn about <b>'+money(total,1)+' a day</b> at today’s prices, '+
+    'with <b>'+money(waiting,0)+'</b> sitting uncollected. '+
+    (ideal?('Your best engine on <b>'+esc(label(ideal.code))+'</b> would make '+money(ideal.perDay,1)+
+            ' a day — switching a factory costs '+num((CFG.company&&CFG.company.changeItemCost)||0)+' gold.'):'')+
+    ' Margins assume you buy every input at market; anything you dig yourself is cheaper than this says.';
+}
+function aeOf(c){return (c.activeUpgradeLevels&&c.activeUpgradeLevels.automatedEngine)||1}
+function engineBest(){
+  return COMPANIES.reduce(function(m,c){return Math.max(m,aeOf(c))},1);
+}
+
+/* ---- Skills -------------------------------------------------------------------------
+   The game publishes the whole cost curve per skill, so what the next point costs and
+   what it buys is read, never assumed. Skills the game no longer has simply are not
+   there - which is how a coach built on a removed skill ends up advising on nothing. */
+var ECON={companies:1,production:1,management:1,energy:1};
+var SKILL_NOTE={
+  production:'Fills your work bar, so more hand-worked output.',
+  companies:'Raises how many factories you may own.',
+  management:'Improves what your manager does for you.',
+  energy:'More energy means more actions a day.'
+};
+/* The one skill whose gain converts straight into money: another factory earns whatever
+   the best thing you can make earns, so the point has a price in gold a day. Nothing else
+   on the list converts this cleanly, and inventing a rate for the others would be worse
+   than leaving them in their own units. */
+function worthOf(r){
+  if(r.key!=='companies'||!r.gain||!CFG.items)return '<span class="dimv">—</span>';
+  var best=null;
+  for(var code in CFG.items){
+    var it=CFG.items[code];
+    if(!it.isTradable||!producible(it))continue;
+    var e=economics(code,COMPANIES.length?engineBest():1);
+    if(e&&(!best||e.perDay>best))best=e.perDay;
+  }
+  if(best==null)return '<span class="dimv">—</span>';
+  return '<span class="up">'+money(r.gain*best,1)+'/day</span> <span class="dimv">if you build it</span>';
+}
+function paintSkills(){
+  if(!USER){$('skillCard').hidden=true;return}
+  $('skillCard').hidden=false;
+  var sk=USER.skills||{},cfg=CFG.skills||{},rows=[];
+  for(var key in cfg){
+    var have=sk[key],lv=have?(have.level||0):0,levels=cfg[key].levels||{};
+    var cur=levels[String(lv)],next=levels[String(lv+1)];
+    rows.push({key:key,lv:lv,cur:cur,next:next,
+      gain:(next&&cur)?(next.value-cur.value):null,
+      cost:next?next.cost:null});
+  }
+  /* Economy skills first, then the rest, each group by what a point buys. Across groups
+     the numbers do not compare at all: +10 energy and +1 factory are different units, and
+     sorting them into one list would quietly claim the energy point is forty times better. */
+  rows.sort(function(a,b){
+    var ga=ECON[a.key]?0:1,gb=ECON[b.key]?0:1;
+    if(ga!==gb)return ga-gb;
+    var ea=a.gain&&a.cost?a.gain/a.cost:-1,eb=b.gain&&b.cost?b.gain/b.cost:-1;
+    return eb-ea;
+  });
+  $('skillBody').innerHTML=rows.map(function(r){
+    return '<tr>'+
+      '<td class="l">'+esc(label(r.key))+
+        (SKILL_NOTE[r.key]?' <span class="dimv">'+esc(SKILL_NOTE[r.key])+'</span>':'')+'</td>'+
+      '<td>'+r.lv+'</td>'+
+      '<td>'+(r.cur?num(r.cur.value):'—')+'</td>'+
+      '<td>'+(r.next?num(r.cost)+' SP':'<span class="dimv">maxed</span>')+'</td>'+
+      '<td class="'+(r.gain?'up':'')+'">'+(r.gain?'+'+num(r.gain):'—')+'</td>'+
+      '<td>'+(r.gain&&r.cost?money(r.gain/r.cost,2):'—')+'</td>'+
+      '<td class="l">'+worthOf(r)+'</td>'+
+    '</tr>';
+  }).join('');
+  var sp=(USER.leveling&&USER.leveling.availableSkillPoints)||0;
+  $('skillSub').textContent=sp+(sp===1?' point unspent':' points unspent');
+  $('skillFoot').innerHTML='Economy skills first, then the rest. The game charges more for every '+
+    'level of the same skill, so a cheap first level in a new skill often beats another level in '+
+    'an old one. <b>Per point</b> is the gain divided by what the point costs — but it is in each '+
+    'skill\u2019s own units, so read it down a row, never across skills: +10 energy and +1 factory '+
+    'are not ten to one. Only the factory can be put in gold, and that column does it.';
+}
+
+/* ---- Player -------------------------------------------------------------------------- */
+function paintPlayer(){
+  if(!USER){$('playerCard').hidden=true;return}
+  $('playerCard').hidden=false;
+  var lv=USER.leveling||{},st=USER.stats||{},w=st.wealth||{};
+  $('playerWho').innerHTML=
+    (USER.avatarUrl?'<img src="'+esc(USER.avatarUrl)+'" alt="">':'')+
+    '<div><div style="font-weight:600;font-size:15px">'+esc(USER.username||'')+'</div>'+
+    '<div class="sub">'+esc((USER.infos&&USER.infos.description)||'')+'</div></div>';
+  $('playerStrip').innerHTML=
+    cell('Level',num(lv.level))+
+    cell('Points to spend',num(lv.availableSkillPoints),lv.availableSkillPoints?'up':'')+
+    cell('Points spent',num(lv.spentSkillPoints))+
+    cell('Cash',money(w.money,0))+
+    cell('In companies',money(w.companies,0))+
+    cell('In items',money(w.items,0))+
+    cell('Worth',money(w.total,0),'up');
+  $('playerSub').textContent='read just now';
+}
+function cell(l,v,k){
+  return '<div><small>'+esc(l)+'</small><b class="'+(k||'')+'">'+esc(v)+'</b></div>';
+}
+
+/* ---- Loading ------------------------------------------------------------------------- */
+async function loadGame(){
+  say('reading the game…');
+  var pair=await Promise.all([ask('gameConfig.getGameConfig'),ask('itemTrading.getPrices')]);
+  CFG=pair[0];PRICES=pair[1];
+  var sel=$('ae'),max=engineMax(),html='';
+  for(var i=1;i<=max;i++)html+='<option value="'+i+'"'+(i===max?' selected':'')+'>'+i+
+    ' · '+dailyProd(i)+'/day</option>';
+  sel.innerHTML=html;
+  paintProduce();
+  say(Object.keys(CFG.items).length+' items · prices live');
+}
+async function loadPlayer(name){
+  if(!name)return;
+  say('looking up '+name+'…');
+  $('error').hidden=true;
+  var found=await ask('search.searchAnything',{searchText:name});
+  if(!found||!found.userIds||!found.userIds.length)throw new Error('No player called “'+name+'”.');
+  USER=await ask('user.getUserById',{userId:found.userIds[0]});
+  paintPlayer();paintSkills();
+  say('reading companies…');
+  COMPANIES=await loadCompanies(found.userIds[0]);
+  paintCompanies();paintProduce();
+  try{localStorage.setItem('coach.who',USER.username||name)}catch(e){}
+  say(USER.username+' · '+COMPANIES.length+' companies');
+}
+/* The company list is paged and gives ids only, so each one is then read on its own. Six
+   at a time keeps a wide player from opening fifty sockets at once. */
+async function loadCompanies(userId){
+  var ids=[],cursor=null,page=0;
+  do{
+    var res=await ask('company.getCompanies',cursor?{userId:userId,cursor:cursor}:{userId:userId});
+    (res.items||[]).forEach(function(id){ids.push(id)});
+    cursor=res.nextCursor||null;page++;
+  }while(cursor&&page<8);
+  var out=[];
+  for(var i=0;i<ids.length;i+=6){
+    var batch=await Promise.all(ids.slice(i,i+6).map(function(id){
+      return ask('company.getById',{companyId:id}).catch(function(){return null});
+    }));
+    batch.forEach(function(c){if(c)out.push(c)});
+  }
+  return out;
+}
+
+function go(){
+  var name=$('who').value.trim();
+  if(!name)return;
+  $('go').disabled=true;
+  loadPlayer(name).catch(fail).then(function(){$('go').disabled=false});
+}
+$('go').addEventListener('click',go);
+$('who').addEventListener('keydown',function(e){if(e.key==='Enter')go()});
+$('ae').addEventListener('change',paintProduce);
+$('only').addEventListener('change',paintProduce);
+$('reload').addEventListener('click',function(){
+  loadGame().then(function(){if(USER)paintCompanies()}).catch(fail);
+});
+
+try{$('who').value=localStorage.getItem('coach.who')||''}catch(e){}
+loadGame().then(function(){
+  var saved=$('who').value.trim();
+  if(saved)return loadPlayer(saved);
+}).catch(fail);
+
+})();
+</script>
+</body>
+</html>
