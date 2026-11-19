@@ -242,7 +242,7 @@ a{color:var(--brass)}
     <div class="scroll"><table>
       <thead><tr>
         <th class="l">Item</th><th class="l">Needs</th><th>Price</th><th>Input cost</th>
-        <th>Margin</th><th>Margin %</th><th>Units/day</th><th>Margin/day</th>
+        <th>Margin</th><th>Margin %</th><th>Units/day</th><th>Margin/day</th><th>Own chain</th>
       </tr></thead>
       <tbody id="prodBody"></tbody>
     </table></div>
@@ -375,6 +375,66 @@ function needsText(code){
   for(var k in need)bits.push(need[k]+'× '+esc(label(k)));
   return bits.join(' + ');
 }
+/* ---- Chains, and the two things you cannot buy your way past ------------------------
+   Margin per unit charges market price for every input, which is right when you buy them
+   and wrong when you make them. The whole-chain figure asks the other question: if you
+   own every step, what does one production point earn? A factory's day is production
+   points, so that is the number that compares a chain against a hole in the ground.
+
+   Measured across the economy it comes out startlingly flat - roughly 0.07 to 0.11 a
+   point, raw and crafted alike - because the market has already arbitraged the chains.
+   Owning one end to the other is worth something, but it is 5 to 15 per cent, not a
+   different game.
+
+   What is a different game is what the chain is FOR. Steel buys engines and storage;
+   concrete builds factories. Neither is a thing you sell: they are how a factory becomes
+   two factories. That is why a guide says limestone and iron when the prices say wood. */
+var CHAIN={};
+function chainPoints(code,seen){
+  if(CHAIN[code]!=null)return CHAIN[code];
+  seen=seen||{};
+  if(seen[code])return null;
+  var it=CFG.items[code];
+  if(!it||it.productionPoints==null)return null;
+  var total=it.productionPoints,need=it.productionNeeds||{},mark={};
+  for(var k in seen)mark[k]=1;
+  mark[code]=1;
+  for(var input in need){
+    var sub=chainPoints(input,mark);
+    if(sub==null)return null;
+    total+=need[input]*sub;
+  }
+  CHAIN[code]=total;
+  return total;
+}
+function perChainPoint(code){
+  var pts=chainPoints(code),price=priceOf(code);
+  return (pts&&price!=null)?price/pts:null;
+}
+/* Steel buys engines and storage, concrete builds factories: a factory making either is
+   paying for the next one, which is not a thing to read off a margin. */
+var CAPITAL={steel:'engines and storage',concrete:'new factories'};
+function steelStillNeeded(){
+  var need=0,cfg=CFG.upgradesConfig||{};
+  COMPANIES.forEach(function(co){
+    ['automatedEngine','storage'].forEach(function(kind){
+      var lv=(co.activeUpgradeLevels&&co.activeUpgradeLevels[kind])||1,
+          levels=(cfg[kind]&&cfg[kind].levels)||{};
+      for(var k in levels)if(Number(k)>lv)need+=levels[k].steelCost||0;
+    });
+  });
+  return need;
+}
+function dailyOf(code){
+  var out=0;
+  COMPANIES.forEach(function(co){
+    if(co.itemCode!==code)return;
+    var e=economics(code,aeOf(co));
+    if(e)out+=e.units;
+  });
+  return out;
+}
+
 function economics(code,ae){
   var it=CFG.items[code];
   if(!it)return null;
@@ -412,12 +472,21 @@ function paintProduce(){
       '<td class="'+k+'">'+(e.pct==null?'—':e.pct.toFixed(0)+'%')+'</td>'+
       '<td>'+money(e.units,1)+'</td>'+
       '<td class="'+k+'">'+money(e.perDay,1)+'</td>'+
+      '<td title="'+esc('What one production point earns if you own every step: '+
+        num(chainPoints(r.code))+' points go into one '+label(r.code))+'">'+
+        money(perChainPoint(r.code),4)+(CAPITAL[r.code]?' <span class="chip">capital</span>':'')+'</td>'+
     '</tr>';
   }).join('');
   $('prodBody').innerHTML=html||'<tr><td colspan="8" class="empty">No prices yet.</td></tr>';
   var best=rows[0];
   $('prodFoot').innerHTML=rows.length
-    ? 'Ranked by what one factory earns a day at engine '+ae+'. Best right now: <b>'+esc(label(best.code))+
+    ? '<b>Own chain</b> is what a production point earns when you make the inputs yourself '+
+      'rather than buy them, and across the whole economy it sits between 0.07 and 0.11 — the '+
+      'market has already arbitraged the chains, so integrating is worth 5 to 15 per cent, not a '+
+      'different game. Steel and concrete are marked <b>capital</b>: engines and storage are paid '+
+      'for in steel and factories are built out of concrete, so those two are worth making at a '+
+      'margin you would never accept on anything you intend to sell.<br>'+
+      'Ranked by what one factory earns a day at engine '+ae+'. Best right now: <b>'+esc(label(best.code))+
       '</b> at '+money(best.e.perDay,1)+' a day. Digging has no input to buy, so the whole price is margin — '+
       'but only where the region holds that deposit. Crafting works anywhere, and pays the difference.'
     : '';
@@ -909,6 +978,9 @@ function ago(d){
 function switchTo(co,c){
   var ae=aeOf(co),now=economics(co.itemCode,ae);
   if(!now)return null;
+  /* A steel or concrete factory is not underperforming, it is funding the estate. Converting
+     it to whatever pays best today strands every upgrade behind a market purchase. */
+  if(CAPITAL[co.itemCode]&&(co.itemCode!=='steel'||steelStillNeeded()>0))return null;
   var best=null;
   for(var code in CFG.items){
     var it=CFG.items[code];
@@ -983,9 +1055,17 @@ function paintCoCards(c){
       act+'</div>';
   }).join('');
   $('coListSub').textContent=COMPANIES.length+' of '+c.allowed;
+  var steelNeed=steelStillNeeded(),steelDay=dailyOf('steel'),steelPrice=priceOf('steel');
   $('coListFoot').innerHTML='Together about <b>'+money(total,1)+' a day</b> at today\u2019s prices'+
-    (c.owned<c.allowed?(', and you have a free slot — a new one costs about '+money(c.buildCost,0)+'.')
-     :'. Every slot is used; the next one needs a point in Companies.');
+    (c.owned<c.allowed?(', and you have a free slot — a new one costs about '+money(c.buildCost,0)+'. ')
+     :'. Every slot is used; the next one needs a point in Companies. ')+
+    (steelNeed?('Taking every engine and store of yours to the top costs <b>'+num(steelNeed)+
+      ' steel</b>'+(steelPrice!=null?(' — about '+money(steelNeed*steelPrice,0)+' to buy'):'')+
+      (steelDay?(', or '+Math.ceil(steelNeed/steelDay)+' days of your own steel at '+
+                 money(steelDay,1)+' a day')
+               :', and you make none of it yourself')+
+      '. Steel is the only thing engines take, so a steel factory is how the rest of them grow.')
+     :'');
 }
 
 /* ---- Skills: what you have, and the one to put the next point in ------------------- */
