@@ -1439,31 +1439,44 @@ function pairs(c){
   return out;
 }
 function paintPairs(c){
-  var all=pairs(c),here=all.filter(function(p){return p.canDig});
+  var all=pairs(c);
   if(!all.length){$('pairCard').hidden=true;return}
   $('pairCard').hidden=false;
-  var show=(here.length?here:all).slice(0,4),best=show[0];
+  /* Everything, ranked, with the ground it wants. Hiding the ones this region cannot dig
+     assumed the ground was a fact; it is a choice that costs five gold to change, which is
+     the same five gold the page already tells people to spend moving to Northern Ireland.
+     A pair left out cannot be weighed against the move it would need. */
+  var show=all.slice(0,6),best=show[0],away=0;
   $('pairList').innerHTML=show.map(function(p,i){
-    var perDay=(dailyProd(COMPANIES.length?engineBest():1)||24)/CFG.items[p.code].productionPoints;
+    var perDay=(dailyProd(COMPANIES.length?engineBest():1)||24)/CFG.items[p.code].productionPoints,
+        rawIt=CFG.items[p.raw],
+        where=(rawIt.climates||[]).length?list(rawIt.climates):null;
+    if(!p.canDig)away++;
     return row({
       title:'<span class="pair"><img src="'+icon(p.raw)+'" alt="" loading="lazy">'+
         '<span class="dim">'+esc(label(p.raw))+'</span><span class="arrow">\u2192</span>'+
         '<img src="'+icon(p.code)+'" alt="" loading="lazy">'+esc(label(p.code))+'</span>',
-      chip:money(p.perPoint,4)+' a point',chipKind:i?'':'now',
-      note:stats([[p.qty+'\u00d7','into 1'],[p.points,'points each'],
+      chip:p.canDig?(money(p.perPoint,4)+' a point'):('needs '+esc(where||'other ground')),
+      chipKind:p.canDig?(i?'':'now'):'bad',
+      /* The rate is in the chip unless the chip is busy naming the ground it wants. */
+      note:stats([[p.canDig?null:money(p.perPoint,4),'a point'],[p.qty+'\u00d7','into 1'],
                   [money(perDay*p.price,1),'a day a pair'],
                   [p.crowd?num(p.crowd):null,'already on it']]),
       tip:'One factory digging '+label(p.raw)+' feeds one crafting '+label(p.code)+' exactly, at '+
-        'any engine level, because the recipe and the production points balance. Nothing is bought, '+
-        'so the market cannot price you out of your own inputs.'});
+        'any engine level, because the recipe and the production points balance.'+
+        (p.canDig?' Your ground can dig it.'
+                 :(' Your ground cannot dig '+label(p.raw)+' \u2014 it wants '+(where||'other ground')+
+                   '. Moving a factory costs '+num((CFG.company&&CFG.company.moveCost)||0)+
+                   ' gold, so this is a comparison, not a wall.'))});
   }).join('');
-  $('pairSub').textContent=here.length?(c.climate+' ground'):'anywhere';
+  $('pairSub').textContent=c.climate?(c.climate+' ground'):'';
   $('pairFoot').innerHTML=stats([['1:1','every pair'],
-    [best?label(best.raw)+' + '+label(best.code):null,'best here'],
-    [here.length<all.length?(all.length-here.length):null,'need other ground']])+
-    '<span class="dimv" title="'+esc('Gold per production point is SPYWarera\u2019s figure, and it '+
-    'is the one that compares fairly: a factory\u2019s day is production points, so what matters is '+
-    'what a point sells for, not what a unit does.')+'"></span>';
+    [best?(label(best.raw)+' + '+label(best.code)):null,best&&best.canDig?'best, and here':'best, elsewhere'],
+    [away||null,'want other ground'],
+    [num((CFG.company&&CFG.company.moveCost)||0),'gold to move one']])+
+    '<span class="dimv" title="'+esc('Gold per production point is SPYWarera\u2019s figure: a '+
+    'factory\u2019s day is production points, so what matters is what a point sells for. Pairs your '+
+    'ground cannot dig are still ranked - the ground is a five gold decision, not a fact.')+'"></span>';
 }
 
 /* ---- The engine ladder, drawn ---------------------------------------------------------
