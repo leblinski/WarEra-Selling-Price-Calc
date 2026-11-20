@@ -102,6 +102,17 @@ tbody tr:hover{background:var(--panel-2)}
   line-height:13px;text-align:center;color:var(--brass)}
 .pips i.on{background:var(--brass);border-color:var(--brass)}
 .pips i.next{border-color:var(--brass);background:rgba(var(--brass-rgb),.22)}
+svg.art{display:block;width:100%;height:auto}
+svg.art text{font-family:var(--mono);fill:var(--dim)}
+svg.art text.on{fill:var(--ink)}
+svg.art text.hot{fill:var(--brass)}
+.rar{display:flex;gap:6px;padding:11px 13px 2px;flex-wrap:wrap}
+.rar span{flex:1 1 0;min-width:52px;text-align:center;padding:5px 2px;border-radius:5px;
+  font-size:10px;letter-spacing:.06em;text-transform:uppercase;border:1px solid}
+.verdict{display:flex;gap:6px;padding:4px 13px 11px}
+.verdict span{flex:1 1 0;text-align:center;font-size:10.5px;color:var(--dim);
+  border-top:1px solid var(--line);padding-top:5px}
+.verdict b{display:block;color:var(--ink);font-size:12px;font-weight:600;margin-bottom:1px}
 .cono{display:flex;gap:8px;align-items:center}
 .cono img{width:26px;height:26px;border-radius:4px}
 .cono b{font-weight:600}
@@ -180,10 +191,25 @@ a{color:var(--brass)}
     </div>
   </div>
 
+  <div class="stack">
   <div class="card">
     <div class="card-head"><b>Companies</b><span id="coListSub"></span></div>
     <div id="coList"></div>
     <div class="foot" id="coListFoot"></div>
+  </div>
+
+  <div class="card" id="engineCard" hidden>
+    <div class="card-head"><b>The engine ladder</b><span id="engineSub"></span></div>
+    <div id="engineArt"></div>
+    <div class="foot" id="engineFoot"></div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><b>Loot and leftovers</b><span>what to keep</span></div>
+    <div id="lootArt"></div>
+    <div class="foot" id="lootFoot"></div>
+  </div>
+
   </div>
 
   <div class="stack">
@@ -1354,6 +1380,86 @@ function paintSkillPips(c){
   }
 }
 
+/* ---- The engine ladder, drawn ---------------------------------------------------------
+   Seven steps, each doubling in steel and adding a flat 24 a day. Drawn rather than
+   described because the shape is the lesson: the output climbs in a straight line and the
+   price climbs geometrically, so the cheap steps are at the bottom and the last one costs
+   more steel than every step before it put together. The guide's "company 1 to AE3, then
+   build company 2" falls out of that - three cheap steps on one factory beat one dear step,
+   and a second factory beats both. */
+function paintEngines(c){
+  var levels=engineLevels(),keys=Object.keys(levels).map(Number).sort(function(a,b){return a-b});
+  if(!keys.length){$('engineCard').hidden=true;return}
+  $('engineCard').hidden=false;
+  /* The viewBox is sized to what the card is actually about this wide, so a 10 unit label
+     lands as 10 pixel text. A narrow box stretched to fit would blow the type up with it. */
+  var at=COMPANIES.length?Math.min.apply(null,COMPANIES.map(aeOf)):1,
+      W=560,H=150,base=112,step=W/keys.length,bw=Math.min(26,step/2-4),
+      top=Math.max.apply(null,keys.map(function(k){return dailyProd(k)||0})),
+      steelTop=Math.max.apply(null,keys.map(function(k){return levels[String(k)].steelCost||0})),
+      art='';
+  keys.forEach(function(k,i){
+    var cx=step*i+step/2,prod=dailyProd(k)||0,steel=levels[String(k)].steelCost||0,
+        ph=Math.round(prod/top*72),sh=Math.round(steel/steelTop*72),
+        here=k===at,ahead=k>at;
+    art+='<rect x="'+(cx-bw-2)+'" y="'+(base-ph)+'" width="'+bw+'" height="'+ph+'" rx="3" fill="'+
+      (ahead?'rgba(200,155,60,.28)':'var(--brass)')+'"/>';
+    art+='<rect x="'+(cx+2)+'" y="'+(base-sh)+'" width="'+bw+'" height="'+Math.max(sh,1)+'" rx="3" fill="'+
+      (steel?'var(--rust)':'var(--line)')+'" opacity="'+(ahead?'.55':'.9')+'"/>';
+    art+='<text x="'+cx+'" y="'+(base+16)+'" text-anchor="middle" font-size="12" class="'+
+      (here?'hot':'on')+'">'+k+'</text>';
+    if(prod)art+='<text x="'+(cx-bw/2-2)+'" y="'+(base-ph-5)+'" text-anchor="middle" font-size="9">'+prod+'</text>';
+    if(steel)art+='<text x="'+(cx+bw/2+2)+'" y="'+(base-sh-5)+'" text-anchor="middle" font-size="9" fill="var(--rust)">'+steel+'</text>';
+    /* The label is wider than a step, so it is kept inside the box at either end. */
+    if(here)art+='<text x="'+Math.max(48,Math.min(W-48,cx))+'" y="'+(base+30)+
+      '" text-anchor="middle" font-size="10" class="hot">you are here</text>';
+  });
+  $('engineArt').innerHTML='<svg class="art" viewBox="0 0 '+W+' '+H+'" role="img" '+
+    'aria-label="Output a day and steel cost at each engine level">'+
+    '<rect x="10" y="10" width="9" height="9" rx="2" fill="var(--brass)"/>'+
+    '<text x="24" y="19" font-size="10">output a day</text>'+
+    '<rect x="130" y="10" width="9" height="9" rx="2" fill="var(--rust)"/>'+
+    '<text x="144" y="19" font-size="10">steel to reach it</text>'+art+'</svg>';
+  var next=levels[String(at+1)];
+  $('engineSub').textContent='you are at '+at;
+  $('engineFoot').innerHTML=stats([
+    [next?num(next.steelCost):null,'steel for '+(at+1)],
+    [next?('+'+(dailyProd(at+1)-dailyProd(at))):null,'a day'],
+    [num(levels[String(keys[keys.length-1])].steelCost||0),'for the last step alone'],
+    [c.owned<c.allowed?money(c.buildCost,0):null,'a whole new factory']])+
+    '<span class="dimv" title="'+esc('Output climbs in a straight line, 24 a day per step, while '+
+    'the steel doubles. The last step costs more than every step before it put together, which is '+
+    'why three cheap steps on one factory beat one dear step, and a second factory beats both.')+
+    '"></span>';
+}
+
+/* ---- Loot, as a ladder ---------------------------------------------------------------
+   Six rarities, one line through them. Scrap the first three and sell the rest: the gear
+   is better than yours only at the top, and cash now compounds into factories. */
+var RARITY=[['common','#8FA8B3'],['uncommon','#6BB8A8'],['rare','#4C84C4'],
+            ['epic','#9B6BC4'],['legendary','#C89B3C'],['mythic','#C2703F']];
+function paintLoot(c){
+  var chips='';
+  RARITY.forEach(function(r,i){
+    var scrap=i<3;
+    chips+='<span style="border-color:'+r[1]+';color:'+r[1]+
+      ';background:'+(scrap?'transparent':r[1]+'22')+'">'+r[0]+'</span>';
+  });
+  $('lootArt').innerHTML='<div class="rar">'+chips+'</div>'+
+    '<div class="verdict"><span style="flex:3 1 0" title="'+
+      esc('Dismantling pays in scraps, which is what crafting runs on. The calculator prices it.')+
+      '"><b>\u2702 scrap these</b>three cheapest</span>'+
+    '<span style="flex:3 1 0" title="'+
+      esc('It is better gear than you can use yet, and gold now turns into factories that earn all month.')+
+      '"><b>\u25b2 sell these</b>purple and above</span></div>'+
+    row({title:'Starter ammo and food',chip:'sell it',chipKind:'now',
+      note:stats([['0','damage you deal'],['\u2192','build money']]),
+      tip:'Early on your damage is negligible, so the bullets and food you are given are worth '+
+        'more as cash in a factory than as kit.'});
+  $('lootFoot').innerHTML='<a href="test61.html">Scrap calculator</a> \u00b7 '+
+    '<a href="market.html">Market floor</a>';
+}
+
 /* ---- The path, as a strip rather than a lecture ------------------------------------ */
 /* ---- What a level 15 can actually be ------------------------------------------------
    Sixty points arrive by 15, four a level, and every skill charges the same rising price:
@@ -1405,7 +1511,7 @@ function paintLadder(){
     :(c.lv>=GOAL?'You are past level '+GOAL+' — open the numbers below; that is the useful part now.'
                 :'Nothing left today. Come back tomorrow and claim the reward first.');
   paintToday(c);paintMissions(c);paintCoCards(c);paintSkillPips(c);
-  paintPlaces(c);paintWorkers(c);paintPath(c);
+  paintPlaces(c);paintWorkers(c);paintEngines(c);paintLoot(c);paintPath(c);
 }
 
 /* ---- Loading ------------------------------------------------------------------------- */
