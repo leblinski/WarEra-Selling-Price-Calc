@@ -61,6 +61,18 @@ tbody tr:hover{background:var(--panel-2)}
 .nextbar .tag{flex:0 0 auto;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
   color:var(--brass);font-weight:700}
 .nextbar em{font-style:normal;color:var(--brass)}
+/* The sequence, as a strip. A dashboard says what is true; this says what order to do it
+   in, which is the thing a beginner is missing when every card looks equally urgent. */
+ol.steps{list-style:none;display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px;padding:0}
+ol.steps li{flex:1 1 118px;display:flex;gap:7px;align-items:baseline;padding:7px 9px;
+  border:1px solid var(--line);border-radius:7px;background:var(--panel);font-size:11.5px}
+ol.steps li b{flex:0 0 auto;font-family:var(--mono);font-size:10px;color:var(--dim)}
+ol.steps li span{flex:1 1 auto;color:var(--dim)}
+ol.steps li.done b{color:var(--verdigris)}
+ol.steps li.done span{text-decoration:line-through;text-decoration-color:var(--line)}
+ol.steps li.now{border-color:rgba(var(--brass-rgb),.55);background:rgba(var(--brass-rgb),.1)}
+ol.steps li.now b,ol.steps li.now span{color:var(--brass);font-weight:600}
+ol.steps li.later{opacity:.5}
 .cols{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:10px;align-items:start}
 .stack{display:flex;flex-direction:column;gap:10px}
 @media(min-width:900px){.cols{grid-template-columns:1fr 1fr}}
@@ -180,6 +192,7 @@ a{color:var(--brass)}
 <div class="nextbar" id="nextBar" hidden>
   <span class="tag">Next</span><span id="nextText"></span>
 </div>
+<ol class="steps" id="steps" hidden></ol>
 
 <div class="cols" id="cols" hidden>
   <div class="stack">
@@ -912,6 +925,28 @@ var LADDER=[
      '. Once it is spent the day pays no more levels, though working still pays wages.'},
    line:function(c){return 'Use the whole daily experience allowance'}},
 
+  {id:'pair',
+   state:function(c){
+     if(COMPANIES.length<2)return 'later';
+     return pairFix(c)?'now':'done';
+   },
+   what:function(c){
+     var f=pairFix(c);
+     if(!f)return 'Your factories already feed each other.';
+     return 'Switch <em>'+esc(f.co.name||label(f.co.itemCode))+'</em> to <em>'+esc(label(f.to))+'</em>.';
+   },
+   why:function(c){
+     var f=pairFix(c),st=pairing();
+     if(!f)return 'Every factory you own is half of a pair: '+
+       st.pairs.map(function(k){return label(k)}).slice(0,2).join(' and ')+
+       ', one digging what the other crafts, balanced exactly. Nothing is bought.';
+     return 'That makes '+label(f.with.itemCode)+' and '+label(f.to)+' a pair: one digs what the '+
+       'other crafts, and at any engine the amounts balance exactly, so neither half has to be '+
+       'bought. Changing what a factory makes costs '+
+       num((CFG.company&&CFG.company.changeItemCost)||0)+' gold.';
+   },
+   line:function(c){return 'Pair your factories up'}},
+
   {id:'build',
    state:function(c){
      if(c.owned>=c.allowed)return 'done';
@@ -1409,6 +1444,42 @@ function paintSkillPips(c){
   }
 }
 
+/* Which of your factories feed each other, and which stand alone. A pair is one factory
+   digging what another crafts - iron into steel, lead into ammo - and the balance is exact,
+   so an unpaired factory is one buying its inputs or selling into the market raw. */
+function pairing(){
+  var have={},made=[],paired={},lone=[];
+  COMPANIES.forEach(function(co){have[co.itemCode]=(have[co.itemCode]||0)+1});
+  COMPANIES.forEach(function(co){
+    var it=CFG.items[co.itemCode]||{},need=Object.keys(it.productionNeeds||{});
+    if(need.length===1&&have[need[0]]){paired[co.itemCode]=need[0];paired[need[0]]=co.itemCode}
+  });
+  COMPANIES.forEach(function(co){if(!paired[co.itemCode])lone.push(co)});
+  return {paired:paired,lone:lone,
+          pairs:Object.keys(paired).filter(function(k){
+            var it=CFG.items[k]||{};return !!(it.productionNeeds||{})[paired[k]];})};
+}
+/* The cheapest change that completes a pair: one factory, five gold, and the other half of
+   something it can already feed or be fed by. */
+function pairFix(c){
+  var st=pairing();
+  if(!st.lone.length||COMPANIES.length<2)return null;
+  var ranked=pairs(c).filter(function(p){return p.canDig}),best=null;
+  st.lone.forEach(function(co){
+    ranked.forEach(function(p){
+      var score=p.perPoint,role=null;
+      if(p.raw===co.itemCode)role={keep:co,change:null,want:p.code};
+      else if(p.code===co.itemCode)role={keep:co,change:null,want:p.raw};
+      if(!role)return;
+      /* Another spare factory can become the missing half; otherwise it wants a new one. */
+      var other=st.lone.filter(function(o){return o!==co})[0];
+      if(!other)return;
+      if(!best||score>best.score)best={score:score,co:other,to:role.want,with:co,pair:p};
+    });
+  });
+  return best;
+}
+
 /* ---- Pairs ---------------------------------------------------------------------------
    Nothing crafted takes more than one ingredient, and every recipe balances exactly: the
    raw a product factory eats in a day is what a raw factory of the same engine makes in a
@@ -1659,6 +1730,17 @@ function paintLadder(){
   LADDER.forEach(function(step){if(!first&&step.state(c)==='now')first=step});
   $('startCard').hidden=true;
   $('cols').hidden=false;$('pathCard').hidden=false;$('nextBar').hidden=false;
+  /* Every rung, numbered, with the one to do now lit. Done ones stay visible and struck
+     through: a beginner wants to see the shape of the whole thing, not just its front. */
+  var n=0;
+  $('steps').hidden=false;
+  $('steps').innerHTML=LADDER.map(function(step){
+    var st=step.state(c);
+    if(st==='now'&&step!==first)st='next';
+    n++;
+    return '<li class="'+st+'" title="'+esc(step.why(c))+'"><b>'+
+      (st==='done'?'\u2713':n)+'</b><span>'+step.line(c)+'</span></li>';
+  }).join('');
   $('nextText').innerHTML=first?first.what(c)
     :(c.lv>=GOAL?'You are past level '+GOAL+' — open the numbers below; that is the useful part now.'
                 :'Nothing left today. Come back tomorrow and claim the reward first.');
