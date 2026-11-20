@@ -113,6 +113,10 @@ svg.art text.hot{fill:var(--brass)}
 .verdict span{flex:1 1 0;text-align:center;font-size:10.5px;color:var(--dim);
   border-top:1px solid var(--line);padding-top:5px}
 .verdict b{display:block;color:var(--ink);font-size:12px;font-weight:600;margin-bottom:1px}
+.pair{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12px}
+.pair img{width:22px;height:22px;border-radius:4px}
+.pair .arrow{color:var(--brass);font-size:13px}
+.pair .dim{color:var(--dim)}
 .cono{display:flex;gap:8px;align-items:center}
 .cono img{width:26px;height:26px;border-radius:4px}
 .cono b{font-weight:600}
@@ -196,6 +200,12 @@ a{color:var(--brass)}
     <div class="card-head"><b>Companies</b><span id="coListSub"></span></div>
     <div id="coList"></div>
     <div class="foot" id="coListFoot"></div>
+  </div>
+
+  <div class="card" id="pairCard" hidden>
+    <div class="card-head"><b>Run them in pairs</b><span id="pairSub"></span></div>
+    <div id="pairList"></div>
+    <div class="foot" id="pairFoot"></div>
   </div>
 
   <div class="card" id="engineCard" hidden>
@@ -1398,6 +1408,64 @@ function paintSkillPips(c){
   }
 }
 
+/* ---- Pairs ---------------------------------------------------------------------------
+   Nothing crafted takes more than one ingredient, and every recipe balances exactly: the
+   raw a product factory eats in a day is what a raw factory of the same engine makes in a
+   day. Four lead into one ammo, and ammo costs four production points to the lead's one -
+   so one digs, one crafts, and the ratio is one to one every time. That is not a
+   coincidence to exploit, it is how the chains are built.
+
+   Ranked on gold per production point, which is the figure SPYWarera publishes and the one
+   that compares a cheap good against a dear one honestly: a factory's day is points, and
+   what matters is what a point sells for. A pair is only offered if the ground underneath
+   can dig the raw half - buying it instead is the thing pairing avoids. */
+function pairs(c){
+  var out=[];
+  for(var code in CFG.items){
+    var it=CFG.items[code],need=it.productionNeeds||{},keys=Object.keys(need);
+    if(it.type!=='product'||keys.length!==1||!it.isTradable)continue;
+    var raw=keys[0],rawIt=CFG.items[raw];
+    if(!rawIt||rawIt.productionPoints==null)continue;
+    var price=sellPrice(code),pts=chainPoints(code);
+    if(price==null||!pts)continue;
+    var spy=supplyOf(code),mine=spy&&spy.profit_per_point!=null?spy.profit_per_point:(price/pts);
+    out.push({raw:raw,code:code,qty:need[raw],points:pts,price:price,
+      perPoint:mine,
+      ratio:need[raw]*rawIt.productionPoints/it.productionPoints,
+      canDig:!(rawIt.type==='raw')||!!(c.climate&&rawIt.climates&&rawIt.climates.indexOf(c.climate)>=0),
+      crowd:((supplyOf(raw)||{}).producing||0)+((spy||{}).producing||0)});
+  }
+  out.sort(function(a,b){return b.perPoint-a.perPoint});
+  return out;
+}
+function paintPairs(c){
+  var all=pairs(c),here=all.filter(function(p){return p.canDig});
+  if(!all.length){$('pairCard').hidden=true;return}
+  $('pairCard').hidden=false;
+  var show=(here.length?here:all).slice(0,4),best=show[0];
+  $('pairList').innerHTML=show.map(function(p,i){
+    var perDay=(dailyProd(COMPANIES.length?engineBest():1)||24)/CFG.items[p.code].productionPoints;
+    return row({
+      title:'<span class="pair"><img src="'+icon(p.raw)+'" alt="" loading="lazy">'+
+        '<span class="dim">'+esc(label(p.raw))+'</span><span class="arrow">\u2192</span>'+
+        '<img src="'+icon(p.code)+'" alt="" loading="lazy">'+esc(label(p.code))+'</span>',
+      chip:money(p.perPoint,4)+' a point',chipKind:i?'':'now',
+      note:stats([[p.qty+'\u00d7','into 1'],[p.points,'points each'],
+                  [money(perDay*p.price,1),'a day a pair'],
+                  [p.crowd?num(p.crowd):null,'already on it']]),
+      tip:'One factory digging '+label(p.raw)+' feeds one crafting '+label(p.code)+' exactly, at '+
+        'any engine level, because the recipe and the production points balance. Nothing is bought, '+
+        'so the market cannot price you out of your own inputs.'});
+  }).join('');
+  $('pairSub').textContent=here.length?(c.climate+' ground'):'anywhere';
+  $('pairFoot').innerHTML=stats([['1:1','every pair'],
+    [best?label(best.raw)+' + '+label(best.code):null,'best here'],
+    [here.length<all.length?(all.length-here.length):null,'need other ground']])+
+    '<span class="dimv" title="'+esc('Gold per production point is SPYWarera\u2019s figure, and it '+
+    'is the one that compares fairly: a factory\u2019s day is production points, so what matters is '+
+    'what a point sells for, not what a unit does.')+'"></span>';
+}
+
 /* ---- The engine ladder, drawn ---------------------------------------------------------
    Seven steps, each doubling in steel and adding a flat 24 a day. Drawn rather than
    described because the shape is the lesson: the output climbs in a straight line and the
@@ -1529,7 +1597,7 @@ function paintLadder(){
     :(c.lv>=GOAL?'You are past level '+GOAL+' — open the numbers below; that is the useful part now.'
                 :'Nothing left today. Come back tomorrow and claim the reward first.');
   paintToday(c);paintMissions(c);paintCoCards(c);paintSkillPips(c);
-  paintPlaces(c);paintWorkers(c);paintEngines(c);paintLoot(c);paintPath(c);
+  paintPlaces(c);paintWorkers(c);paintPairs(c);paintEngines(c);paintLoot(c);paintPath(c);
 }
 
 /* ---- Loading ------------------------------------------------------------------------- */
