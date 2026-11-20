@@ -3718,7 +3718,7 @@ h1 .title-word{white-space:nowrap}
         <p class="flip-lead" id="craftLead">Buy the inputs, craft one piece at random, sell it or break it</p>
         <p class="flip-figure" id="craftVerdict">—</p>
         <p class="flip-detail" id="craftDetail">Reading the collector's order books and sale history…</p>
-        <div class="ev-window"><span>Priced on sales from</span><select id="craftWindow" aria-label="Window of sales used to price rolls"><option value="fit">The fit (every roll, tuned per item)</option><option value="auto">Auto (24h, 48h where thin)</option><option value="24">Last 24 hours</option><option value="48">Last 48 hours</option><option value="168">Last 7 days</option></select></div>
+        <div class="ev-window"><span>Priced on sales from</span><select id="craftWindow" aria-label="Window of sales used to price rolls"><option value="auto">Auto (24h, 48h where thin)</option><option value="best">Best per item (measured each run)</option><option value="24">Last 24 hours</option><option value="48">Last 48 hours</option><option value="168">Last 7 days</option></select></div>
         <button type="button" class="tour-open" id="tourOpen-craft" data-tour="craft" hidden>First time? Walk me through it &rarr;</button>
         <div class="rarity-btns sort-pick" id="craftPick" role="tablist" aria-label="Rarity to craft"></div>
 
@@ -3780,7 +3780,7 @@ h1 .title-word{white-space:nowrap}
         <p class="flip-lead" id="caseLead">Buy a Case I, open it, sell what is worth selling and break the rest</p>
         <p class="flip-figure" id="caseVerdict">—</p>
         <p class="flip-detail" id="caseDetail">Reading case prices…</p>
-        <div class="ev-window"><span>Priced on sales from</span><select id="caseWindow" aria-label="Window of sales used to price rolls"><option value="fit">The fit (every roll, tuned per item)</option><option value="auto">Auto (24h, 48h where thin)</option><option value="24">Last 24 hours</option><option value="48">Last 48 hours</option><option value="168">Last 7 days</option></select></div>
+        <div class="ev-window"><span>Priced on sales from</span><select id="caseWindow" aria-label="Window of sales used to price rolls"><option value="auto">Auto (24h, 48h where thin)</option><option value="best">Best per item (measured each run)</option><option value="24">Last 24 hours</option><option value="48">Last 48 hours</option><option value="168">Last 7 days</option></select></div>
         <button type="button" class="tour-open" id="tourOpen-cases" data-tour="cases" hidden>First time? Walk me through it &rarr;</button>
         <div class="craft-rows" id="caseRows"></div>
         <p class="case-swing" id="caseSwing" hidden></p>
@@ -5477,9 +5477,17 @@ function craftRollKey(slot,skills){
    average, not a fresh one. So an explicit window falls back to the next wider one per
    roll, and the page reports how much of the answer really came from the window asked
    for. The difference between windows is then a difference in price, not in sample. */
-var EV_WINDOWS=[['fit','Fit'],['auto','Auto'],['24','24 h'],['48','48 h'],['168','7 d']];
-var evWindow='fit';
-try{var ew=localStorage.getItem('warera-ev-window');if(ew&&/^(fit|auto|24|48|168)$/.test(ew))evWindow=ew}catch(e){}
+var EV_WINDOWS=[['auto','Auto'],['best','Best'],['24','24 h'],['48','48 h'],['168','7 d']];
+var evWindow='auto';
+try{
+  var ew=localStorage.getItem('warera-ev-window');
+  // 'fit' was the default for a few hours and was wrong for five of the six mythic slots:
+  // forcing a fitted model onto armour that trades five times a roll a day cost about a
+  // point of accuracy each. A stored preference would have kept those readers on it for
+  // good, so that one value is retired rather than honoured.
+  if(ew==='fit'){ew='auto';try{localStorage.setItem('warera-ev-window','auto')}catch(e2){}}
+  if(ew&&/^(auto|best|24|48|168)$/.test(ew))evWindow=ew;
+}catch(e){}
 // Counted per paint so the note can say how much of the EV is really window-fresh, and
 // under the fit, how old the evidence beneath it is.
 var evCover={asked:0,fell:0,recent:0,stale:0,unseen:0};
@@ -5511,7 +5519,7 @@ function valuationKey(slot,key){
    windows otherwise. A missing gear feed is not an error - the page predates it and still
    works without it - so the fit degrades to Auto rather than emptying the table. */
 function statFor(code,slot,key,row){
-  var it=evWindow==='fit'?gearItem(code):null;
+  var it=evWindow==='best'?gearItem(code):null;
   if(!it||!it.rolls)return rollStat(row);
   var vk=valuationKey(slot,key),v=vk?it.rolls[vk]:null;
   if(!v||v.price==null)return null;
@@ -5541,7 +5549,7 @@ function evWindowLabel(){
    and scored against a day it was not allowed to see. Printed as a range because the six
    slots are six separate fits - a tank's and a jet's are not the same claim. */
 function fitErrorNote(rows){
-  if(evWindow!=='fit')return '';
+  if(evWindow!=='best')return '';
   var errs=[];
   for(var i=0;i<rows.length;i++){
     var it=rows[i]&&rows[i].item?gearItem(rows[i].item):null;
@@ -5552,14 +5560,24 @@ function fitErrorNote(rows){
   }
   if(!errs.length)return '';
   var lo=Math.min.apply(null,errs),hi=Math.max.apply(null,errs);
-  return ' Each slot is priced by its own fit, scored against days it was not trained on: '+
+  var fits=0;
+  for(var j=0;j<rows.length;j++){
+    var g=rows[j]&&rows[j].item?gearItem(rows[j].item):null;
+    if(g&&g.rolls&&g.source==='fit')fits++
+  }
+  // Which method each slot won with, because "best" is a claim and this is the evidence.
+  var how=fits===0?'Every slot here is priced from its own recent sales'
+         :fits===errs.length?'Every slot here is priced by a fitted model'
+         :fits+' of '+errs.length+' slots are priced by a fitted model, the rest from their '+
+          'own recent sales';
+  return ' '+how+' \u2014 whichever scored better on days it was not trained on: '+
     (lo===hi?lo.toFixed(1)+'% average error.'
            :lo.toFixed(1)+'% to '+hi.toFixed(1)+'% average error across these slots.');
 }
 /* How old the evidence under a set of rolls is. Scoped to whatever was counted, because
    one paint prices all six tiers and the sentence this follows is about one of them. */
 function fitAgeNote(ages){
-  if(evWindow!=='fit'||!ages)return '';
+  if(evWindow!=='best'||!ages)return '';
   var n=(ages.recent||0)+(ages.stale||0)+(ages.unseen||0);
   if(!n)return '';
   var bits=[(ages.recent||0).toLocaleString()+' traded in the last week'];
@@ -5568,7 +5586,7 @@ function fitAgeNote(ages){
   return ' Of those, '+bits.join(', ')+'.';
 }
 function evCoverNote(){
-  if(evWindow==='fit')return '';
+  if(evWindow==='best')return '';
   if(evWindow==='auto'||!evCover.asked)return '';
   var fresh=evCover.asked-evCover.fell;
   var pc=Math.round(fresh/evCover.asked*100);
@@ -6778,7 +6796,7 @@ function paintCase(){
   // Nine lines of prose explaining four columns is a wall nobody reads. One line of
   // provenance, one of what the reader has to do for the number to hold.
   var foot='Odds: the game\u2019s own. Values: '+
-    (evWindow==='fit'?'the collector\u2019s fit, ':'collected sale medians, ')+
+    (evWindow==='best'?'whichever method each item scored better on, ':'collected sale medians, ')+
     samples.toLocaleString()+' sales across '+covered+' of '+space+' rolls ('+cov+'%).'+
     fitAgeNote(agesAll)+
     ' Break: how often that tier is worth dismantling rather than listing. '+
