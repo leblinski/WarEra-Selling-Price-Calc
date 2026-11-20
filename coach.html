@@ -75,6 +75,24 @@ ol.steps li.now b,ol.steps li.now span{color:var(--brass);font-weight:600}
 ol.steps li.later{opacity:.5}
 .cols{display:grid;grid-template-columns:1fr;gap:10px;margin-bottom:10px;align-items:start}
 .stack{display:flex;flex-direction:column;gap:10px}
+/* Three columns are a reading order a phone cannot keep: stacked, the cards come out in
+   whatever order the columns were written, so a card for step six can sit above one for
+   step two. Below the two column breakpoint the stacks dissolve - display:contents makes
+   their children direct children of the grid - and each card takes the number of the step
+   it belongs to. The strip at the top says where you are; this makes scrolling agree. */
+@media(max-width:899px){
+  .cols{display:flex;flex-direction:column}
+  .stack{display:contents}
+  #cardToday{order:1}      /* steps 1 and 3: the reward and the day's work */
+  #cardMissions{order:2}   /* the only way past the cap */
+  #cardSkills{order:3}     /* step 2: the points, and the plan for them */
+  #pairCard{order:4}       /* step 4: pair the factories up */
+  #cardCompanies{order:5}  /* step 5: fill the slots, and collect what is full */
+  #engineCard{order:6}     /* step 6: grow the engines */
+  #cardWhere{order:7}      /* where the next one goes */
+  #cardWorkers{order:8}
+  #cardLoot{order:9}
+}
 @media(min-width:900px){.cols{grid-template-columns:1fr 1fr}}
 @media(min-width:1300px){.cols{grid-template-columns:.9fr 1.25fr 1fr}}
 .row{padding:10px 13px;border-bottom:1px solid var(--line)}
@@ -196,12 +214,12 @@ a{color:var(--brass)}
 
 <div class="cols" id="cols" hidden>
   <div class="stack">
-    <div class="card">
+    <div class="card" id="cardToday">
       <div class="card-head"><b>Today</b><span id="todaySub"></span></div>
       <div id="todayList"></div>
       <div class="foot" id="todayFoot"></div>
     </div>
-    <div class="card">
+    <div class="card" id="cardMissions">
       <div class="card-head"><b>Missions</b><span id="misSub"></span></div>
       <div id="misList"></div>
       <div class="foot" id="misFoot"></div>
@@ -209,7 +227,7 @@ a{color:var(--brass)}
   </div>
 
   <div class="stack">
-  <div class="card">
+  <div class="card" id="cardCompanies">
     <div class="card-head"><b>Companies</b><span id="coListSub"></span></div>
     <div id="coList"></div>
     <div class="foot" id="coListFoot"></div>
@@ -227,7 +245,7 @@ a{color:var(--brass)}
     <div class="foot" id="engineFoot"></div>
   </div>
 
-  <div class="card">
+  <div class="card" id="cardLoot">
     <div class="card-head"><b>Loot and leftovers</b><span>what to keep</span></div>
     <div id="lootArt"></div>
     <div class="foot" id="lootFoot"></div>
@@ -236,17 +254,17 @@ a{color:var(--brass)}
   </div>
 
   <div class="stack">
-    <div class="card">
+    <div class="card" id="cardSkills">
       <div class="card-head"><b>Skills</b><span id="skillPipSub"></span></div>
       <div id="skillList"></div>
       <div class="foot" id="skillPipFoot"></div>
     </div>
-    <div class="card">
+    <div class="card" id="cardWhere">
       <div class="card-head"><b>Where to build</b><span id="placeSub"></span></div>
       <div id="placeList"></div>
       <div class="foot" id="placeFoot"></div>
     </div>
-    <div class="card">
+    <div class="card" id="cardWorkers">
       <div class="card-head"><b>Workers</b><span>the basics</span></div>
       <div id="workList"></div>
       <div class="foot" id="workFoot"></div>
