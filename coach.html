@@ -1241,6 +1241,14 @@ function paintPlaces(c){
 /* ---- Workers, kept deliberately short -----------------------------------------------
    The game keeps rosters private - every employee procedure answers an outsider with 401 -
    so this teaches the shape of the thing and does not pretend to read yours. */
+/* ---- Workers -------------------------------------------------------------------------
+   The old guides say do not hire, and they were written when employees were other players.
+   They are the game's own characters now, so that advice is about something that no longer
+   exists. What has not changed is what a break room costs, and that is the whole decision:
+   level two costs 20 steel and allows a second worker; engine level two costs the same 20
+   steel and adds 24 production points a day. So a worker earns the steel only by producing
+   more than 24 a day, and the game does not publish what one produces. Until it does, the
+   card states the trade rather than picking a side. */
 function paintWorkers(c){
   var br=(CFG.upgradesConfig&&CFG.upgradesConfig.breakRoom&&CFG.upgradesConfig.breakRoom.levels)||{},
       html='',seats=0,bits=[];
@@ -1255,15 +1263,25 @@ function paintWorkers(c){
   }
   html+=row({title:'Break room',chip:seats?(seats+(seats===1?' seat':' seats')):'',
     note:stats(bits.map(function(b){return ['\u25a3'.repeat(Math.min(b[0]||0,3)),b[1]]})),
-    tip:'The break room sets how many workers a factory may hire. It costs the same steel '+
-      'your engines want, so early on the engine usually wins.'});
+    tip:'The break room sets how many workers a factory may hire.'});
+  /* The same steel, two ways, drawn side by side. */
+  var room2=(br['2']||{}).steelCost||20,
+      eng2=(engineLevels()['2']||{}),
+      gain=(dailyProd(2)||48)-(dailyProd(1)||24);
+  html+='<div class="row"><div class="rowtop"><b>Or spend that steel on an engine</b>'+
+    '<span class="chip">'+num(room2)+' steel either way</span></div>'+
+    '<div class="verdict" style="padding:8px 0 0">'+
+      '<span><b>1 worker</b>break room 2</span>'+
+      '<span><b>+'+gain+' a day</b>engine 2</span>'+
+    '</div>'+
+    '<small>'+stats([['>'+gain+'/day','what a worker must beat']])+'</small></div>';
   html+=row({title:'Hiring',chip:'wages',
     note:stats([['\u2192','they work it'],['\u2190','you pay a wage']]),
-    tip:'A worker works your factory and takes a wage. Everyone has a wage they expect; '+
-      'offer under it and nobody takes the job.'});
+    tip:'Workers are the game\u2019s own characters. Each has a wage they expect; offer under '+
+      'it and nobody takes the job.'});
   html+=row({title:'Manager',chip:'level '+c.managerAt,chipKind:c.lv>=c.managerAt?'ok':'',
     note:stats([[Math.max(0,c.managerAt-c.lv)||null,'levels away']]),
-    tip:'Until then hiring and paying is yours to do by hand. An empty break room costs nothing.'});
+    tip:'Until then hiring and paying is yours to do by hand.'});
   $('workList').innerHTML=html;
   $('workFoot').innerHTML='<span title="'+esc('Every employee call refuses an outsider, so this '+
     'page cannot list your roster. It is in the game, under the factory.')+'">Rosters are private.</span>';
