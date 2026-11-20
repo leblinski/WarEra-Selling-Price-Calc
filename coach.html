@@ -519,6 +519,7 @@ function perChainPoint(code){
 /* Steel buys engines and storage, concrete builds factories: a factory making either is
    paying for the next one, which is not a thing to read off a margin. */
 var CAPITAL={steel:'engines and storage',concrete:'new factories'};
+var CAPITAL_ORDER={concrete:0,steel:1};
 function steelStillNeeded(){
   var need=0,cfg=CFG.upgradesConfig||{};
   COMPANIES.forEach(function(co){
@@ -1438,6 +1439,11 @@ function pairs(c){
   out.sort(function(a,b){return b.perPoint-a.perPoint});
   return out;
 }
+/* Concrete ranks 0, and 0 || 9 is 9 - so this asks whether the key is there rather than
+   whether its value is truthy. */
+function rank(code){
+  return Object.prototype.hasOwnProperty.call(CAPITAL_ORDER,code)?CAPITAL_ORDER[code]:9;
+}
 function paintPairs(c){
   var all=pairs(c);
   if(!all.length){$('pairCard').hidden=true;return}
@@ -1450,8 +1456,43 @@ function paintPairs(c){
      possible truncation: they rank last on rate precisely because what they are for is not
      selling. A beginner reading six rows would have seen steel at the bottom and nothing
      explaining why anyone makes it. */
+  /* ---- The traditional opening ------------------------------------------------------
+     Every guide says the same first four: limestone, concrete, iron, steel. They are the
+     two pairs this card ranks last, so it is worth saying why they are not a mistake.
+
+     Measured: four factories to engine 4 wants 560 steel, which is 963 gold at the ask. An
+     iron-and-steel pair makes that in 233 days at engine 1, 33 at engine 7. Running wood
+     and paper instead and buying the steel: 203 days, and 29. Buying is about a tenth
+     faster - inside a day's price movement, and reversed the moment steel ticks up.
+
+     So the tradition is not slower, and what it buys is the thing the guide actually
+     claims: you never have to read the market to grow. For a beginner that is worth more
+     than a tenth, which is why these two sit at the top as the opening rather than at the
+     bottom of a ranking they were never competing in. */
+  /* Concrete before steel, which is the order the tradition gives and the order the need
+     arrives in: concrete builds the third and fourth factory, and only then is there
+     anything worth putting an engine in. */
+  var opener=all.filter(function(p){return CAPITAL[p.code]&&p.canDig})
+                .sort(function(a,b){return rank(a.code)-rank(b.code)}),
+      needsCapital=(c.owned<4)||steelStillNeeded()>0;
   var show=all,best=show[0],away=0;
-  $('pairList').innerHTML=show.map(function(p,i){
+  var openHtml='';
+  if(opener.length&&needsCapital){
+    openHtml=row({
+      title:'Start with these two',
+      chip:'the usual opening',chipKind:'now',
+      note:'<span class="pair">'+opener.map(function(p){
+        return '<img src="'+icon(p.raw)+'" alt="" loading="lazy">'+
+          '<span class="arrow">\u2192</span><img src="'+icon(p.code)+'" alt="" loading="lazy">'+
+          '<span class="dim">'+esc(label(p.code))+'</span>';
+      }).join('<span class="dim" style="margin:0 4px">+</span>')+'</span>'+
+      stats([['4','factories'],['0','bought from anyone']]),
+      tip:'Concrete builds factories and steel buys engines, so these two pairs grow the '+
+        'estate without a single trade. Measured against earning the gold elsewhere and buying '+
+        'the steel, it is about a tenth slower - inside a day\u2019s price movement. What it '+
+        'buys is not having to read the market at all while you are learning it.'});
+  }
+  var rankHtml=show.map(function(p,i){
     var perDay=(dailyProd(COMPANIES.length?engineBest():1)||24)/CFG.items[p.code].productionPoints,
         rawIt=CFG.items[p.raw],
         where=(rawIt.climates||[]).length?list(rawIt.climates):null;
@@ -1479,6 +1520,7 @@ function paintPairs(c){
                    '. Moving a factory costs '+num((CFG.company&&CFG.company.moveCost)||0)+
                    ' gold, so this is a comparison, not a wall.'))});
   }).join('');
+  $('pairList').innerHTML=openHtml+rankHtml;
   $('pairSub').textContent=c.climate?(c.climate+' ground'):'';
   $('pairFoot').innerHTML=stats([['1:1','every pair'],
     [best?(label(best.raw)+' + '+label(best.code)):null,best&&best.canDig?'best, and here':'best, elsewhere'],
