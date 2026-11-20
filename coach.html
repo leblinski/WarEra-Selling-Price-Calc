@@ -80,6 +80,24 @@ ol.steps li.later{opacity:.5}
    step two. Below the two column breakpoint the stacks dissolve - display:contents makes
    their children direct children of the grid - and each card takes the number of the step
    it belongs to. The strip at the top says where you are; this makes scrolling agree. */
+/* The same holds for two columns. Three stacks in a two-column grid wrapped the third
+   under the first, so between 900 and 1299px the step-two card came seventh, below step
+   six. Below the three-column breakpoint the stacks dissolve either way; at two columns the
+   cards then fill row by row in step order. */
+@media(min-width:900px) and (max-width:1299px){
+  .stack{display:contents}
+}
+@media(max-width:1299px){
+  #cardToday{order:1}
+  #cardMissions{order:2}
+  #cardSkills{order:3}
+  #pairCard{order:4}
+  #cardCompanies{order:5}
+  #engineCard{order:6}
+  #cardWhere{order:7}
+  #cardWorkers{order:8}
+  #cardLoot{order:9}
+}
 @media(max-width:899px){
   .cols{display:flex;flex-direction:column}
   .stack{display:contents}
@@ -227,16 +245,16 @@ a{color:var(--brass)}
   </div>
 
   <div class="stack">
-  <div class="card" id="cardCompanies">
-    <div class="card-head"><b>Companies</b><span id="coListSub"></span></div>
-    <div id="coList"></div>
-    <div class="foot" id="coListFoot"></div>
-  </div>
-
   <div class="card" id="pairCard" hidden>
     <div class="card-head"><b>Run them in pairs</b><span id="pairSub"></span></div>
     <div id="pairList"></div>
     <div class="foot" id="pairFoot"></div>
+  </div>
+
+  <div class="card" id="cardCompanies">
+    <div class="card-head"><b>Companies</b><span id="coListSub"></span></div>
+    <div id="coList"></div>
+    <div class="foot" id="coListFoot"></div>
   </div>
 
   <div class="card" id="engineCard" hidden>
