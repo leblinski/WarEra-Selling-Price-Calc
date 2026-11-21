@@ -774,6 +774,16 @@ kbd{
 .craft-row.hit{background:rgba(var(--brass-rgb),.07);color:var(--ink)}
 .craft-row.break4{grid-template-columns:1.2fr .9fr 1fr 1fr}
 .craft-row.rand6{grid-template-columns:1.05fr .8fr .9fr .8fr .8fr .9fr}
+/* At 320px the six-column craft table and the Break table ran past their cards: Break even
+   and Seller lists at were cut off with nothing to say there was more. The cards give back
+   some padding and the figures a point of size, which fits every row on a 320px screen. */
+@media (max-width:400px){
+  .flip{padding-left:12px;padding-right:12px}
+  .craft-row{gap:5px;padding:3px 4px;font-size:10.5px}
+}
+@media (max-width:360px){
+  .craft-row{gap:3px;padding:3px 3px;font-size:10px}
+}
 .craft-aim-label{font-family:"Saira Condensed",sans-serif;font-weight:600;font-size:12px;
   letter-spacing:.06em;text-transform:uppercase;color:var(--dim);margin:16px 0 0}
 .craft-aim-note{text-transform:none;letter-spacing:0;opacity:.7;font-weight:400}
@@ -4602,6 +4612,7 @@ function toThousandths(R){
 }
 function taxFrac(){
   var T=dec(String($('tax').value))||{i:0n,s:0};
+  if(T.i<0n)T={i:0n,s:0};   // a rate below zero is a typo, not a subsidy
   var den=100n*(10n**BigInt(T.s));return {num:den+T.i,den:den}
 }
 function undercutEntry(i3,num,den){
@@ -4936,7 +4947,7 @@ function loadScrapPrice(){
 /* ---- Craft and resell --------------------------------------------------------
    One Case I craft consumes 6·3^(t-1) scraps and 2^(t-1) steel and always returns
    equipment of that tier. The tier is guaranteed; the slot and the roll are not.
-   Slots land 2:1:1:1:1:1 - the weapon is twice as likely as any single armour piece.
+   Slots land 30% weapon and 14% each armour piece (see CRAFT_SLOT_WEIGHT below).
    Armour rolls are flat across the tier's band; the weapon's measurably are not, so
    its rolls are weighted by what actually trades unless you ask for even odds.
    Every equipment price here is a completed sale from the collector, not an ask. */
@@ -5490,8 +5501,12 @@ try{
 }catch(e){}
 // Counted per paint so the note can say how much of the EV is really window-fresh, and
 // under the fit, how old the evidence beneath it is.
-var evCover={asked:0,fell:0,recent:0,stale:0,unseen:0};
-function evReset(){evCover={asked:0,fell:0,recent:0,stale:0,unseen:0}}
+/* The counter is swapped in per tier (see craftExpected), so a sentence about one tier is
+   never handed a count accumulated over all six. That shipped once: the Mythic foot said
+   71% of priced rolls were 24h-fresh, which was the six-tier figure; Mythic's own was 36%. */
+function newCover(){return {asked:0,fell:0,fit:0,nofit:0}}
+var evCover=newCover();
+function evReset(){evCover=newCover()}
 /* ---- The collector's own fit --------------------------------------------------------
    The windows above all share one limit: a roll with no sale inside the window has no
    price, and at 24h that is four jet rolls in five. The collector now fits each item
@@ -5515,19 +5530,32 @@ function valuationKey(slot,key){
   var r=STAT_RANGES[slot];
   return r?r.key+'='+key:null
 }
-/* One roll's price, from the fit where it is asked for and available, and from the
-   windows otherwise. A missing gear feed is not an error - the page predates it and still
-   works without it - so the fit degrades to Auto rather than emptying the table. */
+/* One roll's price, from the collector's per-item choice where Best is asked for and it has
+   one, and from Auto otherwise. A missing gear feed, a missing item, or a roll the item does
+   not price is not an error - the page predates the feed and still works without it - so
+   that roll degrades to Auto and is counted, and the foot says how many did. It used to
+   degrade to the 7-day window instead, which nothing else on the page prices with, while
+   the case foot went on crediting "whichever method each item scored better on". */
 function statFor(code,slot,key,row){
-  var it=evWindow==='best'?gearItem(code):null;
-  if(!it||!it.rolls)return rollStat(row);
-  var vk=valuationKey(slot,key),v=vk?it.rolls[vk]:null;
-  if(!v||v.price==null)return null;
-  return {median:v.price,count:v.sales||0,age:v.last_seen_days}
+  if(evWindow!=='best')return rollStat(row);
+  var it=gearItem(code),rolls=it&&it.rolls,vk=valuationKey(slot,key);
+  var v=rolls&&vk&&Object.prototype.hasOwnProperty.call(rolls,vk)?rolls[vk]:null;
+  if(v&&v.price!=null&&isFinite(Number(v.price))){
+    evCover.fit++;
+    // A window price is that roll's own sale from today or yesterday. Collectors before the
+    // fix published those as never seen; read them as at most a day old, which they are.
+    var age=v.last_seen_days==null&&v.from==='window'?1:v.last_seen_days;
+    return {median:Number(v.price),count:Number(v.sales)||0,age:age}
+  }
+  var st=autoStat(row);
+  if(st&&st.median!=null)evCover.nofit++;
+  return st
 }
+// Auto: the collector's own pick of 24h, or 48h where 24h is thin.
+function autoStat(row){return row?(row.selected||row.fallback_48h||null):null}
 function rollStat(row){
   if(!row)return null;
-  if(evWindow==='auto')return row.selected||row.fallback_48h||null;
+  if(evWindow==='auto'||evWindow==='best')return autoStat(row);
   var chain=evWindow==='24'?['primary_24h','fallback_48h','retained_window']
            :evWindow==='48'?['fallback_48h','retained_window']
            :['retained_window'];
@@ -5545,9 +5573,14 @@ function evWindowLabel(){
   for(var i=0;i<EV_WINDOWS.length;i++)if(EV_WINDOWS[i][0]===evWindow)return EV_WINDOWS[i][1];
   return 'Auto';
 }
-/* What the fit costs in accuracy, measured the only honest way: trained on older days
-   and scored against a day it was not allowed to see. Printed as a range because the six
-   slots are six separate fits - a tank's and a jet's are not the same claim. */
+/* What each slot's method scores, trained on older days and graded on days it did not see.
+   Printed as a range because the six slots are six separate fits - a tank's and a jet's are
+   not the same claim. */
+function gearPriced(it){
+  if(!it||!it.rolls||typeof it.rolls!=='object')return false;
+  for(var k in it.rolls)if(Object.prototype.hasOwnProperty.call(it.rolls,k)&&it.rolls[k]&&it.rolls[k].price!=null)return true;
+  return false
+}
 function fitErrorNote(rows){
   if(evWindow!=='best')return '';
   var errs=[];
@@ -5555,7 +5588,7 @@ function fitErrorNote(rows){
     var it=rows[i]&&rows[i].item?gearItem(rows[i].item):null;
     // Only when the fit actually priced this slot. A gear feed without rolls degrades to
     // the windows, and claiming a fitted accuracy over window prices would be a lie.
-    var e=it&&it.rolls&&it.accuracy&&it.accuracy.avg_pct;
+    var e=gearPriced(it)&&it.accuracy&&it.accuracy.avg_pct!=null?Number(it.accuracy.avg_pct):null;
     if(e!=null&&isFinite(e))errs.push(e)
   }
   if(!errs.length)return '';
@@ -5563,14 +5596,19 @@ function fitErrorNote(rows){
   var fits=0;
   for(var j=0;j<rows.length;j++){
     var g=rows[j]&&rows[j].item?gearItem(rows[j].item):null;
-    if(g&&g.rolls&&g.source==='fit')fits++
+    if(gearPriced(g)&&g.source==='fit')fits++
   }
   // Which method each slot won with, because "best" is a claim and this is the evidence.
   var how=fits===0?'Every slot here is priced from its own recent sales'
          :fits===errs.length?'Every slot here is priced by a fitted model'
          :fits+' of '+errs.length+' slots are priced by a fitted model, the rest from their '+
           'own recent sales';
-  return ' '+how+' \u2014 whichever scored better on days it was not trained on: '+
+  /* Neither method was trained on the days it is scored on, but the choice between them was
+     made on those same days, so the winner's score flatters it. Replayed over fourteen days,
+     armour slots the bake-off handed to the fit then priced worse than their own median from
+     the day before. Said plainly rather than called held out. */
+  return ' '+how+' \u2014 whichever scored better over the last five days, which are also the days '+
+    'that picked it, so read this as a best case: '+
     (lo===hi?lo.toFixed(1)+'% average error.'
            :lo.toFixed(1)+'% to '+hi.toFixed(1)+'% average error across these slots.');
 }
@@ -5585,14 +5623,21 @@ function fitAgeNote(ages){
   if(ages.unseen)bits.push(ages.unseen.toLocaleString()+' never traded, priced from their neighbours');
   return ' Of those, '+bits.join(', ')+'.';
 }
-function evCoverNote(){
-  if(evWindow==='best')return '';
-  if(evWindow==='auto'||!evCover.asked)return '';
-  var fresh=evCover.asked-evCover.fell;
-  var pc=Math.round(fresh/evCover.asked*100);
-  return fresh===evCover.asked
+function evCoverNote(cv){
+  cv=cv||evCover;
+  if(evWindow==='best'){
+    var all=cv.fit+cv.nofit;
+    if(!cv.nofit||!all)return '';
+    return cv.fit===0
+      ?'The collector published no per-item prices for these rolls, so every one is priced as under Auto (24 h, 48 h where thin).'
+      :cv.nofit.toLocaleString()+' of '+all.toLocaleString()+' priced rolls had no per-item price from the collector and are priced as under Auto instead.';
+  }
+  if(evWindow==='auto'||!cv.asked)return '';
+  var fresh=cv.asked-cv.fell;
+  var pc=Math.round(fresh/cv.asked*100);
+  return fresh===cv.asked
     ? 'Every priced roll traded inside '+evWindowLabel()+'.'
-    : pc+'% of priced rolls traded inside '+evWindowLabel()+'; the rest fall back to a wider window rather than drop out.';
+    : pc+'% of priced rolls traded inside '+evWindowLabel()+'; the rest fall back to a wider window, up to 7 days, rather than drop out.';
 }
 function setEvWindow(v){
   if(evWindow===v)return;
@@ -5608,17 +5653,26 @@ function paintEvWindow(){
   }
 }
 
-function craftSlotValue(slot,t,taxMul,bar){
-  var code=itemCodeForSlot(slot,t);
-  var cat=((craftState.summary||{}).categories||{})[code];
-  if(!cat)return null;
+/* The roll index and roll space of one item, kept for as long as the summary object they were
+   read from. Solving a break-even prices each tier a few dozen times per paint, and rebuilding
+   these each time made a keystroke cost five times what it did. */
+var slotMemo={src:null,map:{}};
+function slotIndex(slot,t,code,cat){
+  if(slotMemo.src!==craftState.summary)slotMemo={src:craftState.summary,map:{}};
+  var hit=slotMemo.map[code];if(hit)return hit;
   var rolls=cat.rolls||{},seen={},key;
   for(key in rolls){
     if(!Object.prototype.hasOwnProperty.call(rolls,key))continue;
     var k=craftRollKey(slot,(rolls[key].exact_roll||{}).skills);
     if(k!==null)seen[k]=rolls[key]
   }
-  var space=craftRollSpace(slot,t);
+  return (slotMemo.map[code]={seen:seen,space:craftRollSpace(slot,t)})
+}
+function craftSlotValue(slot,t,taxMul,bar){
+  var code=itemCodeForSlot(slot,t);
+  var cat=((craftState.summary||{}).categories||{})[code];
+  if(!cat)return null;
+  var idx=slotIndex(slot,t,code,cat),seen=idx.seen,space=idx.space;
   var dis=craftDismantle(t),need=sortNeed(t);
   /* A roll with no sales was being left out of the average, which quietly asserted it
      prices like the ones that did trade. For the knife that is 68 of 100 rolls deciding
@@ -5628,9 +5682,11 @@ function craftSlotValue(slot,t,taxMul,bar){
      Whether that silence means anything depends on whether we would have seen the roll.
      Listings at the minimum legal price on those low knife rolls do not clear in seven
      days: nobody wants them, and their value is their scraps. But a Mythic jet roll is
-     absent because 800 rolls share 165 sales a week, not because it is unwanted.
+     absent because 800 rolls share about 1,400 sales a week (165 when this was written),
+     not because it is unwanted.
 
-     Sales per roll separates the two. The knife sees 3.6 a roll and the jet 0.2, so a
+     Sales per roll separates the two. The knife saw 3.6 a roll and the jet 0.2 when this
+     was written (25.8 and 0.5 a roll over 48h in November 2026), so a
      knife roll that never traded is a roll nobody wanted, while a jet roll that never
      traded was simply never dealt.
 
@@ -5646,14 +5702,14 @@ function craftSlotValue(slot,t,taxMul,bar){
     perRoll+=(seen[c].fallback_48h||{}).count||0;
   perRoll=space.length?perRoll/space.length:0;
   var absenceMeans=t<=UNTRADED_MAX_TIER&&perRoll>=UNTRADED_IS_UNWANTED;
-  var wsum=0,vsum=0,covered=0,samples=0,broken=0,unwanted=0,above=0;
+  var wsum=0,vsum=0,vsum2=0,covered=0,samples=0,broken=0,unwanted=0,above=0;
   var recent=0,stale=0,unseen=0;
   for(var i=0;i<space.length;i++){
     var row=seen[space[i]];
     var stat=statFor(code,slot,space[i],row);
     if(!stat||stat.median==null){
       // Seen often enough that silence is a verdict, so it counts, at what it breaks for.
-      if(absenceMeans){unwanted++;broken++;wsum++;vsum+=dis;if(bar!=null&&dis>bar)above++}
+      if(absenceMeans){unwanted++;broken++;wsum++;vsum+=dis;vsum2+=dis*dis;if(bar!=null&&dis>bar)above++}
       continue
     }
     // Every roll carries the same weight, because a craft hands you one at random.
@@ -5661,12 +5717,12 @@ function craftSlotValue(slot,t,taxMul,bar){
     // list is worth its scraps, not the price you are not going to ask. With no bar set
     // this is the old max(sale, scrap); with one, a piece whose edge does not clear the
     // bar counts as broken here too, because that is what you will actually do with it.
-    var sale=stat.median*taxMul,sells=sale>need,best=sells?sale:dis;
+    var sale=Number(stat.median)*taxMul,sells=sale>need,best=sells?sale:dis;
     if(!sells)broken++;
     // The count that priced the roll, not a fixed 48h one. The foot reports these as
     // the evidence behind the figure, so it has to move when the window does - and
     // under Auto it was already over-counting a roll that 24h had priced.
-    covered++;samples+=stat.count||0;wsum++;vsum+=best;
+    covered++;samples+=Number(stat.count)||0;wsum++;vsum+=best;vsum2+=best*best;
     if(stat.age===undefined){/* a window, which has no notion of evidence age */}
     else if(stat.age==null)unseen++;
     else if(stat.age<=7)recent++;
@@ -5674,7 +5730,7 @@ function craftSlotValue(slot,t,taxMul,bar){
     if(bar!=null&&best>bar)above++
   }
   if(!wsum)return null;
-  return {net:vsum/wsum,covered:covered,space:space.length,samples:samples,
+  return {net:vsum/wsum,sq:vsum2/wsum,covered:covered,space:space.length,samples:samples,
           broken:broken,weight:wsum,unwanted:unwanted,absenceMeans:absenceMeans,above:above,
           recent:recent,stale:stale,unseen:unseen}
 }
@@ -5755,12 +5811,23 @@ function paintAim(){
 
 // Expected proceeds from one craft, over every slot it could produce.
 function craftExpected(t,taxMul,bar){
-  var wsum=0,net=0,covered=0,space=0,samples=0,missing=0,broken=0,rollw=0,unwanted=0,quiet=0;
+  // This tier's own count of which window priced what, kept apart from every other tier's.
+  var outer=evCover,cv=newCover(),r;evCover=cv;
+  try{r=craftExpectedIn(t,taxMul,bar)}
+  finally{
+    evCover=outer;
+    for(var k in cv)if(Object.prototype.hasOwnProperty.call(cv,k))outer[k]=(outer[k]||0)+cv[k];
+  }
+  if(r)r.cover=cv;
+  return r
+}
+function craftExpectedIn(t,taxMul,bar){
+  var wsum=0,net=0,net2=0,covered=0,space=0,samples=0,missing=0,broken=0,rollw=0,unwanted=0,quiet=0;
   var hitw=0,recent=0,stale=0,unseen=0;
   for(var s=0;s<SLOTS.length;s++){
     var slot=SLOTS[s].code,w=CRAFT_SLOT_WEIGHT[slot]||1,v=craftSlotValue(slot,t,taxMul,bar);
     if(!v){missing++;continue}
-    wsum+=w;net+=w*v.net;covered+=v.covered;space+=v.space;samples+=v.samples;
+    wsum+=w;net+=w*v.net;net2+=w*v.sq;covered+=v.covered;space+=v.space;samples+=v.samples;
     broken+=w*v.broken;rollw+=w*v.weight;unwanted+=v.unwanted;
     recent+=v.recent||0;stale+=v.stale||0;unseen+=v.unseen||0;
     // A random craft draws the slot as well as the roll, so each slot's hit rate counts
@@ -5769,7 +5836,7 @@ function craftExpected(t,taxMul,bar){
     if(!v.absenceMeans)quiet+=v.space-v.covered
   }
   if(!wsum)return null;
-  return {net:net/wsum,covered:covered,space:space,samples:samples,missingSlots:missing,
+  return {net:net/wsum,sq:net2/wsum,covered:covered,space:space,samples:samples,missingSlots:missing,
           unwanted:unwanted,quiet:quiet,brokenShare:rollw>0?broken/rollw:0,
           hitPct:(bar!=null)?hitw/wsum*100:null,
           ages:{recent:recent,stale:stale,unseen:unseen}}
@@ -5867,13 +5934,16 @@ function loadSortMin(){
   try{
     var raw=JSON.parse(localStorage.getItem('warera-sort-min')||'null');
     if(!raw)return;
-    var num=function(v){return isFinite(Number(v))&&Number(v)>0?Number(v):0};
+    // A field that is missing or not a number keeps its default. Reading it as 0 switched the
+    // bar off, which flips the case verdict's sign today; a stored 0 is still honoured.
+    var num=function(v,d){return v!==null&&v!==''&&typeof v!=='boolean'&&isFinite(Number(v))&&Number(v)>=0?Number(v):d};
+    if(typeof raw!=='object'||Array.isArray(raw))return;
     // The first version of this control held one number and a mode. Read it forward rather
     // than silently dropping whatever the person had already set.
     if(raw.value!==undefined)
-      sortMin={abs:raw.mode==='pct'?0:num(raw.value),pct:raw.mode==='pct'?num(raw.value):0,join:'both'};
+      sortMin={abs:raw.mode==='pct'?0:num(raw.value,sortMin.abs),pct:raw.mode==='pct'?num(raw.value,sortMin.pct):0,join:'both'};
     else
-      sortMin={abs:num(raw.abs),pct:num(raw.pct),join:raw.join==='either'?'either':'both'}
+      sortMin={abs:num(raw.abs,sortMin.abs),pct:num(raw.pct,sortMin.pct),join:raw.join==='either'?'either':'both'}
   }catch(e){}
 }
 function saveSortMin(){
@@ -5910,7 +5980,10 @@ function sortRolls(slot,t,taxMul){
   var each=(CASE_TIER_ODDS[t-1]||0)*(CRAFT_SLOT_WEIGHT[slot]||0)/(space.length||1);
   var kept=0,keptGold=0,dropped=0;
   for(var i=0;i<space.length;i++){
-    var row=seen[space[i]],stat=rollStat(row);
+    // Always Auto. The window menu lives on the Craft and Case cards and this tab has none,
+    // so following it made Sort answer a question nobody on this tab had asked - under Best
+    // it read the 7-day window, which turned 78 listable Rare rolls into 23.
+    var row=seen[space[i]],stat=autoStat(row);
     // The collector reports a wider window beside the comparison ones. It never prices
     // anything - a week-old sale is not a comparable - but it is the difference between
     // "nobody wants this roll" and "none of them traded since Tuesday", and only one of
@@ -6028,7 +6101,9 @@ function scrapKnown(){
 }
 var NO_SCRAP='No scraps bid is resting, so a piece cannot be valued against its scraps and '+
   'nothing here can say whether to list it or break it.';
+var scrapBidOverride=null;   // set only while solving for a break-even
 function craftDismantle(t){
+  if(scrapBidOverride!=null)return SCRAP_YIELDS[t-1]*scrapBidOverride;
   var ob=craftBook('scraps'),bid=ob&&ob.best_bid;
   return bid==null?0:SCRAP_YIELDS[t-1]*Number(bid)
 }
@@ -6217,6 +6292,64 @@ function craftSigned(v,dp){
   return (n>=0?'+':'−')+Math.abs(n).toFixed(dp==null?3:dp)
 }
 
+/* Which copy of each feed a card was drawn from. A refresh replaces the objects, and a card
+   that keyed its cache on "is there a summary" rather than "which summary" kept showing the
+   old figure under a stamp saying "Just updated". */
+function feedSig(){
+  return [(craftState.summary||{})._at,(craftState.books||{})._at,(craftState.gear||{})._at,
+          (craftState.summary||{}).generated_at,(craftState.books||{}).generated_at].join(',')
+}
+/* The oldest publication any figure is built from. The stamp used to read index.json alone,
+   so a summary or order book that had failed to refresh for hours sat under "collected 13
+   min ago". Gear counts only when Best is reading it. */
+function feedStamps(){
+  var out=[(collector.index||{}).generated_at,(craftState.summary||{}).generated_at,
+           (craftState.books||{}).generated_at];
+  if(evWindow==='best'&&craftState.gear)out.push(craftState.gear.generated_at);
+  return out.map(function(v){var t=v?new Date(v).getTime():NaN;return t}).filter(Number.isFinite)
+}
+function feedOldest(){var t=feedStamps();return t.length?Math.min.apply(null,t):null}
+function feedNewest(){var t=feedStamps();return t.length?Math.max.apply(null,t):null}
+/* Said beside the figure, not only at the foot of the page three screens down, because the
+   figure is what gets acted on. Empty while the data is within two collection cadences. */
+var CLOCK_SLACK_MS=5*60000;
+function feedStaleNote(){
+  var old=feedOldest(),now=Date.now(),hi=feedNewest();
+  if(old==null)return '';
+  if(hi!=null&&hi-now>CLOCK_SLACK_MS)
+    return ' These prices are stamped ahead of this device\u2019s clock, so how old they are cannot be told.';
+  if(now-old>COLLECTOR_CADENCE_MS*2)
+    return ' These prices were collected '+dataAgeText(new Date(old).toISOString())+
+      ' \u2014 refresh before acting on them.';
+  return ''
+}
+/* What the scrap price has to reach before a craft of this tier stops paying. Scraps are the
+   input and, for every piece not worth listing, the output too, so the dismantle value has to
+   move with the price being solved for. Holding it still put the Mythic break-even at 0.269
+   when a scrap market at 0.269 still left a craft 3.85 ahead. The spread between what the
+   inputs cost and the bid scraps sell into is held as it is now. Profit only falls as the
+   price rises - a piece's value climbs no faster than its own scraps - so bisection finds
+   the one crossing. Your own figures keep the plain division: what your scraps cost you is
+   not the market's bid. 0 means no scrap price, however low, breaks even. */
+function craftBreakEvenScrap(t,taxMul,batch,sc,st,gross){
+  var scrapQty=SCRAP_YIELDS[t-1]*batch;
+  var ob=craftBook('scraps'),bid0=ob&&ob.best_bid!=null?Number(ob.best_bid):null;
+  if(craftState.src==='own'||bid0==null||!scrapQty)return (gross-st.cost)/scrapQty;
+  var offset=sc.unit-bid0;
+  var f=function(x){
+    var saved=evCover;evCover=newCover();scrapBidOverride=Math.max(0,x-offset);
+    try{var e=craftExpectedIn(t,taxMul)}finally{scrapBidOverride=null;evCover=saved}
+    return e?e.net*batch-(scrapQty*x+st.cost):-Infinity
+  };
+  var lo=Math.max(0,offset);
+  if(!(f(lo)>=0))return 0;
+  var hi=Math.max(sc.unit,0.001)*2,n=0;
+  while(f(hi)>=0&&n++<40)hi*=2;
+  if(f(hi)>=0)return Infinity;
+  // Quoted to three places, so a ten-thousandth is as close as it needs to get.
+  while(hi-lo>1e-5){var mid=(lo+hi)/2;if(f(mid)>=0)lo=mid;else hi=mid}
+  return lo
+}
 // coreCalc runs on every keystroke, so redraw only when something this card reads
 // has actually moved.
 function paintCraft(){
@@ -6228,7 +6361,7 @@ function paintCraft(){
     craftState.liveAt,craftState.liveLoading?'L':'',craftState.liveError||'',
     craftState.src==='own'?$('craftScrap').value+'/'+$('craftSteel').value:'',
     craftState.summary?'s':'',craftState.books?'b':'',craftState.loading?'L':'',
-    sortMin.abs,sortMin.pct,sortMin.join,evWindow,
+    sortMin.abs,sortMin.pct,sortMin.join,evWindow,feedSig(),feedStaleNote(),
     craftState.error||''].join('|');
   if(sig===craftState.sig)return;
   craftState.sig=sig;
@@ -6281,7 +6414,7 @@ function paintCraft(){
     if(sc.thin||st.thin)thin=true;
     var gross=exp.net*batch;
     var cost=sc.cost+st.cost,profit=gross-cost,pct=cost>0?profit/cost*100:0;
-    var beScrap=(gross-st.cost)/scrapQty;
+    var beScrap=craftBreakEvenScrap(t,taxMul,batch,sc,st,gross);
     var beSteel=steelQty>0?(gross-sc.cost)/steelQty:null;
     var cls=profit>=0?'up':'down';
     rows+='<div class="craft-row rand6'+hit+'" title="'+scrapQty.toLocaleString()+' scraps + '+
@@ -6294,7 +6427,7 @@ function paintCraft(){
       '<span class="'+cls+'">'+craftSigned(pct,1)+'%</span>'+
       '<span class="'+(exp.hitPct==null?'':(exp.hitPct>=50?'up':'down'))+'">'+
         (exp.hitPct==null?'—':(Math.round(exp.hitPct)+'%'))+'</span>'+
-      '<span>'+(beScrap>0?beScrap.toFixed(3):'—')+'</span></div>';
+      '<span>'+(beScrap>0&&isFinite(beScrap)?beScrap.toFixed(3):'—')+'</span></div>';
     if(known&&t===state.tier){
       mine={t:t,scrapQty:scrapQty,steelQty:steelQty,sc:sc,st:st,exp:exp,gross:gross,
             cost:cost,profit:profit,pct:pct,beScrap:beScrap,beSteel:beSteel};
@@ -6336,10 +6469,11 @@ function paintCraft(){
   // worth less than the other input costs on its own.
   var head2=mine.beScrap<=0
     ?' Free scraps would still lose money at this tier.'
+    :!isFinite(mine.beScrap)?' No scrap price makes this tier lose money.'
     :' Breaks even at '+mine.beScrap.toFixed(3)+' scraps'+
       (mine.sc.unit>0?' ('+craftSigned((mine.beScrap/mine.sc.unit-1)*100,1)+'% from now)':'')+
       (mine.beSteel!==null&&mine.beSteel>0?', or '+mine.beSteel.toFixed(3)+' steel':'')+'.';
-  $('craftDetail').textContent=head+head2;
+  $('craftDetail').textContent=head+head2+feedStaleNote();
 
   var cov=mine.exp.space?Math.round(mine.exp.covered/mine.exp.space*100):0;
   var brokePct=Math.round((mine.exp.brokenShare||0)*100);
@@ -6358,7 +6492,7 @@ function paintCraft(){
     ' that way: each piece is priced at its historical median, and selling '+batch+
     ' at once will push that down by an amount this cannot see.';
   foot+=untradedNote(mine.exp);
-  var cover=evCoverNote();if(cover)foot+=' '+cover;
+  var cover=evCoverNote(mine.exp.cover);if(cover)foot+=' '+cover;
   paintFoot(footEl.id,foot);paintQAll()
 }
 
@@ -6387,14 +6521,20 @@ function craftRollTable(slot,t){
     var k=craftRollKey(slot,(rolls[key].exact_roll||{}).skills);
     if(k!==null)seen[k]=rolls[key]
   }
-  var space=craftRollSpace(slot,t),out=[];
+  var space=craftRollSpace(slot,t),out=[],code=itemCodeForSlot(slot,t);
   for(var i=0;i<space.length;i++){
-    var row=seen[space[i]];if(!row)continue;
-    var stat=rollStat(row);
+    var row=seen[space[i]];
+    // The same pricing the card above uses, so a long run settles on its number - under
+    // Best that is the collector's per-item price, which exists for rolls with no recent row.
+    var stat=statFor(code,slot,space[i],row);
     if(!stat||stat.median==null)continue;
-    out.push({key:space[i],median:stat.median,w:1,skills:(row.exact_roll||{}).skills||{}})
+    out.push({key:space[i],median:Number(stat.median),w:1,skills:row?((row.exact_roll||{}).skills||{}):rollSkills(slot,space[i])})
   }
   return {rows:out,space:space.length}
+}
+function rollSkills(slot,key){
+  if(slot==='weapon'){var p=String(key).split('/');return {attack:Number(p[0]),criticalChance:Number(p[1])}}
+  var r=STAT_RANGES[slot],o={};if(r)o[r.key]=Number(key);return o
 }
 function simRollLabel(slot,skills){
   var bits=[];
@@ -6540,7 +6680,7 @@ function simRun(n){
           : ', worth '+results[0].net.toFixed(3)+' listed.')
       : 'Opened '+n+' cases for '+(spend==null?'?':craftMoney(spend))+
         ' and pulled '+craftMoney(got)+' of equipment.';
-    if(spend!=null&&n>1)line+=' Expected '+craftSigned(caseEdge*n,3)+' over '+n+'.';
+    if(spend!=null&&n>1&&caseEdge!=null)line+=' Expected '+craftSigned(caseEdge*n,3)+' over '+n+'.';
     var head=$('simHeadline');
     if(spend!=null){
       var pl0=got-spend;
@@ -6714,7 +6854,7 @@ function paintCase(){
   n=isFinite(n)&&n>0?Math.min(n,9999):1;
   var sig=[n,$('tax').value,craftState.src,craftState.liveAt,state.tier,entrySig(),
            sortMin.abs,sortMin.pct,sortMin.join,
-           craftState.summary?'s':'',craftState.books?'b':'',evWindow].join('|');
+           craftState.summary?'s':'',craftState.books?'b':'',evWindow,feedSig(),feedStaleNote()].join('|');
   if(sig===craftState.caseSig)return;
   craftState.caseSig=sig;
   evReset();
@@ -6731,11 +6871,18 @@ function paintCase(){
     if($('caseSwing'))$('caseSwing').hidden=true;
     return
   }
-  var taxMul=resaleNet(),gross=0,covered=0,space=0,samples=0,missing=0,parts=[],
-      unwantedAll=0,quietAll=0,agesAll={recent:0,stale:0,unseen:0};
+  var taxMul=resaleNet(),gross=0,gross2=0,covered=0,space=0,samples=0,missing=0,parts=[],
+      unwantedAll=0,quietAll=0,agesAll={recent:0,stale:0,unseen:0},
+      missOdds=0,missNames=[],coverAll=newCover(),freshW=0,askedW=0;
   for(var t=1;t<=6;t++){
     var exp=craftExpected(t,taxMul),odds=CASE_TIER_ODDS[t-1];
-    if(!exp){missing++;parts.push(null);continue}
+    if(!exp){missing++;missOdds+=odds;missNames.push(RARITY_NAMES[t-1]);parts.push(null);continue}
+    var cv=exp.cover||newCover();
+    coverAll.fit+=cv.fit;coverAll.nofit+=cv.nofit;
+    // A case is 62% Common and 0.01% Mythic, so how fresh its value is has to be weighted by
+    // how often each tier comes out, not counted over roll spaces Mythic dominates.
+    if(cv.asked){askedW+=odds;freshW+=odds*(cv.asked-cv.fell)/cv.asked}
+    gross2+=odds*(exp.sq!=null?exp.sq:exp.net*exp.net);
     covered+=exp.covered;space+=exp.space;samples+=exp.samples;
     unwantedAll+=exp.unwanted||0;quietAll+=exp.quiet||0;
     agesAll.recent+=(exp.ages||{}).recent||0;agesAll.stale+=(exp.ages||{}).stale||0;
@@ -6744,13 +6891,10 @@ function paintCase(){
     parts.push({net:exp.net,odds:odds,add:add,broken:exp.brokenShare||0})
   }
   // A 6% edge on a bet whose spread is nearly twice its own mean takes a long time to
-  // show up. Saying how long is the difference between an average and a plan.
-  var variance=0;
-  for(var v=1;v<=6;v++){
-    var pv=parts[v-1];
-    if(pv)variance+=pv.odds*Math.pow(pv.net-gross,2)
-  }
-  var sd=Math.sqrt(variance);
+  // show up. Saying how long is the difference between an average and a plan. The spread
+  // is the whole draw - tier, slot and roll - not only the gap between tier averages, which
+  // left out every difference between two pieces of the same tier.
+  var sd=Math.sqrt(Math.max(0,gross2-gross*gross));
   var rows='<div class="craft-row head"><span>Tier</span><span>Odds</span><span>Worth</span><span>Break</span><span>Adds</span></div>';
   for(var t2=1;t2<=6;t2++){
     var pr=parts[t2-1],hit=t2===state.tier?' hit':'';
@@ -6768,6 +6912,20 @@ function paintCase(){
   }
   rowsEl.innerHTML=rows;
 
+  /* A tier with no prices was counted as worth nothing and the headline printed regardless:
+     an empty summary read "-100.00% per case". Past a percent of the draws a missing tier is
+     not a floor worth quoting, so the card says what is missing instead; below that, the
+     floor stands and says so on the same line rather than at the foot. */
+  if(missOdds>=0.01){
+    caseEdge=null;caseTabPct=null;paintTabBadges();
+    $('caseVerdict').textContent='\u2014';$('caseVerdict').className='flip-figure';
+    $('caseDetail').textContent='No usable sale history for '+missNames.join(', ')+
+      ', which '+(missNames.length===1?'comes':'come')+' out of '+(missOdds*100).toFixed(missOdds<0.1?1:0)+
+      '% of cases, so a case cannot be priced right now.'+feedStaleNote();
+    footEl.textContent='';$('caseBooks').innerHTML=bookPanel('case1','Case I','res-case',n,n===1?'case':'cases');
+    paintCaseBid();if($('caseSwing'))$('caseSwing').hidden=true;
+    return
+  }
   var total=gross*n,profit=total-cost.cost,pct=cost.cost>0?profit/cost.cost*100:0,many=n>1;
   caseEdge=gross-cost.unit;
   caseTabPct=pct;paintTabBadges();
@@ -6790,19 +6948,23 @@ function paintCase(){
        :', taking the cheapest offers')+
     '. What comes out is worth '+gross.toFixed(3)+' to you'+
     (many?', or '+craftSigned(profit/n,3)+' a case':'')+
-    ', which is also where it breaks even.';
+    ', which is also where it breaks even.'+
+    (missing?' '+missNames.join(', ')+' ha'+(missing===1?'s':'ve')+' no sale data and '+
+      (missing===1?'counts':'count')+' as worthless, so this is a floor.':'')+feedStaleNote();
 
   var cov=space?Math.round(covered/space*100):0;
   // Nine lines of prose explaining four columns is a wall nobody reads. One line of
   // provenance, one of what the reader has to do for the number to hold.
-  var foot='Odds: the game\u2019s own. Values: '+
-    (evWindow==='best'?'whichever method each item scored better on, ':'collected sale medians, ')+
+  var how=evWindow!=='best'?'collected sale medians, '
+    :coverAll.fit===0?'collected sale medians (Best had no per-item prices to use, so this is Auto), '
+    :coverAll.nofit?'whichever method each item scored better on where the collector published one, Auto elsewhere, '
+    :'whichever method each item scored better on, ';
+  var foot='Odds: the game\u2019s own. Values: '+how+
     samples.toLocaleString()+' sales across '+covered+' of '+space+' rolls ('+cov+'%).'+
     fitAgeNote(agesAll)+
     ' Break: how often that tier is worth dismantling rather than listing. '+
     'Each piece counts at whichever is worth more, under the same bar the Sort tab uses, '+
     'so this assumes you sort every piece rather than listing all of them.';
-  if(missing)foot+=' '+missing+' tier(s) have no sale data and are treated as worthless, so this is a floor.';
   foot+=untradedNote({unwanted:unwantedAll,quiet:quietAll});
   if(cost.thin)foot+=' The case order book could not fill the whole purchase, so the cost shown is a floor.';
   foot+=cost.posted
@@ -6831,7 +6993,13 @@ function paintCase(){
     }else swingEl.hidden=true
   }
   foot+=' Selling what you open moves these prices, and the more you open at once the more it moves them.';
-  var cover=evCoverNote();if(cover)foot+=' '+cover;
+  if(evWindow==='best'){var bc=evCoverNote(coverAll);if(bc)foot+=' '+bc}
+  else if(evWindow!=='auto'&&askedW>0){
+    var fpc=Math.round(freshW/askedW*100);
+    foot+=fpc>=100?' Weighted by the odds, everything a case hands you is priced on sales inside '+evWindowLabel()+'.'
+      :' Weighted by the odds, '+fpc+'% of what a case hands you is priced on sales inside '+evWindowLabel()+
+       '; the rest falls back to a wider window, up to 7 days.'
+  }
   paintFoot(footEl.id,foot);
   $('caseBooks').innerHTML=bookPanel('case1','Case I','res-case',n,n===1?'case':'cases',gross);
   paintCaseBid();
@@ -6945,7 +7113,7 @@ function paintSort(){
   var taxMul=resaleNet();
   var sig=[craftState.summary?'s':'',craftState.books?'b':'',craftState.live?'l':'',
            $('tax').value,craftState.src,craftState.liveAt,state.tier,state.slot,
-           sortMin.abs,sortMin.pct,sortMin.join,sortShown()].join('|');
+           sortMin.abs,sortMin.pct,sortMin.join,sortShown(),feedSig()].join('|');
   if(sig===craftState.sortSig)return;
   craftState.sortSig=sig;
   if(!craftState.summary||!craftState.books||!scrapKnown()){
@@ -7146,21 +7314,30 @@ function sortRows(r,slot){
    six. Three it is, which also stops marking the 128 rolls that sit between. */
 var THIN_SALES=3;
 /* Sales per roll over the collector's window, above which a roll that never traded is
-   taken to be one nobody wants rather than one nobody was dealt. Two sits between the
-   knife at 3.6 and the Mythic helmet at 1.8; the jet, at 0.2, is nowhere near it. */
+   taken to be one nobody wants rather than one nobody was dealt. Two was set between the
+   knife at 3.6 and the Mythic helmet at 1.8. Volumes have since grown several-fold - in
+   November 2026 the knife saw 25.8 a roll, the Mythic helmet 4.1 and the jet 0.5 - so two
+   no longer separates the Mythic helmet from the knife. UNTRADED_MAX_TIER is what keeps
+   the rule off Mythic now; re-measure before raising it. */
 var UNTRADED_IS_UNWANTED=2;
 // Common, Uncommon and Rare only. Above that an absence is not read as a verdict.
 var UNTRADED_MAX_TIER=3;
 /* Both cards have to say which of the two things they did with a roll that never traded,
    because the answer changes the figure above them by points, not decimals. */
+/* "Never traded" was the wording, and it was false: all 513 Mythic rolls it was said of had
+   sold inside the collector's seventy days, 323 of them inside the last week. What is
+   actually known is that the window used to price them saw no sale. */
+function absentSpan(){
+  return (evWindow==='24'||evWindow==='48'||evWindow==='168')?'the last 7 days':'the last 48 hours'
+}
 function untradedNote(exp){
-  var out='';
+  var out='',span=absentSpan();
   var one=exp.unwanted===1;
-  if(exp.unwanted)out+=' '+exp.unwanted+' roll'+(one?'':'s')+' never traded in a slot that '+
+  if(exp.unwanted)out+=' '+exp.unwanted+' roll'+(one?'':'s')+' had no sale in '+span+', in a slot that '+
     'trades often enough for that to mean nobody wants '+(one?'it':'them')+', so '+
     (one?'it counts':'they count')+' at what '+(one?'it breaks':'they break')+
     ' for instead of being dropped from the average.';
-  if(exp.quiet)out+=' '+exp.quiet+' more never traded in slots too thinly dealt to read '+
+  if(exp.quiet)out+=' '+exp.quiet+' more had no sale in '+span+', in slots too thinly dealt to read '+
     'anything into that, and are assumed to price like the ones that did.';
   return out
 }
@@ -7277,6 +7454,9 @@ function collectorHealthModel(index){
     detail:'Waiting for the collector’s published health report.'};
   if(collectorHealthFailure||!index)return {level:'bad',label:'Collector offline',title:'Collector status unavailable',
     detail:'The published health feed could not be reached. Existing figures may still be visible, but freshness cannot be confirmed.'};
+  var aheadMs=new Date(index.generated_at).getTime()-Date.now();
+  if(aheadMs>CLOCK_SLACK_MS)return {level:'warn',label:'Clock mismatch',title:'Collector time is ahead of this device',
+    detail:'The published stamp is later than this device\u2019s clock, so how fresh the prices are cannot be confirmed.'};
   var attemptAge=collectorMinutesSince(index.generated_at),successAge=collectorMinutesSince(index.updated_at);
   if(attemptAge==null||attemptAge>90||successAge==null||successAge>90)
     return {level:'bad',label:'Collector stale',title:'Collector data is stale',
@@ -7313,16 +7493,25 @@ function paintDataStamp(){
   if(btn){btn.disabled=refreshBusy();btn.textContent=refreshBusy()?'Checking…':'Refresh'}
   paintCollectorHealth();
   if(!idx){$('dataStamp').textContent='Collector prices not loaded yet.';return}
-  var age=dataAgeText(idx.generated_at),
-      t=new Date(idx.generated_at).getTime(),
+  // The oldest file a figure is built from, not the health report alone, which can be fresh
+  // while the summary under the figures failed to refresh.
+  var oldest=feedOldest(),newest=feedNewest(),
+      ahead=newest!=null&&newest-Date.now()>CLOCK_SLACK_MS,
+      stampAt=oldest!=null?new Date(oldest).toISOString():idx.generated_at,
+      age=ahead?'at a time ahead of this device\u2019s clock':dataAgeText(stampAt),
+      t=ahead?NaN:new Date(stampAt).getTime(),
       // Two cadences late is past anything the schedule explains, so say so rather than
       // leaving a number to climb beside a sentence promising every 15 minutes.
       late=Number.isFinite(t)&&Date.now()-t>COLLECTOR_CADENCE_MS*2;
   $('dataStamp').textContent='Prices collected '+(age||'at an unknown time')+
     (idx.status&&idx.status!=='ok'?' · collector reported '+idx.status:'')+
     (late?'. Longer ago than it should be – tap refresh.'
-         :'. Published every '+Math.round(COLLECTOR_CADENCE_MS/60000)+' minutes.')
+         :'. Published every '+Math.round(COLLECTOR_CADENCE_MS/60000)+' minutes.');
+  // The cards carry the same warning beside their figures; redraw them when it changes.
+  var sn=feedStaleNote();
+  if(sn!==staleShown){staleShown=sn;paintCraft();paintCase()}
 }
+var staleShown='';
 // The collector republishes on a 10-minute cadence, so a manual refresh has to bypass
 // both the in-memory copies and the browser cache to be worth pressing.
 // The collector publishes on a fixed cadence, so the page can meet it rather than making
@@ -7345,7 +7534,7 @@ function refreshCollector(){
   var before=(collector.index||{}).generated_at||null;
   var code=state.itemCode||(state.slot?itemCode():null);
   collector.shards={};collector.pending={};
-  craftState.sig=null;
+  craftState.sig=null;craftState.caseSig=null;craftState.sortSig=null;
   var jobs=[loadIndex(true),loadSummary(true),loadBooks(true),loadGear(true)];
   if(code)jobs.push(loadShard(code,true));
   var settle=function(pr){return pr.then(function(){return null},function(e){return e})};
@@ -9399,6 +9588,10 @@ $('craftSrcBtns').addEventListener('click',function(e){
   })
 });
 $('craftCount').addEventListener('input',paintCraft);
+// The figure prices between 1 and 999 crafts; once typing is done, the field shows which.
+$('craftCount').addEventListener('change',function(){
+  var n=craftCount();if(String(n)!==this.value){this.value=String(n);paintCraft()}
+});
 $('caseCount').addEventListener('input',paintCase);
 // One state, a control in each tab that prices rolls, so neither can change under you.
 ['caseWindow','craftWindow'].forEach(function(id){
@@ -9626,12 +9819,10 @@ $('autoCopy').addEventListener('change',function(){syncSettings();try{localStora
 $('scrapBid').addEventListener('input',function(){
   var v=scrapNum(this.value);
   scrapState.typed=this.value.trim()!=='';scrapState.bid=v||null;
-  try{localStorage.setItem('warera-calc-scrapbid',scrapState.typed?this.value:'')}catch(e){}
   renderScrap();
 });
 $('scrapLiveBtn').addEventListener('click',function(){
   scrapState.typed=false;scrapState.bid=null;
-  try{localStorage.setItem('warera-calc-scrapbid','')}catch(e){}
   renderScrap();
 });
 ['scrapMinAbs','scrapMinPct'].forEach(function(id){
@@ -9642,8 +9833,11 @@ $('scrapLiveBtn').addEventListener('click',function(){
 });
 (function(){
   try{
-    var b=localStorage.getItem('warera-calc-scrapbid');
-    if(b){$('scrapBid').value=b;scrapState.typed=true;scrapState.bid=scrapNum(b)||null}
+    /* A typed scrap bid answers one question and then goes stale, the same reason the craft
+       inputs and the scrap source stopped being remembered. It was kept here, so a 0.40 typed
+       last week priced Mythic gear to break at 583 against a live 366. It holds while the tab
+       is open; the stored copy is removed rather than read. */
+    localStorage.removeItem('warera-calc-scrapbid');
     ['scrapMinAbs','scrapMinPct'].forEach(function(id){
       var v=localStorage.getItem('warera-calc-'+id);if(v!=null)$(id).value=v
     });
@@ -10184,7 +10378,8 @@ document.addEventListener('keydown',function(e){
 
 buildRarity();buildSlots();buildRolls();buildQueuePad();renderRecent();setViewLock(false);updateTaxChip();setChartTab('price');
 try{
-  var t=localStorage.getItem('warera-calc-tax');if(t)$('tax').value=t;
+  var t=localStorage.getItem('warera-calc-tax');
+  if(t&&/^\s*\d+(?:[.,]\d+)?\s*$/.test(t)&&Number(t.replace(',','.'))<=100)$('tax').value=t;
   updateTaxChip();
   var beat=localStorage.getItem('warera-calc-beat');if(beat==='0')$('beatMode').checked=false;
   var q=localStorage.getItem('warera-calc-quick');if(q==='0')$('quickInput').checked=false;
