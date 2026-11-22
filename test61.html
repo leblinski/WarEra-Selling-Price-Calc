@@ -773,7 +773,19 @@ kbd{
 }
 .craft-row.hit{background:rgba(var(--brass-rgb),.07);color:var(--ink)}
 .craft-row.break4{grid-template-columns:1.2fr .9fr 1fr 1fr}
-.craft-row.rand6{grid-template-columns:1.05fr .8fr .9fr .8fr .8fr .9fr}
+/* Every row of a table is its own grid, so a column sized by fr grows to fit whatever that row
+   holds: "Legendary" and "149.70" widened their columns in their own rows only and the six
+   columns drifted apart by up to 19px on a phone. minmax(0,..) gives every row the same
+   shares regardless of content; the shares are sized so the widest values still fit. */
+.craft-row.rand6{grid-template-columns:minmax(0,1.45fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr) minmax(0,.7fr) minmax(0,.85fr)}
+/* Where subgrid is supported (iOS 16+, Chrome 117+, Firefox 71+) the rows stop being separate
+   grids: the table owns six columns sized to the widest value in any row, and every row lays
+   out on them. Fixed shares could not fit every width - the font steps down at 400px and
+   360px - so "Legendary" ran out of room at 320 and 414. Older browsers keep the shares above. */
+@supports (grid-template-columns:subgrid){
+  #craftRows{grid-template-columns:repeat(6,auto)}
+  #craftRows .craft-row.rand6{grid-column:1/-1;grid-template-columns:subgrid}
+}
 /* At 320px the six-column craft table and the Break table ran past their cards: Break even
    and Seller lists at were cut off with nothing to say there was more. The cards give back
    some padding and the figures a point of size, which fits every row on a 320px screen. */
