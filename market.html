@@ -91,6 +91,9 @@ th{
 th.up::after{content:" \25B2";color:var(--brass)}
 th.down::after{content:" \25BC";color:var(--brass)}
 td.good,th.good{text-align:left}
+/* The game's own item art, the same images coach uses. */
+.ico{width:18px;height:18px;vertical-align:-4px;margin-right:6px;border-radius:3px}
+h2 .ico,#dtitle .ico{width:22px;height:22px;vertical-align:-5px}
 tbody tr{cursor:pointer}
 tbody tr:hover{background:rgba(var(--brass-rgb),.08)}
 tbody tr.sel{background:rgba(var(--brass-rgb),.15)}
@@ -318,7 +321,7 @@ progress{width:130px;height:8px}
      flow.json          13 KB   every summary row on this page
      commodities.json  690 KB   full order books, fetched when a good is opened
      trades/<code>     ~1 MB    one good's fills, fetched when its traders are wanted
-     users.json        1.3 MB   id to name, fetched with the first trade shard
+     users.json        2.7 MB   id to name, fetched when the first good opens
 
    The split is the whole point: thirteen megabytes of shards cannot be read on load just
    to draw one row each, so the arithmetic happens once in the collector instead. */
@@ -371,6 +374,12 @@ var STATE={pctl:2,winH:48,sel:getPref('sel','scraps')};
 var SORT={k:getPref('sortk','gold'),dir:Number(getPref('sortd',-1))||-1};
 
 function goodName(code){return NAMES[code]||code}
+function icon(code){return 'https://media.warera.io/images/itemsv2/'+encodeURIComponent(code)+'.webp?v=2'}
+// A missing image hides itself rather than showing a broken-image box beside the name.
+function iconTag(code){
+  return '<img class="ico" src="'+esc(icon(code))+'" alt="" loading="lazy" width="18" height="18" '+
+    'onerror="this.style.display=\'none\'">'
+}
 function flowGood(code){return (FLOW&&FLOW.goods&&FLOW.goods[code])||null}
 function windowOf(code,hours){
   var g=flowGood(code);
@@ -448,7 +457,7 @@ function renderOverview(){
   for(var i=0;i<rows.length;i++){
     var r=rows[i],dim=(r.n||r.age==null)?'':' style="opacity:.42"';
     html+='<tr data-code="'+esc(r.code)+'"'+(r.code===STATE.sel?' class="sel"':'')+dim+'>'+
-      '<td class="good">'+esc(r.name)+'</td>'+
+      '<td class="good">'+iconTag(r.code)+esc(r.name)+'</td>'+
       '<td class="num">'+gold(r.gold)+'</td>'+
       '<td class="num">'+units(r.fast)+'</td>'+
       '<td class="num">'+units(r.slow)+'</td>'+
@@ -560,9 +569,9 @@ function side(o,depth,k,whales,band){
   if(!o)return '<div class="'+k+'"><span>—</span><span></span></div>';
   var w=Math.max(2,Math.round(o.quantity/depth*100));
   var mine=whales&&o.user&&whales[o.user];
-  var rested=restedFor(o),who=USERS&&o.user&&USERS[o.user];
+  var rested=restedFor(o),who=playerName(o.user);
   return '<div class="'+k+' bar-bg'+(mine?' mine':'')+bandClass(o,band)+'"'+
-    (' title="'+esc((o.user?((who||o.user)+(rested==null?'':' resting '+age(rested))):px(o.price))+
+    (' title="'+esc((o.user?(who+(rested==null?'':' resting '+age(rested))):px(o.price))+
                     bandNote(o,band))+'"')+
     '><i style="width:'+w+'%"></i>'+
     '<span'+(mine?' class="whale"':'')+'>'+(mine?'\u25c6 ':'')+px(o.price)+'</span>'+
@@ -598,7 +607,7 @@ function renderTrend(code){
 
 function renderBook(code){
   var b=bookFor(code),strip=$('strip'),lad=$('ladder'),g=flowGood(code);
-  $('dtitle').textContent=(g&&g.name)||code;
+  $('dtitle').innerHTML=iconTag(code)+esc((g&&g.name)||code);
   renderTrend(code);
   if(!b||(!b.bids.length&&!b.asks.length)){
     $('dsub').textContent=BOOKS?'no book':'loading…';
@@ -778,14 +787,27 @@ async function ensureTrades(code){
   TRADES[code]=rows;
   return rows;
 }
-async function ensureUsers(){
-  if(USERS)return USERS;
-  var u=await grab('users.json',false);
-  var cols=u.columns||[],ix={},out={};
-  for(var i=0;i<cols.length;i++)ix[cols[i]]=i;
-  for(var id in (u.users||{}))out[id]=u.users[id][ix.username];
-  USERS=out;
-  return USERS;
+/* One fetch, however many callers ask at once: the list is 2.7 MB. A failed fetch is
+   forgotten so the next good opened can try again. */
+var USERS_P=null;
+function ensureUsers(){
+  if(USERS)return Promise.resolve(USERS);
+  if(USERS_P)return USERS_P;
+  USERS_P=grab('users.json',false).then(function(u){
+    var cols=u.columns||[],ix={},out={};
+    for(var i=0;i<cols.length;i++)ix[cols[i]]=i;
+    for(var id in (u.users||{}))out[id]=u.users[id][ix.username];
+    USERS=out;
+    return USERS;
+  },function(e){USERS_P=null;throw e});
+  return USERS_P;
+}
+/* What an order's hover says about who placed it. The book used to be drawn before the
+   names arrived and never again, so every order read as a 24-character account id. */
+function playerName(id){
+  if(!id)return null;
+  if(!USERS)return 'loading name\u2026';
+  return USERS[id]||'a player not in the name list yet';
 }
 
 /* Anchored to the feed's own timestamp rather than this browser's clock. Every other
@@ -1072,6 +1094,9 @@ async function openGood(code,repaint){
   if(repaint!==false){renderOverview();renderDetail()}
   else renderDetail();
   autoLive(code);
+  // Names do not depend on this good having fills, and the book needs them as much as the
+  // trader table does, so they load on their own and redraw whatever good is open.
+  if(!USERS)ensureUsers().then(function(){renderDetail()},function(){/* ids will do */});
   if(TRADES[code])return;
   try{
     await ensureTrades(code);
