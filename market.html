@@ -94,6 +94,13 @@ td.good,th.good{text-align:left}
 /* The game's own item art, the same images coach uses. */
 .ico{width:18px;height:18px;vertical-align:-4px;margin-right:6px;border-radius:3px}
 h2 .ico,#dtitle .ico{width:22px;height:22px;vertical-align:-5px}
+/* Tap-to-show for screens with no hover: the same text the tooltip carries. */
+.tap-tip{position:fixed;z-index:50;max-width:min(320px,calc(100vw - 24px));padding:7px 10px;
+  border:1px solid var(--line);border-radius:7px;background:var(--panel-2);color:var(--ink);
+  font-size:12.5px;line-height:1.4;box-shadow:0 6px 20px rgba(0,0,0,.45);pointer-events:none}
+.tapped{outline:1px solid var(--brass);outline-offset:-1px}
+/* iOS only delivers a tap on a plain div to a page-level listener if the div looks clickable. */
+@media (hover:none){#ladder [title],#strip [title]{cursor:pointer}}
 tbody tr{cursor:pointer}
 tbody tr:hover{background:rgba(var(--brass-rgb),.08)}
 tbody tr.sel{background:rgba(var(--brass-rgb),.15)}
@@ -605,7 +612,41 @@ function renderTrend(code){
   el.innerHTML=html;
 }
 
+/* ---- Tap to show ---------------------------------------------------------------------
+   Who placed an order and how long it has rested live in the row's tooltip, and a phone
+   has no hover, so on a touch screen that was unreachable. A tap shows the same text beside
+   the row; tapping it again, anywhere else, scrolling or the book redrawing closes it. Asked
+   per tap rather than once, so a tablet with a mouse attached keeps the ordinary tooltip. */
+var TAP_TIP=null;
+function hideTapTip(){
+  if(TAP_TIP){TAP_TIP.remove();TAP_TIP=null}
+  var t=document.querySelector('.tapped');if(t)t.classList.remove('tapped');
+}
+function showTapTip(el){
+  var text=el.getAttribute('title');if(!text)return;
+  hideTapTip();
+  var tip=document.createElement('div');
+  tip.className='tap-tip';tip.setAttribute('role','status');tip.textContent=text;
+  document.body.appendChild(tip);
+  var r=el.getBoundingClientRect(),w=tip.offsetWidth,h=tip.offsetHeight,
+      vw=document.documentElement.clientWidth,vh=window.innerHeight;
+  var left=Math.min(Math.max(12,r.left+r.width/2-w/2),vw-w-12),top=r.bottom+6;
+  if(top+h>vh-8)top=Math.max(8,r.top-h-6);
+  tip.style.left=left+'px';tip.style.top=top+'px';
+  el.classList.add('tapped');TAP_TIP=tip;
+}
+function noHover(){return !!(window.matchMedia&&window.matchMedia('(hover: none)').matches)}
+document.addEventListener('click',function(e){
+  if(!noHover()){if(TAP_TIP)hideTapTip();return}
+  var el=e.target.closest&&e.target.closest('#ladder [title], #strip [title]');
+  if(el&&!el.classList.contains('tapped')){showTapTip(el);return}
+  hideTapTip();
+});
+// Capture, so a scroll inside the book's own box closes it as well as a page scroll.
+document.addEventListener('scroll',function(){if(TAP_TIP)hideTapTip()},{passive:true,capture:true});
+
 function renderBook(code){
+  hideTapTip();
   var b=bookFor(code),strip=$('strip'),lad=$('ladder'),g=flowGood(code);
   $('dtitle').innerHTML=iconTag(code)+esc((g&&g.name)||code);
   renderTrend(code);
