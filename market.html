@@ -100,7 +100,8 @@ h2 .ico,#dtitle .ico{width:22px;height:22px;vertical-align:-5px}
   font-size:12.5px;line-height:1.4;box-shadow:0 6px 20px rgba(0,0,0,.45);pointer-events:none}
 .tapped{outline:1px solid var(--brass);outline-offset:-1px}
 /* iOS only delivers a tap on a plain div to a page-level listener if the div looks clickable. */
-@media (hover:none){#ladder [title],#strip [title]{cursor:pointer}}
+#ladder [data-tip],#strip [data-tip]{cursor:pointer}
+#ladder [data-tip]:focus-visible,#strip [data-tip]:focus-visible{outline:1px solid var(--brass);outline-offset:-1px}
 tbody tr{cursor:pointer}
 tbody tr:hover{background:rgba(var(--brass-rgb),.08)}
 tbody tr.sel{background:rgba(var(--brass-rgb),.15)}
@@ -531,7 +532,7 @@ function collapse(side,whales){
 function levelRow(l,depth,k,band){
   if(!l)return '<div class="'+k+'"><span>—</span><span></span></div>';
   var w=Math.max(2,Math.round(l.quantity/depth*100));
-  return '<div class="'+k+' bar-bg'+(l.mine?' mine':'')+bandClass(l,band)+'" title="'+esc(
+  return '<div class="'+k+' bar-bg'+(l.mine?' mine':'')+bandClass(l,band)+'"'+TIP+'"'+esc(
       l.orders+(l.orders===1?' order':' orders')+' at '+px(l.price)+
       ' · '+units(l.quantity)+' here · '+units(l.cum)+' to this price'+bandNote(l,band))+'">'+
     '<i style="width:'+w+'%"></i>'+
@@ -554,7 +555,7 @@ function bookFor(code){
   return {bids:(b.buy_orders||[]).slice(),asks:(b.sell_orders||[]).slice(),at:row.book_fetched_at};
 }
 function cell(label,value,k,tip,sub){
-  return '<div'+(tip?(' title="'+esc(tip)+'"'):'')+'><small>'+esc(label)+'</small>'+
+  return '<div'+(tip?(TIP+'"'+esc(tip)+'"'):'')+'><small>'+esc(label)+'</small>'+
     '<b class="'+(k||'')+'">'+esc(value)+'</b>'+
     (sub?('<em> '+esc(sub)+'</em>'):'')+'</div>';
 }
@@ -578,7 +579,7 @@ function side(o,depth,k,whales,band){
   var mine=whales&&o.user&&whales[o.user];
   var rested=restedFor(o),who=playerName(o.user);
   return '<div class="'+k+' bar-bg'+(mine?' mine':'')+bandClass(o,band)+'"'+
-    (' title="'+esc((o.user?(who+(rested==null?'':' resting '+age(rested))):px(o.price))+
+    (TIP+'"'+esc((o.user?(who+(rested==null?'':' resting '+age(rested))):px(o.price))+
                     bandNote(o,band))+'"')+
     '><i style="width:'+w+'%"></i>'+
     '<span'+(mine?' class="whale"':'')+'>'+(mine?'\u25c6 ':'')+px(o.price)+'</span>'+
@@ -612,18 +613,22 @@ function renderTrend(code){
   el.innerHTML=html;
 }
 
-/* ---- Tap to show ---------------------------------------------------------------------
-   Who placed an order and how long it has rested live in the row's tooltip, and a phone
-   has no hover, so on a touch screen that was unreachable. A tap shows the same text beside
-   the row; tapping it again, anywhere else, scrolling or the book redrawing closes it. Asked
-   per tap rather than once, so a tablet with a mouse attached keeps the ordinary tooltip. */
+/* ---- Tap or click to show -----------------------------------------------------------
+   Who placed an order, how long it has rested and whether it counts toward the imbalance.
+   A tap or a click shows it beside the row; tapping or clicking it again, anywhere else,
+   Escape, scrolling or the book redrawing closes it. It was a hover tooltip on a computer
+   and this on a phone; one behaviour everywhere is easier to learn, and a hover tooltip on
+   rows this close together kept popping up over the one you were reading. The text sits in
+   data-tip rather than title so the browser does not show its own tooltip on top. Rows take
+   focus, so Enter or Space opens one from the keyboard too. */
+var TIP=' tabindex="0" role="button" data-tip=';
 var TAP_TIP=null;
 function hideTapTip(){
   if(TAP_TIP){TAP_TIP.remove();TAP_TIP=null}
   var t=document.querySelector('.tapped');if(t)t.classList.remove('tapped');
 }
 function showTapTip(el){
-  var text=el.getAttribute('title');if(!text)return;
+  var text=el.getAttribute('data-tip');if(!text)return;
   hideTapTip();
   var tip=document.createElement('div');
   tip.className='tap-tip';tip.setAttribute('role','status');tip.textContent=text;
@@ -635,12 +640,17 @@ function showTapTip(el){
   tip.style.left=left+'px';tip.style.top=top+'px';
   el.classList.add('tapped');TAP_TIP=tip;
 }
-function noHover(){return !!(window.matchMedia&&window.matchMedia('(hover: none)').matches)}
+function toggleTip(el){if(el.classList.contains('tapped'))hideTapTip();else showTapTip(el)}
 document.addEventListener('click',function(e){
-  if(!noHover()){if(TAP_TIP)hideTapTip();return}
-  var el=e.target.closest&&e.target.closest('#ladder [title], #strip [title]');
-  if(el&&!el.classList.contains('tapped')){showTapTip(el);return}
-  hideTapTip();
+  var el=e.target.closest&&e.target.closest('#ladder [data-tip], #strip [data-tip]');
+  if(el){toggleTip(el);return}
+  if(TAP_TIP)hideTapTip();
+});
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){if(TAP_TIP)hideTapTip();return}
+  if(e.key!=='Enter'&&e.key!==' ')return;
+  var el=e.target.closest&&e.target.closest('#ladder [data-tip], #strip [data-tip]');
+  if(el){e.preventDefault();toggleTip(el)}
 });
 // Capture, so a scroll inside the book's own box closes it as well as a page scroll.
 document.addEventListener('scroll',function(){if(TAP_TIP)hideTapTip()},{passive:true,capture:true});
@@ -733,7 +743,8 @@ function renderBook(code){
     (b.live?'Live from the game. ':'')+
     ((b.bids.length>=100||b.asks.length>=100)
       ? 'A side showing 100 orders is at the game’s cap, so the queue behind it is unknown.'
-      : 'Both sides are under the 100-order cap, so this is the whole book.');
+      : 'Both sides are under the 100-order cap, so this is the whole book.')+
+    ' Tap or click an order to see who placed it.';
 }
 
 /* ---- Clearing rate ----------------------------------------------------------------
