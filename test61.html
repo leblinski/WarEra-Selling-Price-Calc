@@ -5783,6 +5783,14 @@ function paintAim(){
   // Before prices land the rarity can be anything; rname would throw on it.
   var t=state.tier;
   if(!(t>=1&&t<=6)){el.innerHTML='';$('aimLabel').textContent='';$('aimFoot').textContent='';return}
+  // Until a rarity is picked, state.tier is only the default. The card above asks "Which
+  // rarity would you craft?" and this headed itself Uncommon underneath, so wait the same way.
+  if(!tierKnown()){
+    $('aimLabel').innerHTML='Aim at one slot instead? '+
+      '<span class="craft-aim-note">same scraps, twice the steel</span>';
+    el.innerHTML='<div class="craft-row"><span>Pick a rarity above to compare its slots.</span></div>';
+    $('aimFoot').textContent='';return
+  }
   var a=craftAimed(t,resaleNet(),craftCount());
   $('aimLabel').innerHTML='Aim at one slot instead? '+rname(t-1)+
     ' <span class="craft-aim-note">same scraps, twice the steel</span>';
